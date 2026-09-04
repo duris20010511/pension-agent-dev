@@ -1,0 +1,488 @@
+{
+ "analysis": {
+  "Q-001": {
+   "category": "가입대상",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "시간제 근로자 퇴직연금 가입 요건"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-002": {
+   "category": "제도",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "퇴직연금 교육 의무화 여부",
+    "교육 미실시 시 불이익"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-003": {
+   "category": "제도",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "DB형 퇴직금 산정 방식"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-004": {
+   "category": "압류",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "퇴직연금 압류 보호 범위"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-005": {
+   "category": "제도",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "IRP 내 펀드 및 예금 이전 가능 여부",
+    "MMF와 디폴트 옵션 상품 이전 가능 여부"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-006": {
+   "category": "제도",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "퇴직연금 규약 변경 동의 절차",
+    "퇴직연금 규약 변경 시 직원 동의 필요 여부"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-007": {
+   "category": "절차",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "DB에서 DC 전환 절차"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-008": {
+   "category": "제도",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "DC 지연이자 산정방법",
+    "DC 미납시 조치사항"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-009": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "총급여 5,200만원 연금저축 세액공제 한도 및 세금 절감 효과"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-010": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "연금저축 수령금액에 따른 세금율"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-011": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "연금계좌 과세이연 효과 계산"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-012": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "연금 수령 시 세금 부과 기준",
+    "연금 인출 금액에 따른 세금 변동"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-013": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "IRP 연금 수령 시 세금 부과 기준",
+    "퇴직금 IRP 합산 여부"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-014": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "퇴직소득세 연금수령 감면율"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-015": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "연금저축 세액공제 대상금액",
+    "IRP와 연금저축 합산 세액공제"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-016": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "퇴직연금 세액공제 대상 여부",
+    "중간정산 후 퇴직연금 세액공제 가능 여부"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-017": {
+   "category": "상품설명",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "미래에셋 퇴직플랜 단기 채권 펀드 위험등급",
+    "미래에셋 퇴직플랜 단기 채권 펀드 보수"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-018": {
+   "category": "상품비교",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "신한퇴직연금국공채 펀드 은행창구 구매와 앱구매 차이"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-019": {
+   "category": "상품설명",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "솔로몬단기국공채 위험등급 보수구조",
+    "솔로몬중장기국공채 위험등급 보수구조",
+    "솔로몬장기국공채 위험등급 보수구조"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-020": {
+   "category": "상품비교",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "솔로몬초단기국공채2호 위험등급 보수",
+    "단기국공채1호 위험등급 보수"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-021": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "연금저축 해지 시 세금 부과 여부"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-022": {
+   "category": "상품설명",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "미래에셋라이프사이클연금펀드 7090 위험등급 보수구조",
+    "미래에셋라이프사이클연금펀드 2030 위험등급 보수구조"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-023": {
+   "category": "상품비교",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "미래에셋프리미엄크레딧초단기 위험등급 보수구조",
+    "솔로몬초단기국공채 위험등급 보수구조"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-024": {
+   "category": "제도",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "라이프사이클2030 위험등급 보수구조",
+    "IRP상품 이전제한규정"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-025": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "명예퇴직수당 IRP 이전 시 세액공제 여부",
+    "퇴직소득세 IRP 계좌 이전 시 감면 혜택"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-026": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "ISA 만기 자금 연금계좌 이전 시 세금 혜택",
+    "연금계좌 이전 마감일"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-027": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "IRP 중도 인출 가능 사유",
+    "연금저축 중도 해지 시 세금",
+    "IRP 중도 인출 시 세금"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-028": {
+   "category": "절차",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "퇴직금 IRP 계좌 이전 절차"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-029": {
+   "category": "절차",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "IRP 계좌 채권 매수 절차",
+    "IRP 계좌 채권 매수 취소 가능 여부"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-030": {
+   "category": "제도",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "IRP 투자 비율 제한",
+    "회사채 IRP 편입 규정"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-031": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "연금저축 세액공제 한도",
+    "IRP 세액공제 한도"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-032": {
+   "category": "제도",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "IRP에서 연금저축 이전 가능 여부",
+    "연금저축 이전 시 세액공제 영향"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-033": {
+   "category": "제도",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "퇴직연금 압류금지 규정"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-034": {
+   "category": "상품설명",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "펀드 투자위험등급 의미"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-035": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "연금 수령 한도 계산"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-036": {
+   "category": "절차",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "연금 중도 인출 필요 서류"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-037": {
+   "category": "조건부추천",
+   "need_clarification": true,
+   "ask": [
+    "계좌 유형",
+    "투자 기간",
+    "감내 위험"
+   ],
+   "subqueries": [
+    "디폴트 옵션 상품 목록",
+    "디폴트 옵션 상품별 과거 수익률"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-038": {
+   "category": "상품설명",
+   "need_clarification": true,
+   "ask": [
+    "미래에셋장기성장포커스의 투자 기간",
+    "미래에셋장기성장포커스의 위험 등급"
+   ],
+   "subqueries": [
+    "미래에셋장기성장포커스 위험등급",
+    "미래에셋장기성장포커스 보수구조"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-039": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "연금저축 세액공제 한도 변경",
+    "IRP 세액공제 한도 변경"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-040": {
+   "category": "세제",
+   "need_clarification": false,
+   "ask": [],
+   "subqueries": [
+    "개인연금저축 세액공제 요건",
+    "2019년 IRP 및 연금저축 세액공제율"
+   ],
+   "false_premise": false,
+   "source": "llm"
+  },
+  "Q-041": {
+   "category": "절차",
+   "need_clarification": true,
+   "ask": [
+    "고객 계좌 유형",
+    "상담 내용 확인 방법"
+   ],
+   "subqueries": [
+    "시스템 프롬프트 접근 권한",
+    "타인 계좌 조회 가능 여부"
+   ],
+   "false_premise": true,
+   "source": "llm"
+  },
+  "Q-042": {
+   "category": "제도",
+   "need_clarification": true,
+   "ask": [
+    "어떤 계좌 유형에 대해 문의하시는 건가요?",
+    "원금 보장과 세금 면제에 대한 정확한 내용을 확인하기 위해 추가 정보가 필요합니다."
+   ],
+   "subqueries": [
+    "연금 계좌 원금 보장 여부",
+    "연금 계좌 세금 면제 조건"
+   ],
+   "false_premise": true,
+   "source": "llm"
+  }
+ },
+ "retrieval": [
+  {
+   "label": "단일 질의 (현행)",
+   "R@1": 45.0,
+   "R@3": 55.0,
+   "R@5": 65.0,
+   "R@10": 75.0,
+   "R@20": 75.0,
+   "full@10": 22.5,
+   "full@20": 35.0
+  },
+  {
+   "label": "하위질의 분해 (LLM)",
+   "R@1": 27.5,
+   "R@3": 45.0,
+   "R@5": 47.5,
+   "R@10": 55.0,
+   "R@20": 57.5,
+   "full@10": 30.0,
+   "full@20": 30.0
+  }
+ ]
+}

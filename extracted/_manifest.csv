@@ -1,0 +1,159 @@
+﻿추출파일,원본,추출방식,페이지,문자수,보완
+docs/doc1.txt,docs_renamed/doc1.pdf,vision-transcription (이미지 PDF),3,3375,
+docs/doc2.txt,docs_renamed/doc2.pdf,vision-transcription (이미지 PDF),3,3451,
+docs/doc3.txt,docs_renamed/doc3.pdf,vision-transcription (이미지 PDF),4,4149,
+docs/doc4.txt,docs_renamed/doc4.pdf,vision-transcription (이미지 PDF),2,2285,
+docs/doc5.txt,docs_renamed/doc5.pdf,vision-transcription (이미지 PDF),4,5972,
+docs/doc6.txt,docs_renamed/doc6.docx,python-docx,,2576,포함이미지
+docs/doc7.txt,docs_renamed/doc7.pdf,vision-transcription (이미지 PDF),21,11934,
+docs/doc8.txt,docs_renamed/doc8.pdf,vision-transcription (이미지 PDF),10,3723,
+docs/doc9.txt,docs_renamed/doc9.pdf,vision-transcription (이미지 PDF),9,3931,
+docs/doc10.txt,docs_renamed/doc10.pdf,pymupdf,3,2512,
+docs/doc11.txt,docs_renamed/doc11.pdf,pymupdf,2,1466,
+docs/doc12.txt,docs_renamed/doc12.pdf,pymupdf,4,3735,
+docs/doc13.txt,docs_renamed/doc13.pdf,pymupdf,3,3015,
+docs/doc14.txt,docs_renamed/doc14.pdf,pymupdf,4,4242,
+docs/doc15.txt,docs_renamed/doc15.pdf,pymupdf,3,2355,
+docs/doc16.txt,docs_renamed/doc16.pdf,pymupdf,4,3710,
+docs/doc17.txt,docs_renamed/doc17.pdf,pymupdf,4,4460,
+docs/doc18.txt,docs_renamed/doc18.pdf,pymupdf,4,4576,
+docs/doc19.txt,docs_renamed/doc19.pdf,pymupdf,1,314,
+docs/doc20.txt,docs_renamed/doc20.docx,python-docx,,3516,
+docs/doc21.txt,docs_renamed/doc21.pdf,vision-transcription (이미지 PDF),1,2335,
+docs/doc22.txt,docs_renamed/doc22.pdf,pymupdf,5,3976,이미지페이지
+docs/doc23.txt,docs_renamed/doc23.docx,python-docx,,2853,
+docs/doc24.txt,docs_renamed/doc24.pdf,vision-transcription (이미지 PDF),16,5321,
+docs/doc25.txt,docs_renamed/doc25.docx,python-docx,,1619,
+docs/doc26.txt,docs_renamed/doc26.docx,python-docx,,2110,포함이미지
+docs/doc27.txt,docs_renamed/doc27.pdf,vision-transcription (이미지 PDF),6,21091,
+docs/doc28.txt,docs_renamed/doc28.pdf,vision-transcription (이미지 PDF),2,3534,
+docs/doc29.txt,docs_renamed/doc29.xlsx,openpyxl,,29173,
+docs/doc30.txt,docs_renamed/doc30.pdf,vision-transcription (이미지 PDF),17,6633,
+docs/doc31.txt,docs_renamed/doc31.pdf,vision-transcription (이미지 PDF),11,6248,
+docs/doc32.txt,docs_renamed/doc32.pdf,vision-transcription (이미지 PDF),15,7418,
+docs/doc33.txt,docs_renamed/doc33.pptx,python-pptx,,3112,포함이미지
+docs/doc34.txt,docs_renamed/doc34.xlsx,openpyxl,,2576,
+docs/doc35.txt,docs_renamed/doc35.docx,python-docx,,704,
+docs/doc36.txt,docs_renamed/doc36.docx,python-docx,,2094,
+docs/doc37.txt,docs_renamed/doc37.pdf,vision-transcription (이미지 PDF),8,8157,
+docs/doc38.txt,docs_renamed/doc38.docx,python-docx,,1809,
+docs/doc39.txt,docs_renamed/doc39.docx,python-docx,,3182,
+docs/doc40.txt,docs_renamed/doc40.docx,python-docx,,2005,
+docs/doc41.txt,docs_renamed/doc41.docx,python-docx,,1488,
+docs/doc42.txt,docs_renamed/doc42.docx,python-docx,,2261,
+docs/doc43.txt,docs_renamed/doc43.docx,python-docx,,3356,
+docs/doc44.txt,docs_renamed/doc44.docx,python-docx,,1377,포함이미지
+docs/doc45.txt,docs_renamed/doc45.docx,python-docx,,2354,
+docs/doc46.txt,docs_renamed/doc46.pdf,pymupdf,1,2424,
+docs/doc47.txt,docs_renamed/doc47.pdf,pymupdf,1,1007,
+docs/doc48.txt,docs_renamed/doc48.pdf,pymupdf,1,1886,
+docs/doc49.txt,docs_renamed/doc49.pdf,pymupdf,1,2356,
+docs/doc50.txt,docs_renamed/doc50.pdf,pymupdf,1,1573,
+docs/doc51.txt,docs_renamed/doc51.docx,python-docx,,2688,
+docs/doc52.txt,docs_renamed/doc52.docx,python-docx,,3837,
+docs/doc53.txt,docs_renamed/doc53.pdf,pymupdf,2,3386,이미지페이지
+docs/doc54.txt,docs_renamed/doc54.pdf,vision-transcription (이미지 PDF),18,13037,
+docs/doc55.txt,docs_renamed/doc55.docx,python-docx,,43954,포함이미지
+docs/doc56.txt,docs_renamed/doc56.pdf,vision-transcription (이미지 PDF),2,1749,
+docs/doc57.txt,docs_renamed/doc57.pdf,pymupdf + vision-transcription (상단 이미지 영역 보완),1,543,
+docs/doc58.txt,docs_renamed/doc58.pdf,pymupdf + vision-transcription (2~3페이지 표는 이미지),3,3722,
+prospectus/KR510902511M.txt,투자설명서/KR510902511M/R2_KR510902511M.pdf,pymupdf,62,86345,
+prospectus/KR510902773M.txt,투자설명서/KR510902773M/R2_KR510902773M.pdf,pymupdf,60,88769,
+prospectus/KR510902777M.txt,투자설명서/KR510902777M/R2_KR510902777M.pdf,pymupdf,64,91768,
+prospectus/KR5110501016.txt,투자설명서/KR5110501016/R2_KR5110501016.pdf,pymupdf,62,81769,이미지페이지
+prospectus/KR5110601022.txt,투자설명서/KR5110601022/R2_KR5110601022.pdf,pymupdf,65,86740,
+prospectus/KR5111420047.txt,투자설명서/KR5111420047/R2_KR5111420047.pdf,pymupdf,68,90478,이미지페이지
+prospectus/KR5111450067.txt,투자설명서/KR5111450067/R2_KR5111450067.pdf,pymupdf,77,100821,
+prospectus/KR5113420012.txt,투자설명서/KR5113420012/R2_KR5113420012.pdf,pymupdf,75,75092,이미지페이지
+prospectus/KR5113420013.txt,투자설명서/KR5113420013/R2_KR5113420013.pdf,pymupdf,81,80967,이미지페이지
+prospectus/KR5113420015.txt,투자설명서/KR5113420015/R2_KR5113420015.pdf,pymupdf,81,80967,이미지페이지
+prospectus/KR5113420069.txt,투자설명서/KR5113420069/R2_KR5113420069.pdf,pymupdf,88,89761,이미지페이지
+prospectus/KR5113450111.txt,투자설명서/KR5113450111/R2_KR5113450111.pdf,pymupdf,75,75465,이미지페이지
+prospectus/KR5113450401.txt,투자설명서/KR5113450401/R2_KR5113450401.pdf,pymupdf,86,86819,이미지페이지
+prospectus/KR5113470030.txt,투자설명서/KR5113470030/R2_KR5113470030.pdf,pymupdf,80,81017,이미지페이지
+prospectus/KR5113470031.txt,투자설명서/KR5113470031/R2_KR5113470031.pdf,pymupdf,80,81017,이미지페이지
+prospectus/KR5114420016.txt,투자설명서/KR5114420016/R2_KR5114420016.pdf,pymupdf,100,102056,이미지페이지
+prospectus/KR5114420022.txt,투자설명서/KR5114420022/R2_KR5114420022.pdf,pymupdf,73,78366,이미지페이지
+prospectus/KR5114420027.txt,투자설명서/KR5114420027/R2_KR5114420027.pdf,pymupdf,90,91829,이미지페이지
+prospectus/KR5114420046.txt,투자설명서/KR5114420046/R2_KR5114420046.pdf,pymupdf,64,66008,이미지페이지
+prospectus/KR5114450222.txt,투자설명서/KR5114450222/R2_KR5114450222.pdf,pymupdf,77,81466,이미지페이지
+prospectus/KR5114450270.txt,투자설명서/KR5114450270/R2_KR5114450270.pdf,pymupdf,64,68488,이미지페이지
+prospectus/KR5116501001.txt,투자설명서/KR5116501001/R2_KR5116501001.pdf,pymupdf,60,79012,이미지페이지
+prospectus/KR5117420097.txt,투자설명서/KR5117420097/R2_KR5117420097.pdf,pymupdf,55,79276,
+prospectus/KR5118201004.txt,투자설명서/KR5118201004/R2_KR5118201004.pdf,pymupdf,72,91315,
+prospectus/KR5118420006.txt,투자설명서/KR5118420006/R2_KR5118420006.pdf,pymupdf,65,83262,
+prospectus/KR5118420036.txt,투자설명서/KR5118420036/R2_KR5118420036.pdf,pymupdf,74,89771,
+prospectus/KR5118420062.txt,투자설명서/KR5118420062/R2_KR5118420062.pdf,pymupdf,63,85436,
+prospectus/KR5119450058.txt,투자설명서/KR5119450058/R2_KR5119450058.pdf,pymupdf,64,93670,이미지페이지
+prospectus/KR5119501001.txt,투자설명서/KR5119501001/R2_KR5119501001.pdf,pymupdf,50,70847,이미지페이지
+prospectus/KR5119520012.txt,투자설명서/KR5119520012/R2_KR5119520012.pdf,pymupdf,65,96519,이미지페이지
+prospectus/KR5120420039.txt,투자설명서/KR5120420039/R2_KR5120420039.pdf,pymupdf,80,104044,
+prospectus/KR5120420091.txt,투자설명서/KR5120420091/R2_KR5120420091.pdf,pymupdf,81,102493,이미지페이지
+prospectus/KR5120450015.txt,투자설명서/KR5120450015/R2_KR5120450015.pdf,pymupdf,89,114310,이미지페이지
+prospectus/KR5120450018.txt,투자설명서/KR5120450018/R2_KR5120450018.pdf,pymupdf,89,114327,이미지페이지
+prospectus/KR5120451001.txt,투자설명서/KR5120451001/R2_KR5120451001.pdf,pymupdf,75,89406,
+prospectus/KR5122420005.txt,투자설명서/KR5122420005/R2_KR5122420005.pdf,pymupdf,70,105730,
+prospectus/KR5123365001.txt,투자설명서/KR5123365001/R2_KR5123365001.pdf,pymupdf,44,68321,
+prospectus/KR5123420015.txt,투자설명서/KR5123420015/R2_KR5123420015.pdf,pymupdf,55,86274,
+prospectus/KR5123420039.txt,투자설명서/KR5123420039/R2_KR5123420039.pdf,pymupdf,55,77078,
+prospectus/KR5123420049.txt,투자설명서/KR5123420049/R2_KR5123420049.pdf,pymupdf,55,84484,
+prospectus/KR5123490013.txt,투자설명서/KR5123490013/R2_KR5123490013.pdf,pymupdf,65,101911,
+prospectus/KR5123490016.txt,투자설명서/KR5123490016/R2_KR5123490016.pdf,pymupdf,65,101911,
+prospectus/KR5123490017.txt,투자설명서/KR5123490017/R2_KR5123490017.pdf,pymupdf,65,101911,
+prospectus/KR5125450023.txt,투자설명서/KR5125450023/R2_KR5125450023.pdf,pymupdf,61,99550,
+prospectus/KR5125450070.txt,투자설명서/KR5125450070/R2_KR5125450070.pdf,pymupdf,59,94456,
+prospectus/KR5127420034.txt,투자설명서/KR5127420034/R2_KR5127420034.pdf,pymupdf,48,71132,
+prospectus/KR5127420039.txt,투자설명서/KR5127420039/R2_KR5127420039.pdf,pymupdf,48,71132,
+prospectus/KR5127420045.txt,투자설명서/KR5127420045/R2_KR5127420045.pdf,pymupdf,52,74089,
+prospectus/KR5127420083.txt,투자설명서/KR5127420083/R2_KR5127420083.pdf,pymupdf,48,68925,
+prospectus/KR5127450117.txt,투자설명서/KR5127450117/R2_KR5127450117.pdf,pymupdf,51,75737,
+prospectus/KR5127450215.txt,투자설명서/KR5127450215/R2_KR5127450215.pdf,pymupdf,52,77087,
+prospectus/KR5127450217.txt,투자설명서/KR5127450217/R2_KR5127450217.pdf,pymupdf,52,77087,
+prospectus/KR5127450473.txt,투자설명서/KR5127450473/R2_KR5127450473.pdf,pymupdf,53,76180,이미지페이지
+prospectus/KR5129420025.txt,투자설명서/KR5129420025/R2_KR5129420025.pdf,pymupdf,80,115379,
+prospectus/KR5129420031.txt,투자설명서/KR5129420031/R2_KR5129420031.pdf,pymupdf,70,98188,이미지페이지
+prospectus/KR5131420007.txt,투자설명서/KR5131420007/R2_KR5131420007.pdf,pymupdf,53,80717,
+prospectus/KR5131420025.txt,투자설명서/KR5131420025/R2_KR5131420025.pdf,pymupdf,49,74863,
+prospectus/KR5139420015.txt,투자설명서/KR5139420015/R2_KR5139420015.pdf,pymupdf,60,89821,
+prospectus/KR5139420020.txt,투자설명서/KR5139420020/R2_KR5139420020.pdf,pymupdf,54,73325,이미지페이지
+prospectus/KR5144420020.txt,투자설명서/KR5144420020/R2_KR5144420020.pdf,pymupdf,74,108432,
+prospectus/KR5144420081.txt,투자설명서/KR5144420081/R2_KR5144420081.pdf,pymupdf,76,118566,
+prospectus/KR5144420091.txt,투자설명서/KR5144420091/R2_KR5144420091.pdf,pymupdf,70,108885,
+prospectus/KR5144450095.txt,투자설명서/KR5144450095/R2_KR5144450095.pdf,pymupdf,72,113961,
+prospectus/KR5147430065.txt,투자설명서/KR5147430065/R2_KR5147430065.pdf,pymupdf,57,80219,이미지페이지
+prospectus/KR514X450008.txt,투자설명서/KR514X450008/R2_KR514X450008.pdf,pymupdf,59,82497,
+prospectus/KR5152420028.txt,투자설명서/KR5152420028/R2_KR5152420028.pdf,pymupdf,53,81231,
+prospectus/KR515302022M.txt,투자설명서/KR515302022M/R2_KR515302022M.pdf,pymupdf,68,106742,이미지페이지
+prospectus/KR5153420022.txt,투자설명서/KR5153420022/R2_KR5153420022.pdf,pymupdf,60,90644,
+prospectus/KR5153420063.txt,투자설명서/KR5153420063/R2_KR5153420063.pdf,pymupdf,57,77849,
+prospectus/KR5153420079.txt,투자설명서/KR5153420079/R2_KR5153420079.pdf,pymupdf,61,85151,
+prospectus/KR5153420105.txt,투자설명서/KR5153420105/R2_KR5153420105.pdf,pymupdf,63,86102,
+prospectus/KR5153420318.txt,투자설명서/KR5153420318/R2_KR5153420318.pdf,pymupdf,67,98266,
+prospectus/KR5153420339.txt,투자설명서/KR5153420339/R2_KR5153420339.pdf,pymupdf,51,73397,
+prospectus/KR5153450009.txt,투자설명서/KR5153450009/R2_KR5153450009.pdf,pymupdf,49,69106,
+prospectus/KR5153450112.txt,투자설명서/KR5153450112/R2_KR5153450112.pdf,pymupdf,85,131018,이미지페이지
+prospectus/KR5153450209.txt,투자설명서/KR5153450209/R2_KR5153450209.pdf,pymupdf,49,70494,
+prospectus/KR5153450250.txt,투자설명서/KR5153450250/R2_KR5153450250.pdf,pymupdf,49,68771,
+prospectus/KR5153450268.txt,투자설명서/KR5153450268/R2_KR5153450268.pdf,pymupdf,65,92188,
+prospectus/KR5153450431.txt,투자설명서/KR5153450431/R2_KR5153450431.pdf,pymupdf,61,87181,
+prospectus/KR5153450658.txt,투자설명서/KR5153450658/R2_KR5153450658.pdf,pymupdf,66,91062,
+prospectus/KR5153450772.txt,투자설명서/KR5153450772/R2_KR5153450772.pdf,pymupdf,65,90512,
+prospectus/KR5153450785.txt,투자설명서/KR5153450785/R2_KR5153450785.pdf,pymupdf,64,88078,
+prospectus/KR5153450791.txt,투자설명서/KR5153450791/R2_KR5153450791.pdf,pymupdf,49,68144,
+prospectus/KR5153451009.txt,투자설명서/KR5153451009/R2_KR5153451009.pdf,pymupdf,62,88233,
+prospectus/KR5153520012.txt,투자설명서/KR5153520012/R2_KR5153520012.pdf,pymupdf,53,74463,
+prospectus/KR5156450026.txt,투자설명서/KR5156450026/R2_KR5156450026.pdf,pymupdf,60,96882,이미지페이지
+prospectus/KR5157420003.txt,투자설명서/KR5157420003/R2_KR5157420003.pdf,pymupdf,67,88785,
+prospectus/KR5157450017.txt,투자설명서/KR5157450017/R2_KR5157450017.pdf,pymupdf,67,92383,
+prospectus/KR5157450090.txt,투자설명서/KR5157450090/R2_KR5157450090.pdf,pymupdf,81,109516,
+prospectus/KR5160420009.txt,투자설명서/KR5160420009/R2_KR5160420009.pdf,pymupdf,56,87462,
+prospectus/KR516702010M.txt,투자설명서/KR516702010M/R2_KR516702010M.pdf,pymupdf,44,77644,
+prospectus/KR5169950018.txt,투자설명서/KR5169950018/R2_KR5169950018.pdf,pymupdf,73,101494,
+prospectus/KR5172450019.txt,투자설명서/KR5172450019/R2_KR5172450019.pdf,pymupdf,52,78583,
+prospectus/KR5174420011.txt,투자설명서/KR5174420011/R2_KR5174420011.pdf,pymupdf,52,80905,
+prospectus/KR518101002M.txt,투자설명서/KR518101002M/R2_KR518101002M.pdf,pymupdf,54,74611,
+prospectus/KR518101012M.txt,투자설명서/KR518101012M/R2_KR518101012M.pdf,pymupdf,71,67454,이미지페이지
+prospectus/KR518102001M.txt,투자설명서/KR518102001M/R2_KR518102001M.pdf,pymupdf,49,69106,
+prospectus/KR5185450009.txt,투자설명서/KR5185450009/R2_KR5185450009.pdf,pymupdf,59,92590,
+prospectus/KR5194450018.txt,투자설명서/KR5194450018/R2_KR5194450018.pdf,pymupdf,69,77453,이미지페이지
+prospectus/KR555202013M.txt,투자설명서/KR555202013M/R2_KR555202013M.pdf,pymupdf,48,73526,

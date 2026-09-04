@@ -1,0 +1,100 @@
+[
+ {
+  "k": 6,
+  "pass": 12,
+  "total": 24,
+  "stable": 6,
+  "items": 8,
+  "detail": {
+   "Q-008": [
+    false,
+    false,
+    false
+   ],
+   "Q-012": [
+    false,
+    true,
+    false
+   ],
+   "Q-019": [
+    true,
+    true,
+    true
+   ],
+   "Q-035": [
+    true,
+    true,
+    true
+   ],
+   "Q-036": [
+    true,
+    true,
+    false
+   ],
+   "Q-040": [
+    false,
+    false,
+    false
+   ],
+   "Q-041": [
+    true,
+    true,
+    true
+   ],
+   "Q-042": [
+    false,
+    false,
+    false
+   ]
+  }
+ },
+ {
+  "k": 20,
+  "pass": 12,
+  "total": 24,
+  "stable": 6,
+  "items": 8,
+  "detail": {
+   "Q-008": [
+    false,
+    false,
+    false
+   ],
+   "Q-012": [
+    true,
+    false,
+    false
+   ],
+   "Q-019": [
+    true,
+    true,
+    true
+   ],
+   "Q-035": [
+    true,
+    true,
+    true
+   ],
+   "Q-036": [
+    false,
+    true,
+    true
+   ],
+   "Q-040": [
+    false,
+    false,
+    false
+   ],
+   "Q-041": [
+    true,
+    true,
+    true
+   ],
+   "Q-042": [
+    false,
+    false,
+    false
+   ]
+  }
+ }
+]

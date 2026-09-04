@@ -1,0 +1,583 @@
+{
+ "Q-001": {
+  "n": 5,
+  "union": 5,
+  "merged": 5,
+  "best_draft": 5,
+  "per_draft": [
+   5,
+   5,
+   5
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   333,
+   359,
+   514
+  ],
+  "len_merged": 581
+ },
+ "Q-004": {
+  "n": 5,
+  "union": 5,
+  "merged": 5,
+  "best_draft": 5,
+  "per_draft": [
+   5,
+   5,
+   5
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   433,
+   429,
+   420
+  ],
+  "len_merged": 605
+ },
+ "Q-007": {
+  "n": 7,
+  "union": 7,
+  "merged": 7,
+  "best_draft": 7,
+  "per_draft": [
+   7,
+   7,
+   7
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   614,
+   781,
+   824
+  ],
+  "len_merged": 785
+ },
+ "Q-010": {
+  "n": 5,
+  "union": 5,
+  "merged": 5,
+  "best_draft": 5,
+  "per_draft": [
+   4,
+   5,
+   5
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   469,
+   782,
+   599
+  ],
+  "len_merged": 782
+ },
+ "Q-013": {
+  "n": 6,
+  "union": 6,
+  "merged": 6,
+  "best_draft": 6,
+  "per_draft": [
+   6,
+   5,
+   3
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   974,
+   730,
+   628
+  ],
+  "len_merged": 974
+ },
+ "Q-016": {
+  "err": "no drafts (병합 미발동)"
+ },
+ "Q-019": {
+  "n": 6,
+  "union": 6,
+  "merged": 5,
+  "best_draft": 6,
+  "per_draft": [
+   2,
+   6,
+   6
+  ],
+  "lost": [
+   6
+  ],
+  "gained": [],
+  "len_drafts": [
+   905,
+   853,
+   574
+  ],
+  "len_merged": 1070
+ },
+ "Q-022": {
+  "n": 6,
+  "union": 6,
+  "merged": 6,
+  "best_draft": 6,
+  "per_draft": [
+   6,
+   6,
+   6
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   686,
+   960,
+   555
+  ],
+  "len_merged": 960
+ },
+ "Q-025": {
+  "n": 6,
+  "union": 6,
+  "merged": 5,
+  "best_draft": 6,
+  "per_draft": [
+   6,
+   6,
+   4
+  ],
+  "lost": [
+   6
+  ],
+  "gained": [],
+  "len_drafts": [
+   760,
+   970,
+   683
+  ],
+  "len_merged": 1343
+ },
+ "Q-028": {
+  "n": 6,
+  "union": 6,
+  "merged": 4,
+  "best_draft": 6,
+  "per_draft": [
+   6,
+   6,
+   6
+  ],
+  "lost": [
+   5,
+   6
+  ],
+  "gained": [],
+  "len_drafts": [
+   890,
+   1041,
+   900
+  ],
+  "len_merged": 1091
+ },
+ "Q-031": {
+  "n": 6,
+  "union": 6,
+  "merged": 3,
+  "best_draft": 6,
+  "per_draft": [
+   6,
+   3,
+   3
+  ],
+  "lost": [
+   4,
+   5,
+   6
+  ],
+  "gained": [],
+  "len_drafts": [
+   969,
+   1039,
+   795
+  ],
+  "len_merged": 1007
+ },
+ "Q-034": {
+  "n": 5,
+  "union": 4,
+  "merged": 3,
+  "best_draft": 4,
+  "per_draft": [
+   3,
+   4,
+   4
+  ],
+  "lost": [
+   4
+  ],
+  "gained": [],
+  "len_drafts": [
+   812,
+   731,
+   723
+  ],
+  "len_merged": 1224
+ },
+ "Q-037": {
+  "n": 6,
+  "union": 6,
+  "merged": 3,
+  "best_draft": 6,
+  "per_draft": [
+   6,
+   6,
+   5
+  ],
+  "lost": [
+   1,
+   4,
+   6
+  ],
+  "gained": [],
+  "len_drafts": [
+   468,
+   493,
+   628
+  ],
+  "len_merged": 811
+ },
+ "Q-040": {
+  "n": 6,
+  "union": 0,
+  "merged": 0,
+  "best_draft": 0,
+  "per_draft": [
+   0,
+   0,
+   0
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   604,
+   889,
+   577
+  ],
+  "len_merged": 889
+ },
+ "Q-045": {
+  "n": 6,
+  "union": 6,
+  "merged": 4,
+  "best_draft": 6,
+  "per_draft": [
+   5,
+   6,
+   4
+  ],
+  "lost": [
+   4,
+   6
+  ],
+  "gained": [],
+  "len_drafts": [
+   608,
+   861,
+   452
+  ],
+  "len_merged": 1027
+ },
+ "Q-048": {
+  "n": 6,
+  "union": 3,
+  "merged": 3,
+  "best_draft": 3,
+  "per_draft": [
+   3,
+   3,
+   3
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   693,
+   436,
+   499
+  ],
+  "len_merged": 695
+ },
+ "Q-051": {
+  "n": 6,
+  "union": 5,
+  "merged": 0,
+  "best_draft": 3,
+  "per_draft": [
+   3,
+   2,
+   3
+  ],
+  "lost": [
+   1,
+   2,
+   3,
+   4,
+   6
+  ],
+  "gained": [],
+  "len_drafts": [
+   837,
+   659,
+   799
+  ],
+  "len_merged": 2080
+ },
+ "Q-054": {
+  "n": 7,
+  "union": 3,
+  "merged": 5,
+  "best_draft": 3,
+  "per_draft": [
+   3,
+   3,
+   3
+  ],
+  "lost": [],
+  "gained": [
+   4,
+   5
+  ],
+  "len_drafts": [
+   750,
+   921,
+   620
+  ],
+  "len_merged": 1057
+ },
+ "Q-057": {
+  "n": 6,
+  "union": 6,
+  "merged": 6,
+  "best_draft": 6,
+  "per_draft": [
+   6,
+   6,
+   5
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   604,
+   690,
+   925
+  ],
+  "len_merged": 1371
+ },
+ "Q-060": {
+  "n": 7,
+  "union": 7,
+  "merged": 4,
+  "best_draft": 7,
+  "per_draft": [
+   4,
+   7,
+   7
+  ],
+  "lost": [
+   5,
+   6,
+   7
+  ],
+  "gained": [],
+  "len_drafts": [
+   971,
+   871,
+   1183
+  ],
+  "len_merged": 1226
+ },
+ "Q-063": {
+  "n": 6,
+  "union": 6,
+  "merged": 6,
+  "best_draft": 6,
+  "per_draft": [
+   6,
+   5,
+   3
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   583,
+   792,
+   638
+  ],
+  "len_merged": 3929
+ },
+ "Q-066": {
+  "n": 5,
+  "union": 5,
+  "merged": 5,
+  "best_draft": 5,
+  "per_draft": [
+   5,
+   5,
+   4
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   593,
+   592,
+   466
+  ],
+  "len_merged": 692
+ },
+ "Q-069": {
+  "n": 6,
+  "union": 6,
+  "merged": 5,
+  "best_draft": 6,
+  "per_draft": [
+   6,
+   5,
+   5
+  ],
+  "lost": [
+   3
+  ],
+  "gained": [],
+  "len_drafts": [
+   709,
+   551,
+   750
+  ],
+  "len_merged": 972
+ },
+ "Q-072": {
+  "err": "no drafts (병합 미발동)"
+ },
+ "Q-075": {
+  "n": 7,
+  "union": 7,
+  "merged": 6,
+  "best_draft": 7,
+  "per_draft": [
+   6,
+   7,
+   6
+  ],
+  "lost": [
+   4
+  ],
+  "gained": [],
+  "len_drafts": [
+   820,
+   707,
+   1129
+  ],
+  "len_merged": 1129
+ },
+ "Q-078": {
+  "n": 5,
+  "union": 4,
+  "merged": 4,
+  "best_draft": 4,
+  "per_draft": [
+   4,
+   4,
+   4
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   673,
+   663,
+   695
+  ],
+  "len_merged": 695
+ },
+ "Q-081": {
+  "n": 6,
+  "union": 6,
+  "merged": 6,
+  "best_draft": 6,
+  "per_draft": [
+   6,
+   3,
+   6
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   524,
+   666,
+   837
+  ],
+  "len_merged": 1798
+ },
+ "Q-084": {
+  "n": 7,
+  "union": 7,
+  "merged": 7,
+  "best_draft": 7,
+  "per_draft": [
+   4,
+   7,
+   7
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   553,
+   875,
+   750
+  ],
+  "len_merged": 1041
+ },
+ "Q-087": {
+  "n": 7,
+  "union": 6,
+  "merged": 1,
+  "best_draft": 5,
+  "per_draft": [
+   4,
+   5,
+   0
+  ],
+  "lost": [
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "gained": [],
+  "len_drafts": [
+   825,
+   847,
+   688
+  ],
+  "len_merged": 981
+ },
+ "Q-090": {
+  "n": 6,
+  "union": 6,
+  "merged": 6,
+  "best_draft": 6,
+  "per_draft": [
+   6,
+   4,
+   6
+  ],
+  "lost": [],
+  "gained": [],
+  "len_drafts": [
+   749,
+   837,
+   638
+  ],
+  "len_merged": 2235
+ }
+}

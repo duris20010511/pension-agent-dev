@@ -1,0 +1,8 @@
+.env
+.git
+__pycache__/
+*.pyc
+eval/_answer_*.json
+2.연금/
+미판독문서/
+*.pdf
