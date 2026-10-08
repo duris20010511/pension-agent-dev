@@ -147,16 +147,22 @@ def is_thinking_model(name=None):
     return (name or CHAT_MODEL).upper().startswith('HCX-007')
 
 
-def chat(messages, temperature=0.2, max_tokens=2048, top_p=0.8, seed=0):
+def chat(messages, temperature=0.2, max_tokens=2048, top_p=0.8, seed=0, model=None):
     """messages = [{'role':'system'|'user'|'assistant', 'content': '...'}]
 
     추론 모델이 설정돼 있으면 chat_thinking 으로 자동 전환한다.
     (HCX-007 에 maxTokens 를 보내면 400 이 난다 — 호출부마다 분기하면 놓치기 쉽다)
+
+    model 을 주면 그 모델로 부른다. 전역 CHAT_MODEL 을 잠깐 바꿨다 되돌리는 방식은
+    스레드가 여럿이면 깨진다 — 채점 스레드가 HCX-005 로 바꾼 사이에 생성 스레드가
+    HCX-007 용 thinking 파라미터를 HCX-005 로 보내 400 이 났다(score_speed, 2026-10-07).
+    되돌리는 순서가 엇갈리면 전역이 HCX-005 로 굳을 수도 있다.
     """
-    if is_thinking_model():
+    m = model or CHAT_MODEL
+    if is_thinking_model(m):
         return chat_thinking(messages, max_tokens=max(max_tokens, 1024),
-                             temperature=temperature, top_p=top_p, seed=seed)['content']
-    url = f'{BASE}/v3/chat-completions/{CHAT_MODEL}'
+                             temperature=temperature, top_p=top_p, seed=seed, model=m)['content']
+    url = f'{BASE}/v3/chat-completions/{m}'
     out = _post(url, {
         'messages': messages,
         'temperature': temperature,
@@ -188,10 +194,10 @@ def embed(text):
 
 
 def chat_thinking(messages, max_tokens=4096, temperature=0.2, top_p=0.8, seed=0,
-                  effort='low'):
+                  effort='low', model=None):
     """HCX-007 계열 추론 모델. maxTokens 가 아니라 maxCompletionTokens 를 쓴다.
     응답에 thinkingContent(추론 과정)가 따로 담겨 온다 — 과제의 think_trace 에 그대로 쓸 수 있다."""
-    url = f'{BASE}/v3/chat-completions/{CHAT_MODEL}'
+    url = f'{BASE}/v3/chat-completions/{model or CHAT_MODEL}'
     payload = {
         'messages': messages,
         'maxCompletionTokens': max_tokens,

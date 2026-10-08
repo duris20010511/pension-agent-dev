@@ -105,24 +105,21 @@ def _judge_once(question, checklist, ans, trap, trap_note):
 hallucination: 답변에 근거 없이 지어낸 구체적 수치나 사실이 있으면 true."""
     # 채점기는 HCX-005 로 고정한다. 채점에 추론 모델을 쓸 이유가 없고(느리다),
     # 피채점 모델과 같은 모델로 채점하면 자기 답에 후해질 위험도 있다.
-    prev = clova.CHAT_MODEL
-    clova.CHAT_MODEL = os.environ.get('JUDGE_MODEL', 'HCX-005')
-    try:
-        out = ''
-        for attempt in (0, 1):
-            # 1차는 그대로, 2차는 여유를 더 주고 "why 를 짧게" 를 덧붙인다.
-            # 채점기가 잘리면 그 문항이 통째로 빠져 런마다 분모가 달라진다 —
-            # prior2 측정에서 5문항이 이렇게 날아갔고 prior 런은 1문항이었다.
-            # 분모가 다른 두 런은 비교가 안 되므로 파싱은 반드시 살려야 한다.
-            p2 = prompt if attempt == 0 else prompt + chr(10) + chr(10) + 'why 는 10자 이내로 짧게 쓰십시오. JSON 만 출력하십시오.'
-            out = clova.chat([{'role': 'system', 'content': JUDGE_SYS},
-                              {'role': 'user', 'content': p2}],
-                             temperature=0.0, max_tokens=2500)
-            got = _parse_judge(out, len(checklist))
-            if got:
-                return got
-    finally:
-        clova.CHAT_MODEL = prev
+    # 전역 CHAT_MODEL 을 바꿨다 되돌리지 않고 호출마다 모델을 넘긴다 — 생성과 채점이
+    # 다른 스레드에서 겹치면 전역 바꿔치기가 서로를 오염시킨다 (clova.chat 주석 참조).
+    jm = os.environ.get('JUDGE_MODEL', 'HCX-005')
+    for attempt in (0, 1):
+        # 1차는 그대로, 2차는 여유를 더 주고 "why 를 짧게" 를 덧붙인다.
+        # 채점기가 잘리면 그 문항이 통째로 빠져 런마다 분모가 달라진다 —
+        # prior2 측정에서 5문항이 이렇게 날아갔고 prior 런은 1문항이었다.
+        # 분모가 다른 두 런은 비교가 안 되므로 파싱은 반드시 살려야 한다.
+        p2 = prompt if attempt == 0 else prompt + chr(10) + chr(10) + 'why 는 10자 이내로 짧게 쓰십시오. JSON 만 출력하십시오.'
+        out = clova.chat([{'role': 'system', 'content': JUDGE_SYS},
+                          {'role': 'user', 'content': p2}],
+                         temperature=0.0, max_tokens=2500, model=jm)
+        got = _parse_judge(out, len(checklist))
+        if got:
+            return got
     return None
 
 
@@ -213,6 +210,9 @@ def summarize(rows, label):
 def main():
     items = json.load(io.open(EVAL, encoding='utf-8'))['items']
     idx, chunks = get_index()
+    from answer import get_hybrid
+    if get_hybrid() is None:
+        sys.exit('임베딩 캐시가 없어 측정을 멈춥니다 — BM25 단독 결과는 운영 설정과 다릅니다.')
     by_file = {}
     for c in chunks:
         by_file.setdefault(c['file'], []).append(c)

@@ -12,13 +12,18 @@
   - 어떤 예외가 나도 200 + 스키마를 지킨 JSON 을 돌려준다.
     5xx 를 내면 주최측이 재시도하는데, 재시도가 또 실패하면 그 문항은 0점이다.
     빈 답이라도 형식을 지켜 돌려주는 편이 낫다.
-  - 질의당 LLM 호출은 임베딩 1 + 채팅 1 = 2회로 묶었다 (분당 60회 한도)
-  - 동시 요청은 세마포어로 1건씩 (한도 초과 방지). 주최측도 순차 호출이라 손해가 없다.
+  - 질의당 호출은 임베딩 1 + 초안 최대 3 + 병합 0~1 이다. 부하가 높으면 초안 수를 줄인다
+    (_samples_for). CLOVA 한도(테스트 앱 키: HCX-007 분당 60회·6만 토큰)를 넘지 않는 게 관건이다.
+  - 동시 요청은 받아 두고 초안 수로 조절한다(_CONC). 세마포어로 1건씩 받던 때는
+    배치 대기 때문에 오히려 시간 초과가 났다.
 """
 import os
+import re
 import sys
+import json
 import time
 import asyncio
+import threading
 import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -27,7 +32,8 @@ from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 
 import clova
-from answer import answer, observed_call_seconds, get_index, get_hybrid
+from answer import (answer, observed_call_seconds, get_index, get_hybrid,
+                    DRAFT_EFFORT, MERGE_EFFORT, SKIP_MERGE_AT, AGENT_MODE, DEFAULT_SAMPLES)
 
 APP_START = time.time()
 # 부하 조절.
@@ -110,7 +116,8 @@ def health():
     # 배포 후 설정이 의도대로 실렸는지 눈으로 확인할 수 있게 노출한다
     return {
         "concurrency": _CONC,
-        "samples": int(os.environ.get("AGENT_SAMPLES", "3")),
+        "mode": AGENT_MODE,
+        "samples": DEFAULT_SAMPLES,
         "status": "ok",
         "uptime_sec": round(time.time() - APP_START, 1),
         "chunks": len(chunks),
@@ -118,7 +125,67 @@ def health():
         "observed_call_sec": round(observed_call_seconds(PER_CALL_S), 1),
         "chat_model": clova.CHAT_MODEL,
         "api_key": bool(clova.API_KEY),
+        "draft_effort": DRAFT_EFFORT,
+        "merge_effort": MERGE_EFFORT,
+        "skip_merge_at": SKIP_MERGE_AT,
+        "policy_excluded_chunks": sum(1 for c in chunks if c.get("policy") == "exclude"),
     }
+
+
+# ---------------------------------------------------------------- 운영 로그
+# 요청마다 한 줄씩 JSONL 로 남긴다. 실패 질의를 모아 규칙·문서를 고치는 재료다
+# (운영 사이클: 로그 → 실패 유형 분석 → 규칙·테스트 보강 → 재측정).
+# 예선 서버는 print 만 해서 어떤 질문에서 무엇이 틀렸는지 남은 게 없었다.
+# 개인정보로 보이는 숫자(주민번호·전화번호·계좌번호 꼴)는 가린다.
+# 로그 쓰기가 실패해도 응답은 나가야 하므로 예외는 삼킨다.
+LOG_DIR = os.environ.get("AGENT_LOG_DIR",
+                         os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs"))
+_log_lock = threading.Lock()
+_MASKS = [
+    (re.compile(r"\d{6}\s*-\s*[1-4]\d{6}"), "[주민번호]"),
+    (re.compile(r"01[016-9]\s*-?\s*\d{3,4}\s*-?\s*\d{4}"), "[전화번호]"),
+    (re.compile(r"\d{2,6}(?:-\d{2,8}){2,}"), "[계좌번호]"),
+    (re.compile(r"\d{10,}"), "[긴 숫자]"),
+]
+
+
+def mask(t):
+    for pat, rep_ in _MASKS:
+        t = pat.sub(rep_, t or "")
+    return t
+
+
+def _trace_field(trace, head):
+    for line in (trace or "").split("\n"):
+        if line.startswith(head):
+            return line[len(head):].strip()
+    return ""
+
+
+def log_query(question_id, question, out, elapsed, load, samples, error=None):
+    try:
+        trace = out.get("think_trace", "")
+        rec = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "question_id": question_id,
+            "question": mask(question),
+            "guard": _trace_field(trace, "가드:"),
+            "type": _trace_field(trace, "유형:"),
+            "top": next((l.split("상위:", 1)[1].strip() for l in trace.split("\n") if "상위:" in l), ""),
+            "policy_filter": _trace_field(trace, "대상 필터:"),
+            "drafts": samples or DEFAULT_SAMPLES,
+            "load": load,
+            "elapsed_s": round(elapsed, 1),
+            "answer_chars": len(out.get("answer", "")),
+            "answer": mask(out.get("answer", "")),
+            "error": error,
+        }
+        os.makedirs(LOG_DIR, exist_ok=True)
+        path = os.path.join(LOG_DIR, f"queries-{time.strftime('%Y%m%d')}.jsonl")
+        with _log_lock, open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception as e:                       # 로그 때문에 응답이 실패하면 안 된다
+        print(f"[log] 기록 실패: {e}", flush=True)
 
 
 SCHEMA_FIELDS = ("question_id", "question", "retrieved_context", "think_trace", "answer")
@@ -181,17 +248,23 @@ async def answer_endpoint(
         # 세마포어를 잡은 뒤에는 나머지가 모두 도착해 있으므로 판단이 정확하다.
         load = _inflight
         n = _samples_for(load, time.time() - t0)
+        if n is not None and n >= DEFAULT_SAMPLES:
+            n = None              # 프리셋보다 늘리지는 않는다(fast 는 초안 1개)
         try:
             # answer() 는 동기 함수 — 이벤트 루프를 막지 않도록 스레드로 넘긴다
             r = await asyncio.to_thread(answer, question, question_id, samples=n)
             note = f" (동시 {load}건, 초안 {n}개로 축소)" if n else f" (동시 {load}건)"
             r["think_trace"] = f"{r['think_trace']}\n소요 {time.time()-t0:.1f}s{note}"
-            return JSONResponse(_to_schema(r, question_id, question))
+            out = _to_schema(r, question_id, question)
+            log_query(question_id, question, out, time.time() - t0, load, n)
+            return JSONResponse(out)
         except Exception as e:
             # 5xx 를 내면 주최측이 재시도한다. 재시도도 실패하면 0점이므로
             # 형식을 지킨 200 을 돌려주는 편이 낫다.
             tb = traceback.format_exc(limit=3)
             print(f"[error] {question_id}: {e}\n{tb}", flush=True)
+            log_query(question_id, question, {}, time.time() - t0, load, n,
+                      error=f"{type(e).__name__}: {e}")
             return JSONResponse({
                 "question_id": question_id,
                 "question": question,

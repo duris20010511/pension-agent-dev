@@ -15,6 +15,8 @@ COPY extracted/ ./extracted/
 COPY .cache/ ./.cache/
 
 ENV PYTHONUNBUFFERED=1
+# 임베딩 캐시를 못 찾으면 기동을 실패시킨다. 조용히 BM25 단독으로 돌면 검색 R@10 이 87.5 → 75.0 이다.
+ENV AGENT_REQUIRE_EMB=1
 ENV PORT=80
 EXPOSE 80
 

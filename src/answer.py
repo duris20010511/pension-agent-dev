@@ -54,6 +54,8 @@ else:
     classify = classify_v1
 from rerank import rerank
 from prompts import build_system, BASE_SYSTEM
+from sources import doc_label, render_citations
+import doc_policy
 import clova
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -94,20 +96,28 @@ REFUSE = """죄송합니다. 요청하신 내용은 도와드릴 수 없습니�
 
 # ---------------------------------------------------------------- 색인 캐시
 def _fingerprint():
+    """추출본 내용으로 캐시 이름을 정한다.
+
+    전에는 파일 수정 시각을 섞었는데, 저장소를 다시 체크아웃하자 내용은 그대로인데
+    시각만 바뀌어 지문이 달라졌다. 그러자 임베딩 캐시(emb_*.npy)를 못 찾고
+    **아무 경고 없이 BM25 단독으로** 돌았다 — 로컬 측정이 배포 설정과 어긋난 채로.
+    내용 해시는 체크아웃·복사·압축 해제에 흔들리지 않는다 (158개 파일 ≈ 9MB, 0.1초).
+    """
     h = hashlib.md5()
     for sub in ('docs', 'prospectus'):
         d = os.path.join(EX, sub)
         for f in sorted(os.listdir(d)):
-            st = os.stat(os.path.join(d, f))
             h.update(f.encode())
-            h.update(str(int(st.st_mtime)).encode())
-            h.update(str(st.st_size).encode())
-    return h.hexdigest()[:12]
+            with open(os.path.join(d, f), 'rb') as fh:
+                # 줄끝(CRLF/LF)은 파이썬이 읽을 때 어차피 통일하므로 지문에서도 뺀다
+                h.update(hashlib.md5(fh.read().replace(b'\r\n', b'\n')).digest())
+    return 'c' + h.hexdigest()[:11]
 
 
 _INDEX = None
 _CHUNKS = None
 _HYBRID = None
+_EMB_WARNED = False
 
 
 def get_hybrid():
@@ -127,6 +137,18 @@ def get_hybrid():
     idx, chunks = get_index()
     p = os.path.join(CACHE, f'emb_{_fingerprint()}.npy')
     if not os.path.exists(p):
+        # 임베딩 없이 돌면 검색 R@10 이 87.5 → 75.0 으로 떨어진다. 조용히 넘어가면 안 된다.
+        # 이름(지문)만 다른 캐시가 있으면 그것도 알린다 — 실제로 겪은 고장이 그 경우였다.
+        others = sorted(f for f in os.listdir(CACHE)
+                        if f.startswith('emb_') and f.endswith('.npy') and '_docs' not in f)
+        msg = (f'[경고] 임베딩 캐시 {os.path.basename(p)} 가 없어 BM25 단독으로 동작합니다'
+               + (f' (지문이 다른 캐시: {", ".join(others)})' if others else ''))
+        if os.environ.get('AGENT_REQUIRE_EMB') == '1':
+            raise RuntimeError(msg)
+        global _EMB_WARNED
+        if not _EMB_WARNED:
+            print(msg, file=sys.stderr, flush=True)
+            _EMB_WARNED = True
         return None
     _HYBRID = Hybrid(chunks, idx.bm25, p)
     return _HYBRID
@@ -147,6 +169,10 @@ def get_index():
         _CHUNKS, _ = mark_boilerplate(_CHUNKS)
         with open(path, 'wb') as f:
             pickle.dump(_CHUNKS, f)
+    # 대상 독자 정책 — 사무담당자 업무 절차 등을 고객 답변 근거에서 뺀다 (doc_policy.py).
+    # 색인 캐시에는 넣지 않고 불러온 뒤에 단다. 정책을 고쳐도 색인을 다시 만들 필요가 없다.
+    if os.environ.get('AGENT_DOC_POLICY', '1') != '0':
+        doc_policy.apply(_CHUNKS, EX)
     _INDEX = Index(_CHUNKS)
     return _INDEX, _CHUNKS
 
@@ -175,8 +201,13 @@ def pick_base(drafts):
 
     겹침이 같으면 긴 쪽을 쓴다 — 항목을 더 담았을 가능성이 높다.
     """
+    return pick_base_scored(drafts)[0]
+
+
+def pick_base_scored(drafts):
+    """pick_base 와 같고, 고른 초안의 평균 겹침(0~1)도 함께 돌려준다 — 병합 생략 판단용."""
     if len(drafts) <= 1:
-        return drafts[0] if drafts else ''
+        return (drafts[0] if drafts else ''), 1.0
     toks = [_content_tokens(d) for d in drafts]
     best, best_score = drafts[0], -1.0
     for i, d in enumerate(drafts):
@@ -189,7 +220,7 @@ def pick_base(drafts):
         sc = (sum(sims) / len(sims)) if sims else 0.0
         if (sc, len(d)) > (best_score, len(best)):
             best, best_score = d, sc
-    return best
+    return best, best_score
 
 
 # 호출당 실제 지연. 부하 조절이 이 값으로 300초 예산을 나눈다.
@@ -261,6 +292,69 @@ MERGE_SYSTEM = """당신은 연금 상담 답변을 보강하는 편집자입니
 - 마지막 줄에 [근거] 절을 두고 사용한 문서를 표기합니다."""
 
 
+# HTML 태그. 고객 화면은 마크다운으로 그리므로 태그가 그대로 글자로 보인다.
+#
+# 실측(저장된 답변 1,842개) — <br> 103개, <u> 2개. **<br> 은 전부 표 셀 안**이었다.
+# 마크다운 표는 셀 안에서 줄을 못 바꾸니 모델이 HTML 로 우회한 것이다:
+#   | **수수료** | - 판매수수료 + 판매보수 발생<br>- 수수료미징구 클래스 적용 |
+# 본선 멘토링에서 "마크다운으로 냈는데 HTML 태그가 붙으면 안 된다"는 지적을 받았다.
+#
+# 이름을 정해 둔 태그만 다룬다. "<IRP 가입자>" 처럼 꺾쇠를 본문에 쓰는 경우가 있어
+# 영문자로 시작하는 꺾쇠를 다 지우면 내용이 사라진다.
+_HTML_TAGS = 'br|u|b|strong|i|em|span|div|p|sup|sub|font|mark|small|s|strike|del|ins|center|li|ul|ol'
+_BR = re.compile(r'<br\s*/?>', re.I)
+_TAG = re.compile(r'</?(?:' + _HTML_TAGS + r')\b[^>]{0,200}>', re.I)
+_CELL_BULLET = re.compile(r'^(?:[-•*·▪◦]|\d+[.)])\s+')
+
+
+def _join_cell(cell):
+    """표 셀 안의 <br> 줄들을 한 줄로 잇는다.
+    "- 가<br>- 나" → "가 · 나",  "**선택 가능**<br>- 종합과세<br>- 분리과세" → "**선택 가능**: 종합과세 · 분리과세"
+    """
+    parts = [p.strip() for p in _BR.split(cell)]
+    parts = [p for p in parts if p]
+    if not parts:
+        return ' '
+    bullet = [bool(_CELL_BULLET.match(p)) for p in parts]
+    if len(parts) > 1:
+        parts = [_CELL_BULLET.sub('', p) for p in parts]
+    out = parts[0]
+    for i in range(1, len(parts)):
+        out = out.rstrip()
+        if out.endswith((':', '：', ',', '，', '.', '。', '!', '?')):
+            sep = ' '                     # 이미 끊어 읽히는 자리
+        elif i == 1 and not bullet[0] and bullet[1]:
+            sep = ': '                    # 머리말 뒤에 목록이 오는 모양
+        else:
+            sep = ' · '
+        out += sep + parts[i]
+    return ' ' + out + ' '
+
+
+def html_to_markdown(t):
+    """답변에서 HTML 태그를 걷어내고 마크다운으로 바꾼다."""
+    if not t or '<' not in t:
+        return t
+    lines = []
+    for line in t.split(chr(10)):
+        if _BR.search(line):
+            if line.lstrip().startswith('|'):
+                # 표 행 — 셀 경계(|)를 지키면서 셀 안만 잇는다
+                # 같은 행의 다른 셀에 홀로 남은 "- " 도 떼어 모양을 맞춘다
+                cells = line.split('|')
+                line = '|'.join(_join_cell(c) if _BR.search(c)
+                                else re.sub(r'^(\s*)(?:[-•▪◦])\s+', r'\1', c) for c in cells)
+            else:
+                line = _BR.sub(chr(10), line)
+        lines.append(line)
+    t = chr(10).join(lines)
+    t = re.sub(r'</?(?:b|strong)\s*>', '**', t, flags=re.I)
+    t = re.sub(r'<li\b[^>]*>\s*', '- ', t, flags=re.I)
+    t = re.sub(r'</?(?:p|div|ul|ol)\b[^>]*>', chr(10), t, flags=re.I)
+    return _TAG.sub('', t)
+
+
+_MID_META = re.compile(r'(?m)^[ \t]*\**[ \t]*(?:추가|최종|보강된?)[ \t]*답변[ \t]*\**[ \t]*[:：][ \t]*\**[ \t]*')
 _MDLINK = re.compile(r'\[([^\]]{1,80})\]\(\s*[^)]{0,2000}?\)')
 _OPENLINK = re.compile(r'\[([^\]]{1,80})\]\((?![^)]{0,300}\))[^)]*')
 _URL = re.compile(r'https?://\S+')
@@ -280,6 +374,10 @@ def sanitize_answer(t):
     """
     if not t:
         return t
+    t = html_to_markdown(t)            # 표 셀 안 <br> 등
+    # 병합기가 줄 앞에 붙이는 편집 표지("추가 답변:", "최종 답변:"). 답변 중간에 나오면
+    # 고객에게는 답이 두 번 이어 붙은 것처럼 보인다(규칙 전후 비교 72답변 중 2건).
+    t = _MID_META.sub('', t)
     t = _MDLINK.sub(r'\1', t)          # [문서4](주소) -> 문서4
     t = _OPENLINK.sub(r'\1', t)        # 닫히지 않은 [문서71](... 도 걷어낸다
     t = _URL.sub('', t)
@@ -317,7 +415,40 @@ def _strip_meta(t):
     return _META.sub('', t.lstrip())
 
 
-def merge_drafts(question, ctx, drafts):
+# 추론 강도(HCX-007 thinking.effort)와 초안 수 — 응답 시간 프리셋.
+#
+# 본선 1차 멘토링에서 "답변은 깔끔한데 시간이 길다"는 지적을 받았다(예선 서버 순차 32~109초).
+# 재보니 시간의 대부분이 모델의 '생각'이었다. 짧은 질문 하나에 effort none 0.8초, low 15.4초.
+# 예선 설정은 초안 3개(low) + 병합(low) 이라 '생각'이 두 번 이어진다.
+#
+# score_speed.py 실측 — 49문항, 문항마다 같은 초안 위에서 병합 방식만 바꿔 짝비교(채점 3회 다수결):
+#                                   체크리스트   예선 대비             생성 시간(중앙값)
+#   예선   초안3(low)+병합(low)        81.1%     —                   31.8초 (부하 시 68.6초)
+#   quality 초안3(low)+병합(none)      79.5%     −1.4pp ±6.9         병합 44.4 → 10.1초
+#           초안3(low), 병합 생략       77.1%     −3.7pp ±6.5         17.8초
+#           초안1(low)                 75.1%     −5.8pp ±6.7         13.9초
+#   fast   초안1(none)                 76.1%     −5.0pp ±8.3         7.9초 (함정 97.3%)
+# 병합은 '빠진 항목 찾아 덧붙이기'라 생각을 꺼도 품질이 노이즈 범위 안에서 유지됐다.
+# 초안의 생각을 끄거나 초안을 줄이면 5pp 안팎을 잃는다.
+#
+# 병합 생략 문턱(초안끼리 겹침 ≥ τ 면 병합 생략)은 τ=0.35 에서 16%를 생략하고도 손실이 없었지만
+# 평균 1~2초밖에 못 줄여 기본값은 끈다(AGENT_SKIP_MERGE_AT).
+#
+# 토큰은 줄지 않는다는 점도 알아둘 것 — quality 도 질문당 약 4만 토큰(초안 1회 ≈ 8,700).
+# 테스트 앱 키(HCX-007 분당 6만 토큰)로는 질문이 연달아 오면 한도 대기가 생긴다.
+MODE_PRESETS = {
+    'quality': {'samples': 3, 'draft': 'low', 'merge': 'none'},   # 기본
+    'fast':    {'samples': 1, 'draft': 'none', 'merge': 'none'},  # 시연에서 체감 속도가 중요할 때
+    'max':     {'samples': 3, 'draft': 'low', 'merge': 'low'},    # 예선 제출 설정
+}
+AGENT_MODE = os.environ.get('AGENT_MODE', 'quality')
+_P = MODE_PRESETS.get(AGENT_MODE, MODE_PRESETS['quality'])
+DRAFT_EFFORT = os.environ.get('AGENT_DRAFT_EFFORT', _P['draft'])
+MERGE_EFFORT = os.environ.get('AGENT_MERGE_EFFORT', _P['merge'])
+DEFAULT_SAMPLES = int(os.environ.get('AGENT_SAMPLES', _P['samples']))
+
+
+def merge_drafts(question, ctx, drafts, effort=None):
     """초안 여러 개를 하나로 합친다. 다시 쓰지 않고 **덧붙인다**.
 
     왜 하는가 — 9개 런의 문항별 점수를 합집합으로 계산하니 천장이 크게 남아 있었다.
@@ -352,7 +483,8 @@ def merge_drafts(question, ctx, drafts):
          {'role': 'user', 'content': user}]
     try:
         if clova.is_thinking_model():
-            out = clova.chat_thinking(m, max_tokens=4096)['content']
+            out = clova.chat_thinking(m, max_tokens=4096,
+                                      effort=effort or MERGE_EFFORT)['content']
         else:
             out = clova.chat(m, max_tokens=2048)
     except Exception:
@@ -406,19 +538,24 @@ def add_siblings(hits, eq, trace):
     for f in files:
         for n, c in H.rank_within(eq, f, exclude=ex_idx, topk=ns, qvec=qvec):
             ex_idx.add(n)
-            extra.append((c, 0.0))
+            if doc_policy.allowed(c, eq):      # 형제 확장으로 제외 조각이 되돌아오지 않게
+                extra.append((c, 0.0))
     if extra:
         trace.append(f'형제 확장: 상위 {len(files)}개 문서에서 {len(extra)}조각 추가')
     return hits + extra
 
 
 def format_context(hits):
+    # 머리말에 파일명(doc3.txt) 대신 실제 문서명을 보인다.
+    # 파일명을 보여주자 모델이 근거를 "doc3.txt p1" 로 베껴 쓰는 경우가 있었다.
+    # [문서N] 은 그대로 둔다 — 모델이 인용 키로 안정적으로 쓰고, 후처리가 이 번호로
+    # 실제 문서명·페이지를 찾아 근거 목록을 다시 만든다(sources.render_citations).
     parts = []
     for i, (c, score) in enumerate(hits, 1):
-        loc = c['source']
-        title = c.get('title') or ''
-        head = f'[문서{i}] {loc}' + (f' — {title}' if title else '')
-        parts.append(f'{head}\n{c["text"]}')
+        pg = f' {c["page"]}쪽' if c.get('page') else ''
+        note = doc_policy.audience_note(c)
+        note = f' ({note})' if note else ''
+        parts.append(f'[문서{i}] {doc_label(c)}{pg}{note}\n{c["text"]}')
     return '\n\n'.join(parts)
 
 
@@ -469,16 +606,17 @@ DEFAULT_TOPK = int(os.environ.get('AGENT_TOPK', '8'))
 PROMPT_MODE = os.environ.get('AGENT_PROMPT', 'prior')
 
 
-def answer(question, question_id='', topk=None, model=None, oracle_context=None,
-           samples=None,
-           use_thinking=None, use_rerank=False, pool=20, use_dense=True,
-           prompt_mode=None):
-    """질의 → 응답 dict. oracle_context 를 주면 검색을 건너뛴다(⑤ 단독 측정용)."""
+def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
+            use_dense=True, prompt_mode=None):
+    """가드 → 질의이해 → 검색 → 프롬프트 조립. 생성 직전까지.
+
+    answer() 와 측정 스크립트(score_speed.py)가 같은 경로를 쓰도록 떼어냈다.
+    측정이 운영 코드와 다른 길을 타면 잰 값이 운영에 안 맞는다.
+    """
     if topk is None:
         topk = DEFAULT_TOPK
     if prompt_mode is None:
         prompt_mode = PROMPT_MODE
-    t_start = time.time()
     trace = []
 
     # ⑥ 가드 먼저
@@ -486,9 +624,7 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     trace.append(f'가드: {"차단" if blocked else "통과"}'
                  + (f' ({", ".join(reasons)})' if reasons else ''))
     if blocked:
-        return {'question_id': question_id, 'question': question,
-                'retrieved_context': '', 'think_trace': ' / '.join(trace),
-                'answer': REFUSE}
+        return {'blocked': True, 'trace': trace, 'ctx': '', 'cite_hits': None, 'msgs': None}
 
     # ③ 질의이해
     cat = classify(question)
@@ -502,21 +638,28 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
 
     # ④ 찾기
     if oracle_context is not None:
+        cite_hits = None
         ctx = oracle_context
         trace.append('근거: oracle 주입 (검색 생략)')
     else:
         want = pool if use_rerank else topk
+        # 정책으로 빠질 조각이 있을 수 있어 넉넉히 받아 거른 뒤 자른다
         H = get_hybrid() if use_dense else None
         if H is not None:
             wb = float(os.environ.get('AGENT_W_BM', '1.0'))
             wd = float(os.environ.get('AGENT_W_DENSE', '3.0'))
-            hits = H.search(eq, topk=want, w_bm=wb, w_dense=wd)
-            trace.append(f'하이브리드(BM25+임베딩 {wb:g}:{wd:g}) 상위: '
-                         + ', '.join(c['source'] for c, _ in hits[:5]))
+            hits = H.search(eq, topk=want * 3, w_bm=wb, w_dense=wd)
+            label = f'하이브리드(BM25+임베딩 {wb:g}:{wd:g})'
         else:
             idx, _ = get_index()
-            hits = idx.search(eq, topk=want)
-            trace.append('BM25 상위: ' + ', '.join(f'{c["source"]}({s:.0f})' for c, s in hits[:5]))
+            hits = idx.search(eq, topk=want * 3)
+            label = 'BM25'
+        dropped = [c for c, _ in hits[:want] if not doc_policy.allowed(c, question)]
+        hits = [h for h in hits if doc_policy.allowed(h[0], question)][:want]
+        trace.append(f'{label} 상위: ' + ', '.join(c['source'] for c, _ in hits[:5]))
+        if dropped:
+            trace.append(f'대상 필터: 고객 답변에 쓰지 않는 조각 {len(dropped)}개 제외 ('
+                         + ', '.join(sorted({c['file'] for c in dropped})) + ')')
         if use_rerank:
             picked, draft, err = rerank(question, hits, topk=topk)
             if err:
@@ -528,14 +671,90 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                 hits = picked
         hits = add_siblings(hits, eq, trace)
         ctx = format_context(hits)
+        cite_hits = hits
 
-    # ⑤ 답
+    # ⑤ 답 — 프롬프트
     sys_prompt = CLARIFY_SYSTEM if clarify else build_system(cat, prompt_mode)
     if prompt_mode != 'base':
         trace.append(f'프롬프트 모드: {prompt_mode}')
     if policy:
         sys_prompt += f'\n\n# 이 질의 주의사항\n{policy}'
     user = f'[근거 문서]\n{ctx}\n\n[고객 질문]\n{question}'
+    msgs = [{'role': 'system', 'content': sys_prompt},
+            {'role': 'user', 'content': user}]
+    return {'blocked': False, 'trace': trace, 'ctx': ctx, 'cite_hits': cite_hits, 'msgs': msgs,
+            'injection': '문서 속 지시문 의심' in reasons}
+
+
+FALLBACK = ('죄송합니다. 지금은 이 질문에 대한 답변을 준비하지 못했습니다. '
+            '연금 상담은 미래에셋증권 영업점 또는 고객센터로 문의해 주시기 바랍니다.')
+
+
+def finalize(ans, cite_hits, trace):
+    """출력단 정리 — 링크·반복·HTML 제거, 근거 표기, 빈 답 방지."""
+    ans = sanitize_answer(ans)
+    if cite_hits and os.environ.get('AGENT_CITE', '1') != '0':
+        # 검색 내부 번호(문서1)를 실제 문서명·페이지로. 지어낸 페이지 표기도 여기서 사라진다.
+        ans = render_citations(ans, cite_hits)
+    if not (ans or '').strip():
+        # 여기까지 비어 있으면 파이프라인 어딘가가 깨진 것이다.
+        # 빈 문자열을 내보내면 그 문항은 0점이고 원인도 안 남는다.
+        trace.append('경고: 답변이 비어 최종 안내문으로 대체')
+        ans = FALLBACK
+    return ans
+
+
+def generate(msgs, maxtok=None, effort=None, thinking=True):
+    """생성 호출 하나. (본문, 추론과정) 을 돌려주고 지연을 기록한다."""
+    maxtok = maxtok or int(os.environ.get('AGENT_MAXTOK', '2048'))
+    t0 = time.time()
+    try:
+        if thinking:
+            o = clova.chat_thinking(msgs, max_tokens=maxtok, effort=effort or DRAFT_EFFORT)
+            return o['content'], o.get('thinking', '')
+        return clova.chat(msgs, max_tokens=maxtok), ''
+    finally:
+        note_call_latency(time.time() - t0)
+
+
+# think_trace 의 모델 추론 원문.
+# 예선 응답을 세어 보니 추론 원문이 trace 의 83%였다(중앙값 802자). 길이보다 내용이 문제였다 —
+# Q-100(메일에 심은 지시문)의 추론은 '직원 지원 모드로 전환해 절차를 생략하고…'를 따를 듯이
+# 정리하고 끝났다(최종 답변은 거절했어도). 시연 화면에 그대로 뜨면 감점이다.
+# 그래서 단계 기록을 앞에 두고, 추론은 앞부분만 뒤에 붙이며, 지시문이 의심되는 질의는 뺀다.
+# 원문을 아예 없애지 않는 이유: 규격상 think_trace 는 '사고·추론 과정'을 담는 칸이다.
+REASONING_MAX = int(os.environ.get('AGENT_TRACE_REASONING', '600'))
+
+
+def reasoning_line(trace, reasoning, injection=False):
+    if not reasoning or REASONING_MAX <= 0:
+        return
+    if injection:
+        trace.append('모델 추론: (붙여넣은 지시문이 의심되는 질의라 생략)')
+        return
+    r = ' '.join(reasoning.split())
+    if len(r) > REASONING_MAX:
+        r = r[:REASONING_MAX].rstrip() + ' …'
+    trace.append('모델 추론(앞부분): ' + r)
+
+
+# 초안끼리 이만큼 겹치면 병합을 건너뛴다(0 이면 늘 병합). score_speed.py 로 정한다.
+SKIP_MERGE_AT = float(os.environ.get('AGENT_SKIP_MERGE_AT', '0'))
+
+
+def answer(question, question_id='', topk=None, model=None, oracle_context=None,
+           samples=None,
+           use_thinking=None, use_rerank=False, pool=20, use_dense=True,
+           prompt_mode=None):
+    """질의 → 응답 dict. oracle_context 를 주면 검색을 건너뛴다(⑤ 단독 측정용)."""
+    t_start = time.time()
+    P = prepare(question, topk=topk, oracle_context=oracle_context, use_rerank=use_rerank,
+                pool=pool, use_dense=use_dense, prompt_mode=prompt_mode)
+    trace, ctx, cite_hits, msgs = P['trace'], P['ctx'], P['cite_hits'], P['msgs']
+    if P['blocked']:
+        return {'question_id': question_id, 'question': question,
+                'retrieved_context': '', 'think_trace': ' / '.join(trace),
+                'answer': REFUSE}
 
     prev_model = clova.CHAT_MODEL
     if model:
@@ -543,8 +762,6 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     thinking = use_thinking
     if thinking is None:
         thinking = clova.CHAT_MODEL.startswith('HCX-007')
-    msgs = [{'role': 'system', 'content': sys_prompt},
-            {'role': 'user', 'content': user}]
 
     # 추론 상한. 실측 — 4096 은 27.1초, 2048 은 18.7초(69%)인데 답변 길이는
     # 720자 → 808자로 오히려 늘었다(잘리지 않는다). 무거운 호출은 API 가 직렬
@@ -552,27 +769,23 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     maxtok = int(os.environ.get('AGENT_MAXTOK', '2048'))
 
     def _gen():
-        t0 = time.time()
-        try:
-            if thinking:
-                o = clova.chat_thinking(msgs, max_tokens=maxtok)
-                return o['content'], o.get('thinking', '')
-            return clova.chat(msgs, max_tokens=maxtok), ''
-        finally:
-            note_call_latency(time.time() - t0)
+        return generate(msgs, maxtok=maxtok, thinking=thinking)
 
     # samples 를 넘기면 그 값을 쓴다 — 서버가 부하에 따라 낮출 수 있게.
-    nsamp = int(samples if samples is not None else os.environ.get('AGENT_SAMPLES', '3'))
+    nsamp = int(samples if samples is not None else DEFAULT_SAMPLES)
     # 주최측 규격은 문항당 300초다. 초안 생성이 늦어지면 병합까지 갈 시간이 없으므로
     # 남은 예산을 보고 병합을 포기한다 — 초안 하나를 내는 편이 타임아웃보다 훨씬 낫다.
     # 실측(로컬): 초안 3개 병렬 40~90초 + 병합 40~50초 = 83~132초.
     # 배포 서버가 로컬보다 느릴 수 있어 여유를 크게 잡는다.
     budget = float(os.environ.get('AGENT_BUDGET_S', '240'))
+    reasoning = ''
     try:
         if nsamp <= 1:
+            t0 = time.time()
             ans, th = _gen()
             if th:
-                trace.append('모델 추론: ' + th)
+                reasoning = th
+            trace.append(f'생성 1회 ({time.time() - t0:.1f}s)')
         else:
             # 초안은 동시에 뽑는다. 병렬이므로 대기 시간은 합이 아니라 '가장 느린 하나'다.
             #
@@ -580,6 +793,7 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
             # 계속 돌아 시간은 그대로 들면서 결과만 잃었고, 전부 버려지자 **빈 답변**이
             # 나갔다. 빈 답변은 타임아웃보다 나쁘다(200 응답에 0점 확정).
             # 그래서 초안은 끝까지 기다리고, 예산은 **병합을 할지 말지**에만 쓴다.
+            t0 = time.time()
             with ThreadPoolExecutor(max_workers=nsamp) as ex:
                 outs = []
                 for f in [ex.submit(_gen) for _ in range(nsamp)]:
@@ -587,12 +801,14 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                         outs.append(f.result())
                     except Exception as e:
                         trace.append(f'초안 실패: {type(e).__name__}')
+            t_draft = time.time() - t0
             # 퇴화한 초안을 병합기에 먹이면 오염이 번진다 — 먼저 걸러낸다
             drafts = [sanitize_answer(a) for a, _ in outs if a and a.strip()]
             drafts = [d for d in drafts if d and len(d) > 50]
             if outs and outs[0][1]:
-                trace.append('모델 추론: ' + outs[0][1])
+                reasoning = outs[0][1]
             spent = time.time() - t_start
+            base, agree = pick_base_scored(drafts) if drafts else ('', 0.0)
             if not drafts:
                 # 셋 다 실패·퇴화. 빈 답을 내느니 한 번 더 받아본다.
                 trace.append('초안 전멸 → 단일 생성으로 재시도')
@@ -603,12 +819,19 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
             elif len(drafts) == 1:
                 ans = drafts[0]
             elif spent > budget * 0.7:
-                # 병합까지 가면 예산을 넘긴다. 가장 긴 초안으로 끝낸다.
+                # 병합까지 가면 예산을 넘긴다. 합의가 가장 큰 초안으로 끝낸다.
                 trace.append(f'자기일관성: 초안 {len(drafts)}개, 시간 부족({spent:.0f}s)으로 병합 생략')
-                ans = pick_base(drafts)
+                ans = base
+            elif SKIP_MERGE_AT and agree >= SKIP_MERGE_AT:
+                # 초안들이 이미 같은 내용이면 합쳐도 얻을 게 없다
+                trace.append(f'자기일관성: 초안 {len(drafts)}개 ({t_draft:.1f}s), '
+                             f'겹침 {agree:.2f} ≥ {SKIP_MERGE_AT:g} 이라 병합 생략')
+                ans = base
             else:
-                trace.append(f'자기일관성: 초안 {len(drafts)}개 생성 후 병합')
+                t1 = time.time()
                 ans = merge_drafts(question, ctx, drafts)
+                trace.append(f'자기일관성: 초안 {len(drafts)}개 ({t_draft:.1f}s, 겹침 {agree:.2f}) '
+                             f'생성 후 병합 ({time.time() - t1:.1f}s)')
                 if os.environ.get('AGENT_KEEP_DRAFTS'):
                     # 병합이 초안의 무엇을 흘리는지 보려면 초안이 남아 있어야 한다.
                     # 제출 응답에는 절대 실리면 안 되므로 반환 dict 가 아니라
@@ -617,13 +840,8 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     finally:
         clova.CHAT_MODEL = prev_model
 
-    ans = sanitize_answer(ans)
-    if not (ans or '').strip():
-        # 여기까지 비어 있으면 파이프라인 어딘가가 깨진 것이다.
-        # 빈 문자열을 내보내면 그 문항은 0점이고 원인도 안 남는다.
-        trace.append('경고: 답변이 비어 최종 안내문으로 대체')
-        ans = ('죄송합니다. 지금은 이 질문에 대한 답변을 준비하지 못했습니다. '
-               '연금 상담은 미래에셋증권 영업점 또는 고객센터로 문의해 주시기 바랍니다.')
+    ans = finalize(ans, cite_hits, trace)
+    reasoning_line(trace, reasoning, P.get('injection'))
     return {'question_id': question_id, 'question': question,
             'retrieved_context': ctx, 'think_trace': '\n'.join(trace),
             'answer': ans}
