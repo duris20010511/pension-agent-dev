@@ -118,7 +118,8 @@ def _fingerprint():
         cp = os.path.join(ROOT, 'data', 'fund_cards.json')
         if os.path.exists(cp):
             with open(cp, 'rb') as fh:
-                h.update(hashlib.md5(fh.read()).digest())
+                # 줄끝을 빼지 않았다가 윈도우(CRLF)와 리눅스 체크아웃(LF)의 지문이 갈렸다(2026-10-08)
+                h.update(hashlib.md5(fh.read().replace(b'\r\n', b'\n')).digest())
     return 'c' + h.hexdigest()[:11] + ('' if CHUNK_MODE == 'v1' else '_' + CHUNK_MODE)
 
 
