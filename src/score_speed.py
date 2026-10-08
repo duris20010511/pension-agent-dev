@@ -84,10 +84,10 @@ def drafts_of(msgs, n, effort):
     return [d for d in ds if d and len(d) > 50], wall, per
 
 
-def merged(q, ctx, drafts, effort):
+def merged(q, ctx, drafts, effort, hits=None):
     if len(drafts) < 2:          # 운영 코드도 초안이 하나면 병합하지 않는다
         return (drafts[0] if drafts else ''), 0.0
-    return _timed(A.merge_drafts, q, ctx, drafts, effort=effort)
+    return _timed(A.merge_drafts, q, ctx, drafts, effort=effort, hits=hits)
 
 
 def run_one(it, timing=False, do_judge=True):
@@ -105,8 +105,8 @@ def run_one(it, timing=False, do_judge=True):
 
     d_low, rec['t_draft_low'], rec['per_low'] = drafts_of(msgs, 3, 'low')
     base_low, rec['agree_low'] = A.pick_base_scored(d_low) if d_low else ('', 0.0)
-    m0, rec['t_merge_low'] = merged(q, ctx, d_low, 'low')
-    m1, rec['t_merge_none'] = merged(q, ctx, d_low, 'none')
+    m0, rec['t_merge_low'] = merged(q, ctx, d_low, 'low', hits)
+    m1, rec['t_merge_none'] = merged(q, ctx, d_low, 'none', hits)
     if 't_single_none' in rec:
         one_none = ''
     else:

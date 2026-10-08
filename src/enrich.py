@@ -73,7 +73,8 @@ def add_titles(chunks, extract_root):
         c['title'] = t
         head = f"{t} " if t else ""
         # 제목을 두 번 넣어 가중치를 준다 (BM25 는 빈도 기반)
-        c['index_text'] = f"{head}{head}{c['text']}"
+        sec = f"{c['section']}\n" if c.get('section') else ''      # v2 절 경로도 색인에 넣는다
+        c['index_text'] = f"{head}{head}{sec}{c['text']}"
     return chunks
 
 

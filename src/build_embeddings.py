@@ -35,7 +35,30 @@ def log(*a):
 def text_of(c):
     title = c.get('title') or ''
     body = c['text']
+    if c.get('section'):                       # v2 — 절 경로를 함께 임베딩한다
+        body = f"{c['section']}\n{body}"
     return (f'{title}\n{body}' if title else body)[:MAX_CHARS]
+
+
+def reusable_vectors():
+    """다른 지문의 완성된 캐시에서 같은 텍스트의 벡터를 가져온다.
+    v2 는 투자설명서 조각이 v1 과 글자 그대로 같아 6,520개를 다시 받을 필요가 없다
+    (870만 자 — 임베딩 한도로 2시간이 넘는다)."""
+    import glob
+    import pickle
+    found = {}
+    for p in glob.glob(os.path.join(CACHE, 'index_*.pkl')):
+        fp = os.path.basename(p)[len('index_'):-len('.pkl')]
+        e = os.path.join(CACHE, f'emb_{fp}.npy')
+        if not os.path.exists(e):
+            continue
+        cs = pickle.load(open(p, 'rb'))
+        arr = np.load(e)
+        if len(cs) != len(arr):
+            continue
+        for c, v in zip(cs, arr):
+            found.setdefault(text_of(c), v)
+    return found
 
 
 def embed_one(args):
@@ -85,6 +108,15 @@ def main():
         done = set(json.load(open(meta, encoding='utf-8'))['done'])
         log(f'체크포인트에서 이어서: {len(done):,}/{n:,} 완료됨')
 
+    reuse = reusable_vectors()
+    hit = 0
+    for i in keep:
+        if i not in done and texts[i] in reuse:
+            arr[i] = reuse[texts[i]]
+            done.add(i)
+            hit += 1
+    if hit:
+        log(f'다른 캐시에서 재사용 {hit:,}개')
     todo = [(i, texts[i]) for i in keep if i not in done]
     if not todo:
         log('할 일 없음 → 최종 저장')

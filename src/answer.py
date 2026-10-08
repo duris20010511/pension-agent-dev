@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
+import contextvars
 import clova
 
 from chunker import build_all
@@ -111,8 +112,25 @@ def _fingerprint():
             with open(os.path.join(d, f), 'rb') as fh:
                 # 줄끝(CRLF/LF)은 파이썬이 읽을 때 어차피 통일하므로 지문에서도 뺀다
                 h.update(hashlib.md5(fh.read().replace(b'\r\n', b'\n')).digest())
-    return 'c' + h.hexdigest()[:11]
+    # 자르는 방식이 다르면 다른 캐시를 쓴다(v1 은 예전 이름 그대로).
+    # v3 는 펀드 카드(data/fund_cards.json)도 지문에 넣는다 — 카드를 고치면 색인을 다시 만든다.
+    if CHUNK_MODE == 'v3':
+        cp = os.path.join(ROOT, 'data', 'fund_cards.json')
+        if os.path.exists(cp):
+            with open(cp, 'rb') as fh:
+                h.update(hashlib.md5(fh.read()).digest())
+    return 'c' + h.hexdigest()[:11] + ('' if CHUNK_MODE == 'v1' else '_' + CHUNK_MODE)
 
+
+# 자르기 방식. v1 = 페이지 안에서 2,400자까지 이어 붙임(예선 제출).
+# v2 = 제도문서를 제목·FAQ 문항 경계로 자르고 절 경로를 단다(score_chunks.py 로 비교).
+# v3 = v2 + 펀드 요약 카드.
+#
+# 실측(2026-10-08, 100문항 짝비교 = 50 + 50, 채점 3회 다수결) — v1 근거 8개 vs v3 근거 10개:
+#   체크리스트 80.9 → 84.2%(+3.5pp, 95% CI ±5.1 — 유의하지 않음. 앞 50은 +7.2, 뒤 50은 −0.2)
+#   함정 98.7 → 100 · 할루시 0/0 · 응답 시간 중앙 51.9 → 33.8초 · 질문당 토큰 차감 약 −15%
+# 품질이 아니라 속도·토큰 때문에 v3 를 기본으로 둔다.
+CHUNK_MODE = os.environ.get('AGENT_CHUNKS', 'v3')
 
 _INDEX = None
 _CHUNKS = None
@@ -164,7 +182,13 @@ def get_index():
         with open(path, 'rb') as f:
             _CHUNKS = pickle.load(f)
     else:
-        _CHUNKS = build_all(EX, mode='structured', size=2400, overlap=300)
+        # v2: 제도문서만 절 단위(chunker.section_chunks), 투자설명서는 v1 과 같은 조각
+        # v3: v2 + 펀드 요약 카드(fund_cards.py) — 펀드마다 핵심 사실을 원문 쪽수와 함께 한 장
+        _CHUNKS = build_all(EX, mode='structured' if CHUNK_MODE == 'v1' else 'sections',
+                            size=2400, overlap=300)
+        if CHUNK_MODE == 'v3':
+            from fund_cards import card_chunks
+            _CHUNKS += card_chunks()
         _CHUNKS = add_titles(_CHUNKS, EX)
         _CHUNKS, _ = mark_boilerplate(_CHUNKS)
         with open(path, 'wb') as f:
@@ -448,7 +472,26 @@ MERGE_EFFORT = os.environ.get('AGENT_MERGE_EFFORT', _P['merge'])
 DEFAULT_SAMPLES = int(os.environ.get('AGENT_SAMPLES', _P['samples']))
 
 
-def merge_drafts(question, ctx, drafts, effort=None):
+def cited_numbers(drafts, n):
+    """초안들이 인용한 [문서N] 번호(1..n)."""
+    got = set()
+    for d in drafts:
+        for m in re.finditer(r'문서\s*(\d+(?:\s*[,~·및]\s*\d+)*)', d or ''):
+            for x in re.findall(r'\d+', m.group(1)):
+                if 1 <= int(x) <= n:
+                    got.add(int(x))
+    return sorted(got)
+
+
+# 병합에 넘기는 근거를 초안들이 실제로 인용한 문서로 줄인다.
+# 병합 입력은 중앙값 7,834토큰이었는데(12문항 실측) 대부분 근거 문서다. 초안이 인용하는 건
+# 8개 중 평균 2~4개이고, 병합 규칙도 '덧붙이는 내용은 근거 문서에서 확인되는 것만'이라
+# 초안이 쓴 근거만 있으면 확인할 수 있다. 번호는 원래 번호를 그대로 둔다 — 병합 결과의
+# [문서N] 을 render_citations 가 원래 검색 결과 순서로 풀기 때문이다.
+MERGE_CITED_ONLY = os.environ.get('AGENT_MERGE_CITED_ONLY', '1') != '0'
+
+
+def merge_drafts(question, ctx, drafts, effort=None, hits=None):
     """초안 여러 개를 하나로 합친다. 다시 쓰지 않고 **덧붙인다**.
 
     왜 하는가 — 9개 런의 문항별 점수를 합집합으로 계산하니 천장이 크게 남아 있었다.
@@ -474,6 +517,10 @@ def merge_drafts(question, ctx, drafts, effort=None):
     할루시네이션 0.0% 와 함정 대응률이 유지되는지 반드시 확인할 것.
     """
     base = pick_base(drafts)
+    if hits and MERGE_CITED_ONLY:
+        nums = cited_numbers(drafts, len(hits))
+        if nums:                      # 인용이 하나도 없으면 전체 근거를 그대로 준다
+            ctx = format_context(hits, only=nums)
     others = [d for d in drafts if d is not base]
     body = (chr(10) * 2).join(f'[초안{i}]' + chr(10) + d for i, d in enumerate(others, 1))
     user = (f'[근거 문서]{chr(10)}{ctx}{chr(10)*2}'
@@ -483,8 +530,12 @@ def merge_drafts(question, ctx, drafts, effort=None):
          {'role': 'user', 'content': user}]
     try:
         if clova.is_thinking_model():
-            out = clova.chat_thinking(m, max_tokens=4096,
-                                      effort=effort or MERGE_EFFORT)['content']
+            eff = effort or MERGE_EFFORT
+            # 생각을 켜면 추론 토큰까지 들어가야 하므로 예전 상한을 쓴다
+            o = clova.chat_thinking(m, max_tokens=MERGE_MAXTOK if eff == 'none' else 4096, effort=eff)
+            if o.get('stop') == 'length':
+                return base          # 잘린 병합 결과보다 온전한 기준 초안이 낫다
+            out = o['content']
         else:
             out = clova.chat(m, max_tokens=2048)
     except Exception:
@@ -545,17 +596,21 @@ def add_siblings(hits, eq, trace):
     return hits + extra
 
 
-def format_context(hits):
+def format_context(hits, only=None):
     # 머리말에 파일명(doc3.txt) 대신 실제 문서명을 보인다.
     # 파일명을 보여주자 모델이 근거를 "doc3.txt p1" 로 베껴 쓰는 경우가 있었다.
     # [문서N] 은 그대로 둔다 — 모델이 인용 키로 안정적으로 쓰고, 후처리가 이 번호로
     # 실제 문서명·페이지를 찾아 근거 목록을 다시 만든다(sources.render_citations).
+    # only 를 주면 그 번호의 문서만 넣는다(병합용) — 번호는 원래 번호를 그대로 쓴다.
     parts = []
     for i, (c, score) in enumerate(hits, 1):
+        if only is not None and i not in only:
+            continue
         pg = f' {c["page"]}쪽' if c.get('page') else ''
         note = doc_policy.audience_note(c)
         note = f' ({note})' if note else ''
-        parts.append(f'[문서{i}] {doc_label(c)}{pg}{note}\n{c["text"]}')
+        sec = f' › {c["section"]}' if c.get('section') else ''
+        parts.append(f'[문서{i}] {doc_label(c)}{sec}{pg}{note}\n{c["text"]}')
     return '\n\n'.join(parts)
 
 
@@ -589,7 +644,8 @@ def format_context(hits):
 # 근거 문서 수. 실측 — topk 20 은 컨텍스트 30,783자에 22.9초, topk 8 은
 # 13,608자에 13.6초(59%)다. 앞서 k=6 과 k=20 이 답변 품질에서 문항별로
 # 동일했던 측정도 있어(12/24 일치) 줄일 여지가 있다고 보고 8 로 낮춰 A/B 한다.
-DEFAULT_TOPK = int(os.environ.get('AGENT_TOPK', '8'))
+# v3 는 제도문서 조각이 작아(중앙 401자) 10개를 넣어도 v1 8개보다 근거 글자가 25% 적다.
+DEFAULT_TOPK = int(os.environ.get('AGENT_TOPK', '10' if CHUNK_MODE != 'v1' else '8'))
 
 
 # 생성 프롬프트 모드. prompts.py 참조.
@@ -604,6 +660,43 @@ DEFAULT_TOPK = int(os.environ.get('AGENT_TOPK', '8'))
 # both(note+prior)는 오히려 떨어졌다 — 시스템 프롬프트가 1,140자로 길어지며
 # 지시가 서로 희석된 것으로 보인다. 둘 다 넣는 게 항상 나은 게 아니다.
 PROMPT_MODE = os.environ.get('AGENT_PROMPT', 'prior')
+
+
+_CARDS_BY_FILE = None
+
+
+def retrieve(eq, question, want, use_dense=True, qvec=None):
+    """검색 → 문서 정책 필터 → (v3) 펀드 카드 라우팅. (hits, 라벨, 뺀 조각, 앞세운 카드)
+
+    prepare() 와 측정 스크립트(score_chunks.py)가 같은 경로를 쓰도록 떼어냈다.
+    """
+    global _CARDS_BY_FILE
+    # 정책으로 빠질 조각이 있을 수 있어 넉넉히 받아 거른 뒤 자른다
+    H = get_hybrid() if use_dense else None
+    if H is not None:
+        wb = float(os.environ.get('AGENT_W_BM', '1.0'))
+        wd = float(os.environ.get('AGENT_W_DENSE', '3.0'))
+        hits = H.search(eq, topk=want * 3, w_bm=wb, w_dense=wd, qvec=qvec)
+        label = f'하이브리드(BM25+임베딩 {wb:g}:{wd:g})'
+    else:
+        idx, _ = get_index()
+        hits = idx.search(eq, topk=want * 3)
+        label = 'BM25'
+    dropped = [c for c, _ in hits[:want] if not doc_policy.allowed(c, question)]
+    hits = [h for h in hits if doc_policy.allowed(h[0], question)]
+    routed = []
+    if CHUNK_MODE == 'v3':
+        # 질문에 이름이 나온 펀드의 요약 카드를 맨 앞에 둔다(fund_cards.mentioned_funds 참고).
+        # 검색에만 맡기면 펀드명이 분명한 질문에서도 카드가 상위에 못 드는 경우가 많았다(33/53).
+        from fund_cards import mentioned_funds
+        if _CARDS_BY_FILE is None:
+            _, chunks = get_index()
+            _CARDS_BY_FILE = {c['file']: c for c in chunks if c.get('kind') == 'card'}
+        routed = [_CARDS_BY_FILE[f] for f in mentioned_funds(question) if f in _CARDS_BY_FILE]
+        if routed:
+            ids = {id(c) for c in routed}
+            hits = [(c, 1.0) for c in routed] + [h for h in hits if id(h[0]) not in ids]
+    return hits[:want], label, dropped, routed
 
 
 def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
@@ -643,20 +736,10 @@ def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
         trace.append('근거: oracle 주입 (검색 생략)')
     else:
         want = pool if use_rerank else topk
-        # 정책으로 빠질 조각이 있을 수 있어 넉넉히 받아 거른 뒤 자른다
-        H = get_hybrid() if use_dense else None
-        if H is not None:
-            wb = float(os.environ.get('AGENT_W_BM', '1.0'))
-            wd = float(os.environ.get('AGENT_W_DENSE', '3.0'))
-            hits = H.search(eq, topk=want * 3, w_bm=wb, w_dense=wd)
-            label = f'하이브리드(BM25+임베딩 {wb:g}:{wd:g})'
-        else:
-            idx, _ = get_index()
-            hits = idx.search(eq, topk=want * 3)
-            label = 'BM25'
-        dropped = [c for c, _ in hits[:want] if not doc_policy.allowed(c, question)]
-        hits = [h for h in hits if doc_policy.allowed(h[0], question)][:want]
+        hits, label, dropped, routed = retrieve(eq, question, want, use_dense=use_dense)
         trace.append(f'{label} 상위: ' + ', '.join(c['source'] for c, _ in hits[:5]))
+        if routed:
+            trace.append('펀드 이름 인식: ' + ', '.join(doc_label(c) for c in routed) + ' → 펀드 요약 카드 우선')
         if dropped:
             trace.append(f'대상 필터: 고객 답변에 쓰지 않는 조각 {len(dropped)}개 제외 ('
                          + ', '.join(sorted({c['file'] for c in dropped})) + ')')
@@ -704,13 +787,27 @@ def finalize(ans, cite_hits, trace):
     return ans
 
 
+# 출력 상한(maxCompletionTokens). 품질이 아니라 **토큰 한도**를 위한 값이다.
+# CLOVA 는 실제 출력이 아니라 '입력 + 설정한 상한'을 분당 토큰 한도에서 뺀다
+# (실측: 출력 18토큰인데 상한 2,000 이면 2,007 차감). 상한은 길이 지시가 아니라 끊는 지점이라
+# 닿지만 않으면 답은 같다. 12문항 44회 실측(추론 포함) —
+#   초안(low)   중앙 709 · p90 980 · 최대 1,312   (예전 상한 2,048)
+#   병합(none)  중앙 444 · p90 631 · 최대 1,030   (예전 상한 4,096)
+# 44회 모두 스스로 멈췄다. 1,600 으로 두고, 잘리면(stop=length) 상한을 올려 한 번 더 받는다.
+DRAFT_MAXTOK = int(os.environ.get('AGENT_MAXTOK', '1600'))
+MERGE_MAXTOK = int(os.environ.get('AGENT_MERGE_MAXTOK', '1600'))
+
+
 def generate(msgs, maxtok=None, effort=None, thinking=True):
     """생성 호출 하나. (본문, 추론과정) 을 돌려주고 지연을 기록한다."""
-    maxtok = maxtok or int(os.environ.get('AGENT_MAXTOK', '2048'))
+    maxtok = maxtok or DRAFT_MAXTOK
     t0 = time.time()
     try:
         if thinking:
             o = clova.chat_thinking(msgs, max_tokens=maxtok, effort=effort or DRAFT_EFFORT)
+            if o.get('stop') == 'length' and maxtok < 4096:
+                # 상한에 걸려 잘렸다 — 드물지만 잘린 초안은 병합을 오염시키므로 넉넉히 다시 받는다
+                o = clova.chat_thinking(msgs, max_tokens=4096, effort=effort or DRAFT_EFFORT)
             return o['content'], o.get('thinking', '')
         return clova.chat(msgs, max_tokens=maxtok), ''
     finally:
@@ -745,8 +842,11 @@ SKIP_MERGE_AT = float(os.environ.get('AGENT_SKIP_MERGE_AT', '0'))
 def answer(question, question_id='', topk=None, model=None, oracle_context=None,
            samples=None,
            use_thinking=None, use_rerank=False, pool=20, use_dense=True,
-           prompt_mode=None):
-    """질의 → 응답 dict. oracle_context 를 주면 검색을 건너뛴다(⑤ 단독 측정용)."""
+           prompt_mode=None, draft_effort=None, draft_maxtok=None, merge_effort=None):
+    """질의 → 응답 dict. oracle_context 를 주면 검색을 건너뛴다(⑤ 단독 측정용).
+
+    draft_effort·draft_maxtok·merge_effort 는 생성 설정을 호출마다 정한다(비우면 AGENT_MODE 값).
+    전역을 바꿔 끼우면 스레드끼리 섞이므로 측정 스크립트는 반드시 이 인자로 준다."""
     t_start = time.time()
     P = prepare(question, topk=topk, oracle_context=oracle_context, use_rerank=use_rerank,
                 pool=pool, use_dense=use_dense, prompt_mode=prompt_mode)
@@ -766,10 +866,10 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     # 추론 상한. 실측 — 4096 은 27.1초, 2048 은 18.7초(69%)인데 답변 길이는
     # 720자 → 808자로 오히려 늘었다(잘리지 않는다). 무거운 호출은 API 가 직렬
     # 처리하므로 호출을 싸게 만드는 것이 곧 처리량이다.
-    maxtok = int(os.environ.get('AGENT_MAXTOK', '2048'))
+    maxtok = draft_maxtok or DRAFT_MAXTOK
 
     def _gen():
-        return generate(msgs, maxtok=maxtok, thinking=thinking)
+        return generate(msgs, maxtok=maxtok, effort=draft_effort, thinking=thinking)
 
     # samples 를 넘기면 그 값을 쓴다 — 서버가 부하에 따라 낮출 수 있게.
     nsamp = int(samples if samples is not None else DEFAULT_SAMPLES)
@@ -796,7 +896,8 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
             t0 = time.time()
             with ThreadPoolExecutor(max_workers=nsamp) as ex:
                 outs = []
-                for f in [ex.submit(_gen) for _ in range(nsamp)]:
+                # copy_context: 측정용 호출 꼬리표(clova.TAG)가 초안 스레드까지 따라가게
+                for f in [ex.submit(contextvars.copy_context().run, _gen) for _ in range(nsamp)]:
                     try:
                         outs.append(f.result())
                     except Exception as e:
@@ -829,7 +930,7 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                 ans = base
             else:
                 t1 = time.time()
-                ans = merge_drafts(question, ctx, drafts)
+                ans = merge_drafts(question, ctx, drafts, effort=merge_effort, hits=cite_hits)
                 trace.append(f'자기일관성: 초안 {len(drafts)}개 ({t_draft:.1f}s, 겹침 {agree:.2f}) '
                              f'생성 후 병합 ({time.time() - t1:.1f}s)')
                 if os.environ.get('AGENT_KEEP_DRAFTS'):

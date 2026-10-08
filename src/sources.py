@@ -71,12 +71,31 @@ TITLE_OVERRIDE = {
 }
 
 
+_CARD_NAMES = None
+
+
+def _card_name(file):
+    """펀드 카드(data/fund_cards.json)의 펀드명 — '1. 집합투자기구 명칭'을 원문 대조로 확인한 이름.
+    첫 줄에서 뽑은 이름은 100종 중 10종이 잘리거나 회사명이 빠져 있었다
+    ('NH-Amundi USD 초단기채권 증권자투자신탁(UH)[채권]' → '증권자투자신탁(UH)')."""
+    global _CARD_NAMES
+    if _CARD_NAMES is None:
+        import os
+        import json
+        p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'fund_cards.json')
+        try:
+            _CARD_NAMES = {c['file']: c['fund_name'] for c in json.load(open(p, encoding='utf-8'))}
+        except Exception:
+            _CARD_NAMES = {}
+    return _CARD_NAMES.get(file, '')
+
+
 def doc_title(c):
     """조각이 속한 문서의 사람이 읽을 이름."""
     t = TITLE_OVERRIDE.get(c.get('file', ''))
     if t:
         return t
-    t = (c.get('title') or '').strip()
+    t = (_card_name(c.get('file', '')) or c.get('title') or '').strip()
     t = re.sub(r'^[\s:：\-·*]+', '', t)          # ": 교보악사 …", "- 퇴직급여제도 …"
     t = re.sub(r'\s+', ' ', t)
     t = re.sub(r'(\d)\s+호', r'\1호', t)          # "1 호" → "1호"
@@ -239,6 +258,8 @@ def render_citations(text, hits):
         pages.setdefault(key, set())
         if c.get('page'):
             pages[key].add(int(c['page']))
+        for p in c.get('card_pages') or []:          # 펀드 요약 카드 — 각 사실의 원문 쪽
+            pages[key].add(int(p))
         return key
 
     def repl(m):

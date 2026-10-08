@@ -13,6 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 COPY extracted/ ./extracted/
 COPY .cache/ ./.cache/
+# 펀드 요약 카드(색인 v3). 없으면 색인 지문이 달라져 캐시를 못 찾는다.
+COPY data/ ./data/
 
 ENV PYTHONUNBUFFERED=1
 # 임베딩 캐시를 못 찾으면 기동을 실패시킨다. 조용히 BM25 단독으로 돌면 검색 R@10 이 87.5 → 75.0 이다.
