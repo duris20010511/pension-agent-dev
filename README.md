@@ -106,6 +106,23 @@ python src/test_client.py http://127.0.0.1:8899/answer
 
 `src/server.py` 가 이들을 묶어 API로 노출한다.
 
+### 본선 추가 기능
+
+| 기능 | 하는 일 | 파일 |
+|---|---|---|
+| 규칙 계산 | 규칙표 R-01~R-15(문서 원문 41문장). 연금 수령 세금, 세액공제·납입 조합 비교, ISA 전환, 연금수령한도, 재원별 인출(퇴직금 섞인 계좌·55세 전 해지) | `src/taxcalc.py` |
+| 오케스트레이터 | 고객 상태를 보고 거절·상담 연결·되묻기·계산·검색 중 다음 행동을 규칙으로 고름 | `src/orchestrator.py` |
+| 숫자 대조 | 답 속 금액·비율을 질문·계산·근거와 대조, 계산과 어긋나면 계산값 + 상담 연결 | `src/verify.py` |
+| 대화 기억 | 이어지는 질문 재작성(HCX-005), 고객 정보(나이·재원·금액) 기억 | `src/memory.py`, `src/followup.py` |
+| 문서 꼬리표 | 문서 58건 기준일·독자, 옛 기준·상충 주석 | `src/doc_meta.py`, `data/doc_meta.json` |
+| 온톨로지 | 클래스·관계·재원×인출 세금표·규칙·문서 그래프 | `src/ontology.py`, `data/ontology.json` |
+| 온톨로지 연결 | 제도문서 조각 579개·펀드 100종 분류(분류자 2명 교집합), 질문 경로 표시·근거 규칙 칩·펀드 상품 분류 줄·보수적 순위 조정(`AGENT_ONTO=0` 이면 끔) | `src/onto_link.py`, `src/build_onto_chunks.py`, `data/ontology_chunks.json`, `data/ontology_funds.json`, `src/score_onto.py` |
+| 먼저 알려주기 | 가상 고객 알림 8종, 월간 리포트, push 함 | `src/alerts.py`, `data/demo_profiles.json` |
+| DIY 연금 설계 | 납입 조합·수령 설계 비교 | `src/diy.py` |
+| 시연 화면 | 상담(응답 4칸)·알림·DIY·규칙/온톨로지 탭 | `src/static/demo.html` |
+
+시연 경로(대회 `/answer` 규격은 그대로): `GET /demo`, `POST /chat`(빠른·정밀 모드, 응답 4칸, 오케스트레이터 단계, 숫자 대조), `POST /alerts`, `GET /alerts/profiles`, `GET /alerts/outbox`, `POST /diy`, `GET /rules`, `GET /ontology`. 오프라인 테스트: `src/test_rules.py`·`test_alerts.py`·`test_diy.py`·`test_ontology.py`·`test_doc_meta.py`(API 호출 없음).
+
 ## 데이터
 
 | | |

@@ -220,6 +220,17 @@ def _find_block(text):
     return b[-1] if b else None
 
 
+def _asof_suffix(c):
+    """근거 목록에 붙일 문서 기준일 — 원문에서 확인된 기준일이 있을 때만(doc_meta, 없으면 빈 문자열).
+    '미상'은 붙이지 않는다(고객 화면에 '기준일 미상'이 줄줄이 나오면 근거를 믿지 못하게 된다 — 시연 화면은 따로 보여 준다)."""
+    try:
+        import doc_meta
+        a = doc_meta.as_of(c.get('file', '')) if c.get('file') else ''
+    except Exception:
+        return ''
+    return f' (기준일 {a})' if a and a != '미상' else ''
+
+
 def render_citations(text, hits):
     """답변 속 '문서N' 을 실제 문서명·페이지로 바꾸고 근거 목록을 새로 붙인다.
 
@@ -280,10 +291,13 @@ def render_citations(text, hits):
     text_ref = text
     text = REF.sub(repl, text)
 
-    # 블록에만 있던 번호도 목록에 올린다 (본문에서 안 짚었어도 근거로 쓴 문서)
-    for i in block_nums:
-        if 1 <= i <= n:
-            note_for(i)
+    # 블록에만 있던 번호는 본문 인용이 하나도 없을 때만 목록에 올린다.
+    # 본문이 이미 근거를 짚었는데 모델이 끝에 덧붙인 목록까지 다 올리면, 세액공제 답에 채권펀드 투자설명서 5건이
+    # 근거로 붙는 식의 잡음이 생겼다(시연 대화 '세액공제와 ISA', 장면 1 답).
+    if not order:
+        for i in block_nums:
+            if 1 <= i <= n:
+                note_for(i)
 
     # 3) 정리
     #   "[1], [2]" → "[1][2]", 같은 번호 연속 "[1], [1]" → "[1]" (다른 조각이 같은 문서인 경우)
@@ -317,5 +331,6 @@ def render_citations(text, hits):
             pg_s = ' p.' + ', '.join(map(str, pg[:4])) + (' 외' if len(pg) > 4 else '')
         # 본문에 각주 표시가 하나도 없으면 목록 번호는 가리킬 데가 없으니 뺀다
         numbered = head == '**근거**' and in_body
+        pg_s += _asof_suffix(label_of.get(k) or {})
         lines.append(f'- [{order[k]}] {k}{pg_s}' if numbered else f'- {k}{pg_s}')
     return text + '\n\n' + head + '\n' + '\n'.join(lines)

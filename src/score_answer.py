@@ -66,8 +66,12 @@ def judge(question, checklist, ans, trap, trap_note):
     """
     if JUDGE_PASSES <= 1:
         return _judge_once(question, checklist, ans, trap, trap_note)
-    votes = [_judge_once(question, checklist, ans, trap, trap_note)
-             for _ in range(JUDGE_PASSES)]
+    # 채점 회차는 서로 독립이라 동시에 보낸다 — 판정은 같고 시간만 3분의 1이 된다.
+    # 차례로 보낼 때 답변 하나 채점에 약 50초가 들어 score_gen 실험 시간의 절반을 차지했다(2026-10-08).
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=JUDGE_PASSES) as ex:
+        votes = list(ex.map(lambda _: _judge_once(question, checklist, ans, trap, trap_note),
+                            range(JUDGE_PASSES)))
     votes = [v for v in votes if v]
     if not votes:
         return None

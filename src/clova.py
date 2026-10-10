@@ -152,17 +152,26 @@ def _seconds(raw):
 
 
 def _note_headers(key, headers):
-    """성공 응답 헤더로 남은 토큰을 맞춘다."""
+    """성공 응답 헤더로 남은 토큰을 맞춘다.
+
+    잠금을 기다리지 않는다. _throttle 은 잠금을 쥔 채로 한도 대기(최대 70초)를 하므로, 여기서
+    잠금을 기다리면 **이미 끝난 응답**이 남의 한도 대기가 끝날 때까지 호출자에게 돌아가지 못한다.
+    실제로 초안 3개 설정의 응답 시간이 이 때문에 부풀어 측정됐다(score_gen 검토, 2026-10-08).
+    헤더 반영은 추정치를 다듬는 것일 뿐이라 한 번 건너뛰어도 된다."""
     try:
         h = {k.lower(): v for k, v in dict(headers).items()}
         if 'x-ratelimit-remaining-tokens' not in h:
             return
         b = _state(key)
-        with b['lock']:
+        if not b['lock'].acquire(blocking=False):
+            return
+        try:
             b['tokens'] = float(h['x-ratelimit-remaining-tokens'])
             b['limit'] = float(h.get('x-ratelimit-limit-tokens') or b['limit'] or 0) or None
             b['reset_s'] = _seconds(h.get('x-ratelimit-reset-tokens')) or b['reset_s']
             b['seen'] = time.time()
+        finally:
+            b['lock'].release()
     except Exception:
         pass
 
@@ -194,7 +203,7 @@ _usage_lock = threading.Lock()
 TAG = contextvars.ContextVar('clova_tag', default=None)
 
 
-def _note_usage(model, payload, out, sec, wait=0.0):
+def _note_usage(model, payload, out, sec, wait=0.0, t_send=None):
     try:
         u = (out.get('result') or {}).get('usage') or {}
         rec = {'model': model, 'prompt': u.get('promptTokens'), 'completion': u.get('completionTokens'),
@@ -203,6 +212,7 @@ def _note_usage(model, payload, out, sec, wait=0.0):
                'effort': (payload.get('thinking') or {}).get('effort'), 'sec': round(sec, 2),
                # 한도 대기(_throttle·429)는 sec 와 따로 센다 — 응답 시간을 잴 때 빼야 한다
                'wait': round(wait, 2), 'tag': TAG.get(), 'thread': threading.get_ident(),
+               't_send': round(t_send, 3) if t_send else None,
                'stop': ((out.get('result') or {}).get('stopReason')
                         or (out.get('result') or {}).get('finishReason'))}
         with _usage_lock:
@@ -239,11 +249,13 @@ def _post(url, payload, timeout=120, retries=6, kind='chat'):
         req = urllib.request.Request(url, data=body, method='POST', headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
+                raw = r.read()
+                t_end = time.time()          # 시계는 잠금·기록 전에 멈춘다
                 _note_headers(key, r.headers)
-                out = json.loads(r.read().decode('utf-8'))
+                out = json.loads(raw.decode('utf-8'))
                 if kind != 'embed':
                     # wait = 성공한 시도 전까지 쓴 시간(한도 대기 + 429·재시도)
-                    _note_usage(key, payload, out, time.time() - t0, t0 - t_first)
+                    _note_usage(key, payload, out, t_end - t0, t0 - t_first, t0)
                 return out
         except urllib.error.HTTPError as e:
             detail = e.read().decode('utf-8', 'ignore')[:400]
@@ -251,7 +263,7 @@ def _post(url, payload, timeout=120, retries=6, kind='chat'):
             if e.code == 429:
                 _note_429(key, dict(e.headers))      # 헤더의 reset 만큼 전면 대기
                 continue
-            if e.code in (500, 502, 503, 504):
+            if e.code in (408, 500, 502, 503, 504):     # 408: CLOVA 쪽 요청 시간 초과 — 다시 보내면 대개 된다
                 time.sleep(2 ** attempt)
                 continue
             raise last
@@ -266,7 +278,7 @@ def is_thinking_model(name=None):
     return (name or CHAT_MODEL).upper().startswith('HCX-007')
 
 
-def chat(messages, temperature=0.2, max_tokens=2048, top_p=0.8, seed=0, model=None):
+def chat(messages, temperature=0.2, max_tokens=2048, top_p=0.8, seed=0, model=None, timeout=120, retries=6):
     """messages = [{'role':'system'|'user'|'assistant', 'content': '...'}]
 
     추론 모델이 설정돼 있으면 chat_thinking 으로 자동 전환한다.
@@ -289,7 +301,7 @@ def chat(messages, temperature=0.2, max_tokens=2048, top_p=0.8, seed=0, model=No
         'topP': top_p,
         'seed': seed,
         'repeatPenalty': 1.1,
-    })
+    }, timeout=timeout, retries=retries)
     try:
         return out['result']['message']['content']
     except (KeyError, TypeError):

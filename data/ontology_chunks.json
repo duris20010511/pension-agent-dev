@@ -1,0 +1,6824 @@
+{
+ "meta": {
+  "labeled": 579,
+  "missing": 0,
+  "agreement_jaccard": {
+   "stages": 0.957,
+   "nodes": 0.788,
+   "rules": 0.963
+  },
+  "chunks_with_rules": 109,
+  "chunks_with_nodes": 459,
+  "rule": "분류자 두 명의 교집합(단계는 겹침이 없으면 합집합), 한쪽이라도 low 면 규칙 제외"
+ },
+ "chunks": {
+  "doc1.txt#0": {
+   "h": "3da6d778fd",
+   "stages": [
+    "stage.join",
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.old",
+    "account.savings"
+   ],
+   "rules": [
+    "R-05",
+    "R-15"
+   ]
+  },
+  "doc1.txt#1": {
+   "h": "d3815b6538",
+   "stages": [
+    "stage.payout",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.old",
+    "tax.none",
+    "wd.pension",
+    "wd.other",
+    "event.age55"
+   ],
+   "rules": [
+    "R-15"
+   ]
+  },
+  "doc1.txt#2": {
+   "h": "cf54edc106",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "account.savings",
+    "tax.pension"
+   ],
+   "rules": []
+  },
+  "doc1.txt#3": {
+   "h": "c75d9196e2",
+   "stages": [
+    "stage.pay",
+    "stage.early"
+   ],
+   "nodes": [
+    "account.savings",
+    "fund.free",
+    "fund.retire"
+   ],
+   "rules": [
+    "R-01",
+    "R-02",
+    "R-06",
+    "R-12"
+   ]
+  },
+  "doc1.txt#4": {
+   "h": "0bc61bf916",
+   "stages": [
+    "stage.payout",
+    "stage.early"
+   ],
+   "nodes": [
+    "account.savings",
+    "wd.unavoidable",
+    "wd.pension",
+    "event.age55",
+    "fund.retire",
+    "fund.credit",
+    "event.disaster",
+    "event.care",
+    "event.rehab"
+   ],
+   "rules": [
+    "R-04",
+    "R-05",
+    "R-11"
+   ]
+  },
+  "doc1.txt#5": {
+   "h": "66b76bd8ff",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "account.savings",
+    "tax.pension",
+    "tax.retire",
+    "tax.other",
+    "fund.retire",
+    "fund.credit",
+    "wd.pension",
+    "wd.other"
+   ],
+   "rules": [
+    "R-07",
+    "R-09",
+    "R-10"
+   ]
+  },
+  "doc1.txt#6": {
+   "h": "3c62a90024",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "account.savings",
+    "tax.global",
+    "tax.pension",
+    "fund.retire",
+    "wd.unavoidable"
+   ],
+   "rules": [
+    "R-08",
+    "R-01"
+   ]
+  },
+  "doc10.txt#0": {
+   "h": "1a2c4dbd70",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.pension",
+    "plan.db",
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc10.txt#1": {
+   "h": "f3dd7bf6b7",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.pension",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc10.txt#2": {
+   "h": "d0fc289729",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": []
+  },
+  "doc10.txt#3": {
+   "h": "ad392249b6",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": []
+  },
+  "doc10.txt#4": {
+   "h": "835e634ef5",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.pension",
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc10.txt#5": {
+   "h": "28ff923263",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.pension",
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc10.txt#6": {
+   "h": "4fc68aa5c1",
+   "stages": [
+    "stage.join",
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.retirement",
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc10.txt#7": {
+   "h": "53d4ae855f",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc11.txt#0": {
+   "h": "f318c6c96f",
+   "stages": [
+    "stage.employer",
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.retirement",
+    "plan.severance",
+    "plan.pension",
+    "plan.db",
+    "plan.dc",
+    "actor.employer",
+    "event.plan_change"
+   ],
+   "rules": [
+    "R-12"
+   ]
+  },
+  "doc11.txt#1": {
+   "h": "fdc4f5d564",
+   "stages": [
+    "stage.transfer",
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.irp",
+    "event.retire",
+    "event.age55"
+   ],
+   "rules": []
+  },
+  "doc12.txt#0": {
+   "h": "17959fa484",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.pension",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc12.txt#1": {
+   "h": "72ddd0009c",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": []
+  },
+  "doc12.txt#2": {
+   "h": "8b485034e0",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.pension",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc12.txt#3": {
+   "h": "1f31650cce",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": []
+  },
+  "doc12.txt#4": {
+   "h": "a2cde28ef8",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.retirement",
+    "plan.db",
+    "actor.employer",
+    "event.plan_change"
+   ],
+   "rules": []
+  },
+  "doc12.txt#5": {
+   "h": "11ba9f56a2",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc12.txt#6": {
+   "h": "7a532068ff",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc12.txt#7": {
+   "h": "9e1ccbd457",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc12.txt#8": {
+   "h": "f3f6379fa8",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc12.txt#9": {
+   "h": "357deb1f9f",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.pension",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc12.txt#10": {
+   "h": "2f06f01803",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": []
+  },
+  "doc13.txt#0": {
+   "h": "1d4c5e18e4",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "event.plan_change",
+    "plan.retirement",
+    "plan.db",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc13.txt#1": {
+   "h": "1b4a9d13d6",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "event.plan_change",
+    "plan.db",
+    "plan.dc",
+    "plan.severance"
+   ],
+   "rules": []
+  },
+  "doc13.txt#2": {
+   "h": "a16f4698b6",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "event.plan_change"
+   ],
+   "rules": []
+  },
+  "doc13.txt#3": {
+   "h": "dd8484be3d",
+   "stages": [
+    "stage.employer",
+    "stage.early"
+   ],
+   "nodes": [
+    "event.plan_change",
+    "plan.db",
+    "plan.dc",
+    "plan.severance"
+   ],
+   "rules": []
+  },
+  "doc13.txt#4": {
+   "h": "ae19bfc575",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "event.plan_change",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc13.txt#5": {
+   "h": "0b38652985",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "plan.severance",
+    "actor.employer",
+    "event.plan_change"
+   ],
+   "rules": []
+  },
+  "doc13.txt#6": {
+   "h": "2d28415216",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc14.txt#0": {
+   "h": "9efe242062",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc14.txt#1": {
+   "h": "98eb9174cc",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc14.txt#2": {
+   "h": "dac6c21dbc",
+   "stages": [
+    "stage.join",
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc14.txt#3": {
+   "h": "340650ba2e",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc14.txt#4": {
+   "h": "e8e5c20d65",
+   "stages": [
+    "stage.pay",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.irp",
+    "fund.retire",
+    "event.retire"
+   ],
+   "rules": [
+    "R-01"
+   ]
+  },
+  "doc14.txt#5": {
+   "h": "19248d7cb7",
+   "stages": [
+    "stage.invest",
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.irp",
+    "product.performance",
+    "event.house"
+   ],
+   "rules": [
+    "R-14",
+    "R-12",
+    "R-13"
+   ]
+  },
+  "doc14.txt#6": {
+   "h": "0a51f24bae",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.irp",
+    "event.lease",
+    "event.care",
+    "event.disaster",
+    "event.rehab"
+   ],
+   "rules": [
+    "R-13"
+   ]
+  },
+  "doc14.txt#7": {
+   "h": "2b7dbba688",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.pension"
+   ],
+   "rules": []
+  },
+  "doc14.txt#8": {
+   "h": "a878d064b8",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc14.txt#9": {
+   "h": "2c9d38e3df",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc14.txt#10": {
+   "h": "bd183a4dcf",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc14.txt#11": {
+   "h": "38f3c1a79a",
+   "stages": [
+    "stage.pay",
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.irp",
+    "event.age55"
+   ],
+   "rules": []
+  },
+  "doc14.txt#12": {
+   "h": "1ace29bb83",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc14.txt#13": {
+   "h": "549a185ec9",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.irp",
+    "event.disaster",
+    "event.rehab"
+   ],
+   "rules": [
+    "R-13"
+   ]
+  },
+  "doc15.txt#0": {
+   "h": "d173248fd4",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc15.txt#1": {
+   "h": "df53a87c4a",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc15.txt#2": {
+   "h": "53cc5b049a",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc15.txt#3": {
+   "h": "1e325e4381",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc15.txt#4": {
+   "h": "6385794bd7",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc16.txt#0": {
+   "h": "d9faa5a676",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "event.seizure",
+    "plan.pension"
+   ],
+   "rules": []
+  },
+  "doc16.txt#1": {
+   "h": "9cf54209cd",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "event.seizure",
+    "plan.dc",
+    "account.dc"
+   ],
+   "rules": []
+  },
+  "doc16.txt#2": {
+   "h": "d702af223f",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "event.seizure"
+   ],
+   "rules": []
+  },
+  "doc16.txt#3": {
+   "h": "ef29ff9483",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "event.seizure",
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc16.txt#4": {
+   "h": "a19b6cb0a2",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "event.seizure",
+    "plan.dc",
+    "event.unpaid"
+   ],
+   "rules": []
+  },
+  "doc16.txt#5": {
+   "h": "d6eab3efc5",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "event.seizure",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc16.txt#6": {
+   "h": "9914869725",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "event.seizure",
+    "plan.severance",
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc16.txt#7": {
+   "h": "92780de15b",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "event.seizure",
+    "plan.pension",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc16.txt#8": {
+   "h": "94b301b5a8",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "event.seizure",
+    "event.unpaid",
+    "plan.irp",
+    "plan.severance"
+   ],
+   "rules": []
+  },
+  "doc16.txt#9": {
+   "h": "79b721a7c8",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "event.seizure"
+   ],
+   "rules": []
+  },
+  "doc16.txt#10": {
+   "h": "fa288ad3e8",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "event.seizure",
+    "plan.pension"
+   ],
+   "rules": []
+  },
+  "doc17.txt#0": {
+   "h": "c2600a7157",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.unpaid",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc17.txt#1": {
+   "h": "60d66a87d5",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.unpaid"
+   ],
+   "rules": []
+  },
+  "doc17.txt#2": {
+   "h": "d68c2120c6",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.unpaid"
+   ],
+   "rules": []
+  },
+  "doc17.txt#3": {
+   "h": "b35363a5cc",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.retire",
+    "event.unpaid"
+   ],
+   "rules": []
+  },
+  "doc17.txt#4": {
+   "h": "fae9a08f01",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.unpaid",
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc17.txt#5": {
+   "h": "e8859468ab",
+   "stages": [
+    "stage.employer",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "event.unpaid",
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc17.txt#6": {
+   "h": "ad4290fa18",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "actor.employer",
+    "event.unpaid"
+   ],
+   "rules": []
+  },
+  "doc17.txt#7": {
+   "h": "c80ae5954f",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "event.unpaid"
+   ],
+   "rules": []
+  },
+  "doc17.txt#8": {
+   "h": "c87e818585",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "event.unpaid"
+   ],
+   "rules": []
+  },
+  "doc17.txt#9": {
+   "h": "4e91fb54ca",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "event.unpaid"
+   ],
+   "rules": []
+  },
+  "doc18.txt#0": {
+   "h": "d52ae3d422",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc18.txt#1": {
+   "h": "3bbef53f6d",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc18.txt#2": {
+   "h": "e7f2e7589e",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": []
+  },
+  "doc18.txt#3": {
+   "h": "b5f4f2d35c",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc18.txt#4": {
+   "h": "0bf0059abe",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc18.txt#5": {
+   "h": "67158a5dfe",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc18.txt#6": {
+   "h": "46f8065954",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "actor.employer",
+    "plan.db",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc18.txt#7": {
+   "h": "5683b57abc",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": []
+  },
+  "doc18.txt#8": {
+   "h": "d5ef4d7845",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc18.txt#9": {
+   "h": "578ab3a8e6",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc18.txt#10": {
+   "h": "8e49784e08",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc19.txt#0": {
+   "h": "c78fac59fe",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "account.pension",
+    "fund.free",
+    "fund.credit"
+   ],
+   "rules": []
+  },
+  "doc2.txt#0": {
+   "h": "21ecaf4425",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.old",
+    "wd.pension",
+    "wd.other",
+    "event.age55",
+    "tax.none"
+   ],
+   "rules": [
+    "R-15"
+   ]
+  },
+  "doc2.txt#1": {
+   "h": "04c483f362",
+   "stages": [
+    "stage.payout",
+    "stage.tax"
+   ],
+   "nodes": [
+    "account.savings",
+    "event.age55",
+    "fund.retire",
+    "fund.credit",
+    "fund.free",
+    "tax.pension",
+    "tax.global"
+   ],
+   "rules": [
+    "R-04",
+    "R-08"
+   ]
+  },
+  "doc2.txt#2": {
+   "h": "29f0c5d7d3",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "account.savings",
+    "wd.pension",
+    "wd.other",
+    "tax.other"
+   ],
+   "rules": [
+    "R-05"
+   ]
+  },
+  "doc2.txt#3": {
+   "h": "6216d3b19b",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "wd.pension"
+   ],
+   "rules": []
+  },
+  "doc2.txt#4": {
+   "h": "fda651ffe7",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "wd.pension",
+    "plan.old"
+   ],
+   "rules": []
+  },
+  "doc2.txt#5": {
+   "h": "466c3ca750",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "wd.pension"
+   ],
+   "rules": []
+  },
+  "doc2.txt#6": {
+   "h": "9bd3cae41c",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "account.savings",
+    "plan.old",
+    "fund.retire"
+   ],
+   "rules": []
+  },
+  "doc20.txt#0": {
+   "h": "6eca4feabb",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.savings",
+    "event.age55"
+   ],
+   "rules": [
+    "R-12"
+   ]
+  },
+  "doc20.txt#1": {
+   "h": "2b20ef633a",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.savings",
+    "event.house",
+    "event.lease",
+    "event.care",
+    "event.rehab",
+    "event.disaster"
+   ],
+   "rules": [
+    "R-12",
+    "R-13"
+   ]
+  },
+  "doc20.txt#2": {
+   "h": "a338275d43",
+   "stages": [
+    "stage.early",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.savings",
+    "wd.unavoidable",
+    "wd.other",
+    "tax.pension",
+    "tax.other",
+    "event.house",
+    "event.lease"
+   ],
+   "rules": [
+    "R-11",
+    "R-10"
+   ]
+  },
+  "doc20.txt#3": {
+   "h": "814f5755d0",
+   "stages": [
+    "stage.early",
+    "stage.tax"
+   ],
+   "nodes": [
+    "wd.unavoidable",
+    "wd.other",
+    "tax.pension",
+    "tax.other",
+    "event.house",
+    "event.lease",
+    "event.care",
+    "event.rehab",
+    "event.disaster"
+   ],
+   "rules": [
+    "R-11",
+    "R-13",
+    "R-10"
+   ]
+  },
+  "doc20.txt#4": {
+   "h": "f4c5695262",
+   "stages": [
+    "stage.tax",
+    "stage.early"
+   ],
+   "nodes": [
+    "tax.pension",
+    "tax.retire",
+    "tax.other",
+    "wd.unavoidable",
+    "fund.retire"
+   ],
+   "rules": [
+    "R-07",
+    "R-11",
+    "R-09"
+   ]
+  },
+  "doc20.txt#5": {
+   "h": "1eea2e74e6",
+   "stages": [
+    "stage.protect",
+    "stage.tax"
+   ],
+   "nodes": [
+    "wd.unavoidable",
+    "account.pension"
+   ],
+   "rules": []
+  },
+  "doc21.txt#0": {
+   "h": "181416b3c7",
+   "stages": [
+    "stage.tax",
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.irp",
+    "account.irp",
+    "fund.retire",
+    "fund.credit",
+    "tax.retire",
+    "tax.other",
+    "tax.pension",
+    "wd.pension",
+    "wd.other",
+    "wd.unavoidable",
+    "event.care",
+    "event.disaster"
+   ],
+   "rules": [
+    "R-07",
+    "R-09",
+    "R-10",
+    "R-11"
+   ]
+  },
+  "doc21.txt#1": {
+   "h": "34f12b01b1",
+   "stages": [
+    "stage.tax",
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.irp",
+    "tax.global",
+    "tax.other",
+    "fund.free",
+    "fund.retire",
+    "fund.credit",
+    "wd.pension"
+   ],
+   "rules": [
+    "R-08",
+    "R-05",
+    "R-06"
+   ]
+  },
+  "doc21.txt#2": {
+   "h": "38363ee81e",
+   "stages": [
+    "stage.payout",
+    "stage.early"
+   ],
+   "nodes": [
+    "wd.pension",
+    "wd.unavoidable",
+    "event.disaster",
+    "event.care",
+    "event.rehab"
+   ],
+   "rules": []
+  },
+  "doc22.txt#0": {
+   "h": "513f505c16",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc22.txt#1": {
+   "h": "0fe5aefa61",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.irp",
+    "wd.unavoidable",
+    "event.care"
+   ],
+   "rules": []
+  },
+  "doc22.txt#2": {
+   "h": "4e76bd2572",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "wd.unavoidable",
+    "event.rehab",
+    "event.disaster",
+    "fund.retire"
+   ],
+   "rules": []
+  },
+  "doc22.txt#3": {
+   "h": "f689ade40b",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.irp",
+    "account.irp",
+    "account.savings",
+    "plan.old",
+    "fund.retire",
+    "event.age55"
+   ],
+   "rules": [
+    "R-15"
+   ]
+  },
+  "doc22.txt#4": {
+   "h": "97689e1580",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "account.pension",
+    "plan.old"
+   ],
+   "rules": [
+    "R-15"
+   ]
+  },
+  "doc22.txt#5": {
+   "h": "0ffe33758b",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.irp",
+    "wd.pension",
+    "event.age55",
+    "fund.retire"
+   ],
+   "rules": [
+    "R-04"
+   ]
+  },
+  "doc22.txt#6": {
+   "h": "860a878ec3",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.irp",
+    "wd.pension",
+    "wd.other",
+    "event.age55",
+    "fund.retire",
+    "tax.pension",
+    "tax.retire",
+    "tax.other"
+   ],
+   "rules": [
+    "R-04",
+    "R-10"
+   ]
+  },
+  "doc22.txt#7": {
+   "h": "84c72a9f04",
+   "stages": [
+    "stage.payout",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.irp",
+    "fund.free",
+    "fund.retire",
+    "fund.credit",
+    "tax.retire",
+    "tax.other"
+   ],
+   "rules": [
+    "R-06",
+    "R-09",
+    "R-10"
+   ]
+  },
+  "doc22.txt#8": {
+   "h": "1115185467",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.irp",
+    "fund.retire",
+    "fund.credit",
+    "tax.retire",
+    "tax.pension",
+    "tax.other",
+    "tax.global",
+    "wd.pension",
+    "wd.other"
+   ],
+   "rules": [
+    "R-07",
+    "R-08",
+    "R-09",
+    "R-10"
+   ]
+  },
+  "doc23.txt#0": {
+   "h": "1a67b2f99a",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity",
+    "plan.irp",
+    "fund.free",
+    "event.yearend"
+   ],
+   "rules": [
+    "R-03",
+    "R-01",
+    "R-12"
+   ]
+  },
+  "doc23.txt#1": {
+   "h": "ea6d625b37",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity",
+    "fund.free"
+   ],
+   "rules": []
+  },
+  "doc23.txt#2": {
+   "h": "bfac8840c3",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": [
+    "R-03",
+    "R-01"
+   ]
+  },
+  "doc23.txt#3": {
+   "h": "d7e43544d9",
+   "stages": [
+    "stage.join",
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa"
+   ],
+   "rules": []
+  },
+  "doc24.txt#0": {
+   "h": "6739177dd6",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#1": {
+   "h": "02ec4f7008",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#2": {
+   "h": "05db8aa4d8",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#3": {
+   "h": "391a193b68",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#4": {
+   "h": "13b8023244",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#5": {
+   "h": "55f368821b",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#6": {
+   "h": "0bdf884fee",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#7": {
+   "h": "b683b64077",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#8": {
+   "h": "818916abd9",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#9": {
+   "h": "0e6c87df08",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#10": {
+   "h": "e64058a996",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#11": {
+   "h": "53ec0696ec",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#12": {
+   "h": "a0b5c4b7d7",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#13": {
+   "h": "1dfd624b55",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#14": {
+   "h": "0d8d9ae9b3",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc24.txt#15": {
+   "h": "d54a8bf28f",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "product.performance",
+    "plan.dc",
+    "plan.irp"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc25.txt#0": {
+   "h": "03c05886e2",
+   "stages": [
+    "stage.payout",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.old",
+    "tax.none",
+    "tax.global",
+    "wd.pension",
+    "wd.other",
+    "event.age55"
+   ],
+   "rules": [
+    "R-15"
+   ]
+  },
+  "doc25.txt#1": {
+   "h": "da84fa2a99",
+   "stages": [
+    "stage.payout",
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.old",
+    "event.retire",
+    "wd.unavoidable",
+    "tax.none",
+    "event.age55"
+   ],
+   "rules": [
+    "R-15"
+   ]
+  },
+  "doc26.txt#0": {
+   "h": "c9a665ff4a",
+   "stages": [
+    "stage.pay",
+    "stage.tax"
+   ],
+   "nodes": [
+    "fund.retire",
+    "account.savings",
+    "event.retire",
+    "tax.retire"
+   ],
+   "rules": []
+  },
+  "doc26.txt#1": {
+   "h": "68633fdd78",
+   "stages": [
+    "stage.tax",
+    "stage.payout"
+   ],
+   "nodes": [
+    "account.pension",
+    "fund.free",
+    "fund.retire",
+    "fund.credit",
+    "tax.retire",
+    "tax.pension",
+    "tax.global",
+    "wd.pension"
+   ],
+   "rules": [
+    "R-06",
+    "R-07",
+    "R-08",
+    "R-09"
+   ]
+  },
+  "doc26.txt#2": {
+   "h": "3acbde3372",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "fund.retire",
+    "account.savings",
+    "tax.retire",
+    "tax.none"
+   ],
+   "rules": []
+  },
+  "doc27.txt#0": {
+   "h": "48c1f3c073",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.external",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc27.txt#1": {
+   "h": "fbd7fdb2bf",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#2": {
+   "h": "7983f73267",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#3": {
+   "h": "0ac26d4c82",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#4": {
+   "h": "ee6169229b",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#5": {
+   "h": "a90588ce8c",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#6": {
+   "h": "85d6149170",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#7": {
+   "h": "92f9520452",
+   "stages": [
+    "stage.invest",
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.guaranteed",
+    "wd.pension"
+   ],
+   "rules": []
+  },
+  "doc27.txt#8": {
+   "h": "5d87ea06b4",
+   "stages": [
+    "stage.pay",
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#9": {
+   "h": "8cc0a16286",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.external",
+    "wd.pension"
+   ],
+   "rules": []
+  },
+  "doc27.txt#10": {
+   "h": "3e86e8bbac",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.external",
+    "wd.pension"
+   ],
+   "rules": []
+  },
+  "doc27.txt#11": {
+   "h": "4c996c3603",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.external",
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc27.txt#12": {
+   "h": "7be4292137",
+   "stages": [
+    "stage.invest",
+    "stage.protect"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#13": {
+   "h": "03e6053b1f",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc27.txt#14": {
+   "h": "ead7b2b995",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.guaranteed",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc27.txt#15": {
+   "h": "41f2d77b77",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc27.txt#16": {
+   "h": "f97f7c76e3",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#17": {
+   "h": "87a0776c5d",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.guaranteed",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc27.txt#18": {
+   "h": "6a11b4ece8",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc27.txt#19": {
+   "h": "9d64bb8a5c",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#20": {
+   "h": "be474376de",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#21": {
+   "h": "1b51680f27",
+   "stages": [
+    "stage.tax",
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.external",
+    "wd.other",
+    "wd.pension",
+    "fund.credit",
+    "fund.free",
+    "tax.other",
+    "tax.pension"
+   ],
+   "rules": [
+    "R-10"
+   ]
+  },
+  "doc27.txt#22": {
+   "h": "7ada8b113c",
+   "stages": [
+    "stage.pay",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.external",
+    "fund.credit",
+    "fund.free",
+    "wd.pension",
+    "wd.other",
+    "tax.pension",
+    "tax.other"
+   ],
+   "rules": [
+    "R-07",
+    "R-10"
+   ]
+  },
+  "doc27.txt#23": {
+   "h": "4e5c00e7b6",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#24": {
+   "h": "97402a0f46",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.external",
+    "event.age55",
+    "wd.pension"
+   ],
+   "rules": []
+  },
+  "doc27.txt#25": {
+   "h": "0943f23351",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.external",
+    "plan.irp",
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc27.txt#26": {
+   "h": "15bb7358ee",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.external",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc27.txt#27": {
+   "h": "762b0433ee",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.external",
+    "plan.db",
+    "plan.dc",
+    "plan.severance"
+   ],
+   "rules": []
+  },
+  "doc27.txt#28": {
+   "h": "38a74fd2dd",
+   "stages": [
+    "stage.join",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.external",
+    "plan.severance"
+   ],
+   "rules": []
+  },
+  "doc27.txt#29": {
+   "h": "167aca98a3",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.external",
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc27.txt#30": {
+   "h": "ec44746caa",
+   "stages": [
+    "stage.join",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.external",
+    "tax.retire",
+    "tax.pension"
+   ],
+   "rules": []
+  },
+  "doc27.txt#31": {
+   "h": "5e33e965de",
+   "stages": [
+    "stage.pay",
+    "stage.protect"
+   ],
+   "nodes": [
+    "plan.external",
+    "event.yearend",
+    "product.guaranteed",
+    "product.performance"
+   ],
+   "rules": [
+    "R-01"
+   ]
+  },
+  "doc27.txt#32": {
+   "h": "1d332ea7db",
+   "stages": [
+    "stage.tax",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.external",
+    "wd.other",
+    "fund.credit",
+    "tax.other"
+   ],
+   "rules": [
+    "R-10"
+   ]
+  },
+  "doc27.txt#33": {
+   "h": "553e5aa710",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.external",
+    "account.pension"
+   ],
+   "rules": []
+  },
+  "doc27.txt#34": {
+   "h": "35f82b2e51",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.external",
+    "event.retire",
+    "event.age55",
+    "wd.pension"
+   ],
+   "rules": []
+  },
+  "doc27.txt#35": {
+   "h": "35487dea38",
+   "stages": [
+    "stage.invest",
+    "stage.protect"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc27.txt#36": {
+   "h": "68e39732cf",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.external",
+    "event.house",
+    "event.lease",
+    "event.care",
+    "event.rehab",
+    "event.disaster"
+   ],
+   "rules": [
+    "R-13"
+   ]
+  },
+  "doc27.txt#37": {
+   "h": "0929e3a372",
+   "stages": [
+    "stage.pay",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.external",
+    "account.pension",
+    "event.yearend",
+    "tax.retire",
+    "tax.pension"
+   ],
+   "rules": [
+    "R-01",
+    "R-02"
+   ]
+  },
+  "doc27.txt#38": {
+   "h": "88ed3dbf95",
+   "stages": [
+    "stage.payout",
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external",
+    "event.age55",
+    "wd.pension",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc27.txt#39": {
+   "h": "60fb1e6c31",
+   "stages": [
+    "stage.invest",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.guaranteed",
+    "product.performance",
+    "event.plan_change",
+    "plan.dc",
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc27.txt#40": {
+   "h": "feed3bd8b7",
+   "stages": [
+    "stage.invest",
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.guaranteed",
+    "product.performance",
+    "event.retire",
+    "event.age55"
+   ],
+   "rules": []
+  },
+  "doc27.txt#41": {
+   "h": "b6dea0a4a5",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.external",
+    "plan.db",
+    "plan.dc",
+    "tax.pension",
+    "wd.pension"
+   ],
+   "rules": []
+  },
+  "doc27.txt#42": {
+   "h": "b2c7e4ff95",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.external",
+    "plan.severance",
+    "plan.dc",
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc27.txt#43": {
+   "h": "0739d8e463",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.external",
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc27.txt#44": {
+   "h": "5bd793ebed",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": []
+  },
+  "doc27.txt#45": {
+   "h": "52788a416b",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.external",
+    "actor.employer",
+    "event.unpaid"
+   ],
+   "rules": []
+  },
+  "doc27.txt#46": {
+   "h": "dbbc967a00",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc27.txt#47": {
+   "h": "6f9c497ce5",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external",
+    "plan.dc",
+    "product.guaranteed",
+    "product.performance"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc27.txt#48": {
+   "h": "c91d142bb1",
+   "stages": [
+    "stage.invest",
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.guaranteed"
+   ],
+   "rules": [
+    "R-01"
+   ]
+  },
+  "doc27.txt#49": {
+   "h": "e350903d88",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.external",
+    "plan.irp",
+    "event.retire",
+    "event.age55",
+    "tax.retire"
+   ],
+   "rules": []
+  },
+  "doc27.txt#50": {
+   "h": "8e87fa2476",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external",
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc28.txt#0": {
+   "h": "6be83330c9",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc28.txt#1": {
+   "h": "67ed5853c6",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc28.txt#2": {
+   "h": "da2d10cfba",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.guaranteed",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc28.txt#3": {
+   "h": "789d6bd92a",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external"
+   ],
+   "rules": []
+  },
+  "doc28.txt#4": {
+   "h": "04128116a7",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.external",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc28.txt#5": {
+   "h": "01fdd8ba12",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc28.txt#6": {
+   "h": "fc96d41551",
+   "stages": [],
+   "nodes": [],
+   "rules": []
+  },
+  "doc29.txt#0": {
+   "h": "4b9e3166a9",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#1": {
+   "h": "6b0c3ffecf",
+   "stages": [],
+   "nodes": [],
+   "rules": []
+  },
+  "doc29.txt#2": {
+   "h": "5d5f17965d",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#3": {
+   "h": "c758a4bcbf",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#4": {
+   "h": "b31b688bf6",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#5": {
+   "h": "c8c121c68e",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc29.txt#6": {
+   "h": "20ca34e3fa",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#7": {
+   "h": "7250626ce0",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc29.txt#8": {
+   "h": "e1d1d7b5c2",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc29.txt#9": {
+   "h": "ed80f75208",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc29.txt#10": {
+   "h": "b6cc400a69",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc29.txt#11": {
+   "h": "43ecf3a749",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc29.txt#12": {
+   "h": "17b65d9166",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#13": {
+   "h": "3104043966",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc29.txt#14": {
+   "h": "58d5fc01cb",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#15": {
+   "h": "7b9453e714",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#16": {
+   "h": "c4fbf9d1de",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#17": {
+   "h": "80ad7834de",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#18": {
+   "h": "efe3a00ac9",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#19": {
+   "h": "807b07f021",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc29.txt#20": {
+   "h": "63f5a4b4c4",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#21": {
+   "h": "a9e512e893",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#22": {
+   "h": "34ef257153",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc29.txt#23": {
+   "h": "27bbaa1c4b",
+   "stages": [],
+   "nodes": [],
+   "rules": []
+  },
+  "doc29.txt#24": {
+   "h": "ce8d312e18",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc3.txt#0": {
+   "h": "17f378a78b",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.savings",
+    "account.savings",
+    "plan.old"
+   ],
+   "rules": []
+  },
+  "doc3.txt#1": {
+   "h": "661df27741",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.savings",
+    "account.savings",
+    "plan.old"
+   ],
+   "rules": []
+  },
+  "doc3.txt#2": {
+   "h": "708c804ea4",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.savings",
+    "account.savings",
+    "plan.old"
+   ],
+   "rules": []
+  },
+  "doc3.txt#3": {
+   "h": "eae854f7d4",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.savings",
+    "account.savings",
+    "plan.old"
+   ],
+   "rules": []
+  },
+  "doc3.txt#4": {
+   "h": "78d25c7b09",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.savings",
+    "account.savings",
+    "plan.old"
+   ],
+   "rules": []
+  },
+  "doc3.txt#5": {
+   "h": "e5c6e77e87",
+   "stages": [
+    "stage.early",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.old",
+    "tax.none"
+   ],
+   "rules": []
+  },
+  "doc3.txt#6": {
+   "h": "0685c616a7",
+   "stages": [
+    "stage.invest",
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.savings",
+    "account.savings",
+    "plan.old"
+   ],
+   "rules": []
+  },
+  "doc3.txt#7": {
+   "h": "cd1e4eb159",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.savings",
+    "account.savings",
+    "plan.old"
+   ],
+   "rules": []
+  },
+  "doc3.txt#8": {
+   "h": "4b31b7e6b5",
+   "stages": [
+    "stage.transfer",
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.savings",
+    "account.savings",
+    "plan.old"
+   ],
+   "rules": []
+  },
+  "doc30.txt#0": {
+   "h": "c0a957cb01",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc30.txt#1": {
+   "h": "63c68f6557",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc30.txt#2": {
+   "h": "8065bb498b",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc30.txt#3": {
+   "h": "b906296e11",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "plan.dc",
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc30.txt#4": {
+   "h": "0b0923c62e",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc30.txt#5": {
+   "h": "f89a04034e",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc30.txt#6": {
+   "h": "245e02078e",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc30.txt#7": {
+   "h": "89dd440bfb",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc30.txt#8": {
+   "h": "b4c6d570c0",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc30.txt#9": {
+   "h": "d5ed313aa4",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc30.txt#10": {
+   "h": "4085b0b6f1",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc30.txt#11": {
+   "h": "b58b36bbbd",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc30.txt#12": {
+   "h": "d67f0184b1",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc30.txt#13": {
+   "h": "6f78900a0b",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc30.txt#14": {
+   "h": "e84c8b1d9f",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc30.txt#15": {
+   "h": "fcfec29ff6",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc30.txt#16": {
+   "h": "dd4994de30",
+   "stages": [
+    "stage.protect",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "wd.other",
+    "fund.credit",
+    "tax.other"
+   ],
+   "rules": [
+    "R-10"
+   ]
+  },
+  "doc30.txt#17": {
+   "h": "50e5dc07d7",
+   "stages": [],
+   "nodes": [],
+   "rules": []
+  },
+  "doc31.txt#0": {
+   "h": "690d57745a",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#1": {
+   "h": "f2014a0c92",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#2": {
+   "h": "23a97b0f79",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#3": {
+   "h": "75119e38ba",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#4": {
+   "h": "b83c56f88f",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "plan.dc",
+    "plan.irp",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc31.txt#5": {
+   "h": "e01e219b1c",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#6": {
+   "h": "bacb8701cc",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#7": {
+   "h": "ed8590f0dc",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#8": {
+   "h": "621f9e69a8",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#9": {
+   "h": "d3c7ce7038",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#10": {
+   "h": "beb60356b3",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.performance",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc31.txt#11": {
+   "h": "721695c849",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#12": {
+   "h": "36404c62eb",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#13": {
+   "h": "ffd1dd0d13",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc31.txt#14": {
+   "h": "930d7d565d",
+   "stages": [
+    "stage.protect",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "wd.other",
+    "fund.credit",
+    "tax.other"
+   ],
+   "rules": [
+    "R-10"
+   ]
+  },
+  "doc31.txt#15": {
+   "h": "f12d5314a0",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "plan.dc",
+    "plan.irp",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc31.txt#16": {
+   "h": "8fe8933c40",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc31.txt#17": {
+   "h": "a8ea04284e",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc32.txt#0": {
+   "h": "2eeec9b5df",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc32.txt#1": {
+   "h": "50d9682a72",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc32.txt#2": {
+   "h": "f5487672ee",
+   "stages": [],
+   "nodes": [],
+   "rules": []
+  },
+  "doc32.txt#3": {
+   "h": "74c1cbf73e",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc32.txt#4": {
+   "h": "8496cbc440",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc32.txt#5": {
+   "h": "91f301cb07",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc32.txt#6": {
+   "h": "3fd2f25f81",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc32.txt#7": {
+   "h": "e3c28a8036",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "plan.dc",
+    "plan.irp_corp",
+    "plan.irp",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc32.txt#8": {
+   "h": "5074c9ecd6",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc32.txt#9": {
+   "h": "8fcc46847b",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc32.txt#10": {
+   "h": "394bd63414",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc32.txt#11": {
+   "h": "b2ed8fead3",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc32.txt#12": {
+   "h": "92621ba9fc",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc32.txt#13": {
+   "h": "583774cd97",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc32.txt#14": {
+   "h": "43f2c36877",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc32.txt#15": {
+   "h": "e107ca9829",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc32.txt#16": {
+   "h": "d7aa3566d7",
+   "stages": [],
+   "nodes": [],
+   "rules": []
+  },
+  "doc33.txt#0": {
+   "h": "705d0ac499",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": []
+  },
+  "doc33.txt#1": {
+   "h": "3f2e0a2cec",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": []
+  },
+  "doc33.txt#2": {
+   "h": "cf0d317b93",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": []
+  },
+  "doc33.txt#3": {
+   "h": "4f81eb1eed",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": []
+  },
+  "doc33.txt#4": {
+   "h": "887998ff54",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa"
+   ],
+   "rules": []
+  },
+  "doc33.txt#5": {
+   "h": "b80b6849ea",
+   "stages": [
+    "stage.pay",
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity",
+    "account.savings"
+   ],
+   "rules": []
+  },
+  "doc33.txt#6": {
+   "h": "e397e3e91a",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": []
+  },
+  "doc33.txt#7": {
+   "h": "ec6eb90e42",
+   "stages": [
+    "stage.pay",
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity",
+    "account.savings",
+    "fund.free"
+   ],
+   "rules": []
+  },
+  "doc33.txt#8": {
+   "h": "9efdee84ae",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.savings",
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": [
+    "R-01",
+    "R-03"
+   ]
+  },
+  "doc33.txt#9": {
+   "h": "5ff8324763",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc33.txt#10": {
+   "h": "f69abd2d82",
+   "stages": [],
+   "nodes": [],
+   "rules": []
+  },
+  "doc34.txt#0": {
+   "h": "b43dd101c7",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc34.txt#1": {
+   "h": "fc05d01b78",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.seizure",
+    "product.guaranteed",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc34.txt#2": {
+   "h": "2e19769c89",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc34.txt#3": {
+   "h": "5d4fc09c5c",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.default",
+    "plan.dc",
+    "plan.irp",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc35.txt#0": {
+   "h": "f990e97983",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "plan.irp_corp",
+    "plan.irp",
+    "plan.default",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc36.txt#0": {
+   "h": "20b1eb14c3",
+   "stages": [
+    "stage.tax",
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.pension",
+    "fund.credit"
+   ],
+   "rules": []
+  },
+  "doc36.txt#1": {
+   "h": "418cc66aa0",
+   "stages": [
+    "stage.tax",
+    "stage.payout"
+   ],
+   "nodes": [
+    "account.pension",
+    "fund.credit",
+    "wd.pension",
+    "wd.other",
+    "tax.pension",
+    "tax.other",
+    "tax.global"
+   ],
+   "rules": [
+    "R-07",
+    "R-08",
+    "R-10"
+   ]
+  },
+  "doc36.txt#2": {
+   "h": "f64d4f24f5",
+   "stages": [
+    "stage.tax",
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.pension"
+   ],
+   "rules": []
+  },
+  "doc37.txt#0": {
+   "h": "c334abd2a8",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc37.txt#1": {
+   "h": "7fe91cb882",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc37.txt#2": {
+   "h": "be2bfb5ff6",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc37.txt#3": {
+   "h": "cb6471710d",
+   "stages": [
+    "stage.invest",
+    "stage.payout"
+   ],
+   "nodes": [
+    "wd.pension"
+   ],
+   "rules": []
+  },
+  "doc37.txt#4": {
+   "h": "f54b094c27",
+   "stages": [
+    "stage.invest",
+    "stage.payout"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc37.txt#5": {
+   "h": "92d8015762",
+   "stages": [
+    "stage.invest",
+    "stage.payout"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc37.txt#6": {
+   "h": "3477cacafb",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc37.txt#7": {
+   "h": "e4d3a4a87c",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc37.txt#8": {
+   "h": "582a32a605",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc37.txt#9": {
+   "h": "5495ac51eb",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc37.txt#10": {
+   "h": "69b9b49bc8",
+   "stages": [
+    "stage.payout",
+    "stage.tax"
+   ],
+   "nodes": [
+    "wd.pension",
+    "wd.other",
+    "event.age55",
+    "fund.retire",
+    "fund.credit",
+    "tax.other",
+    "tax.global"
+   ],
+   "rules": [
+    "R-04",
+    "R-08",
+    "R-10"
+   ]
+  },
+  "doc37.txt#11": {
+   "h": "40268af3ee",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc37.txt#12": {
+   "h": "2c668070ff",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc37.txt#13": {
+   "h": "dc5ea0b5a9",
+   "stages": [],
+   "nodes": [],
+   "rules": []
+  },
+  "doc37.txt#14": {
+   "h": "9f77cadff5",
+   "stages": [
+    "stage.protect"
+   ],
+   "nodes": [
+    "plan.pension",
+    "wd.other",
+    "tax.other",
+    "fund.credit"
+   ],
+   "rules": [
+    "R-10"
+   ]
+  },
+  "doc38.txt#0": {
+   "h": "ec377bc83c",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "account.pension",
+    "fund.free",
+    "fund.retire",
+    "fund.credit",
+    "wd.pension",
+    "tax.pension",
+    "tax.global",
+    "tax.none"
+   ],
+   "rules": [
+    "R-07",
+    "R-08"
+   ]
+  },
+  "doc38.txt#1": {
+   "h": "9580216be8",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "tax.pension",
+    "wd.pension"
+   ],
+   "rules": [
+    "R-07"
+   ]
+  },
+  "doc38.txt#2": {
+   "h": "6f679d4cb3",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.irp",
+    "fund.retire",
+    "fund.credit",
+    "wd.pension",
+    "tax.pension",
+    "tax.global",
+    "tax.retire"
+   ],
+   "rules": [
+    "R-06",
+    "R-08",
+    "R-09"
+   ]
+  },
+  "doc39.txt#0": {
+   "h": "dfc8d7f3c4",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "account.pension",
+    "wd.pension",
+    "wd.other",
+    "event.age55",
+    "fund.retire"
+   ],
+   "rules": [
+    "R-04",
+    "R-05"
+   ]
+  },
+  "doc39.txt#1": {
+   "h": "8f72ae6d7c",
+   "stages": [
+    "stage.payout",
+    "stage.tax"
+   ],
+   "nodes": [
+    "account.pension",
+    "plan.dc",
+    "plan.db",
+    "fund.free",
+    "fund.retire",
+    "fund.credit",
+    "tax.pension",
+    "tax.retire",
+    "tax.other",
+    "tax.none"
+   ],
+   "rules": [
+    "R-05",
+    "R-06"
+   ]
+  },
+  "doc39.txt#2": {
+   "h": "9df6060c93",
+   "stages": [
+    "stage.tax",
+    "stage.payout"
+   ],
+   "nodes": [
+    "fund.retire",
+    "fund.credit",
+    "wd.pension",
+    "wd.other",
+    "tax.retire",
+    "tax.pension",
+    "tax.other",
+    "tax.global"
+   ],
+   "rules": [
+    "R-07",
+    "R-08",
+    "R-09",
+    "R-10"
+   ]
+  },
+  "doc39.txt#3": {
+   "h": "cd242b3397",
+   "stages": [
+    "stage.tax",
+    "stage.payout"
+   ],
+   "nodes": [
+    "account.pension",
+    "fund.free",
+    "fund.retire",
+    "fund.credit",
+    "wd.pension",
+    "wd.other",
+    "tax.none",
+    "tax.retire",
+    "tax.pension",
+    "tax.other",
+    "tax.global",
+    "event.age55",
+    "event.retire"
+   ],
+   "rules": [
+    "R-05",
+    "R-06",
+    "R-07",
+    "R-08",
+    "R-09",
+    "R-10"
+   ]
+  },
+  "doc4.txt#0": {
+   "h": "6030faa4d1",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.savings",
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": []
+  },
+  "doc4.txt#1": {
+   "h": "7be815bb3c",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": []
+  },
+  "doc4.txt#2": {
+   "h": "b0b384ce7e",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": [
+    "R-01",
+    "R-03"
+   ]
+  },
+  "doc4.txt#3": {
+   "h": "386d43603a",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.savings",
+    "plan.irp",
+    "plan.isa",
+    "event.isa_maturity",
+    "fund.free"
+   ],
+   "rules": [
+    "R-01",
+    "R-03"
+   ]
+  },
+  "doc4.txt#4": {
+   "h": "e2104040a2",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.isa",
+    "event.isa_maturity",
+    "fund.free",
+    "fund.retire",
+    "fund.credit"
+   ],
+   "rules": [
+    "R-06"
+   ]
+  },
+  "doc40.txt#0": {
+   "h": "030e35560e",
+   "stages": [
+    "stage.tax",
+    "stage.payout"
+   ],
+   "nodes": [
+    "fund.retire",
+    "wd.pension",
+    "wd.other",
+    "tax.retire"
+   ],
+   "rules": [
+    "R-09",
+    "R-10"
+   ]
+  },
+  "doc40.txt#1": {
+   "h": "d07c3d4e6b",
+   "stages": [
+    "stage.payout",
+    "stage.tax"
+   ],
+   "nodes": [
+    "account.pension",
+    "fund.retire",
+    "wd.pension",
+    "tax.retire"
+   ],
+   "rules": [
+    "R-09"
+   ]
+  },
+  "doc40.txt#2": {
+   "h": "841357a66e",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "account.pension",
+    "event.age55",
+    "event.retire",
+    "fund.retire",
+    "wd.pension"
+   ],
+   "rules": [
+    "R-04"
+   ]
+  },
+  "doc41.txt#0": {
+   "h": "4cd1e2c855",
+   "stages": [
+    "stage.pay",
+    "stage.join"
+   ],
+   "nodes": [
+    "account.pension",
+    "plan.savings",
+    "plan.irp",
+    "event.yearend"
+   ],
+   "rules": [
+    "R-01",
+    "R-02"
+   ]
+  },
+  "doc41.txt#1": {
+   "h": "2c6d811002",
+   "stages": [
+    "stage.early",
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.savings",
+    "plan.irp",
+    "event.house",
+    "wd.other",
+    "tax.other",
+    "fund.credit"
+   ],
+   "rules": [
+    "R-01",
+    "R-02",
+    "R-10",
+    "R-12"
+   ]
+  },
+  "doc42.txt#0": {
+   "h": "4fdc570b68",
+   "stages": [
+    "stage.tax",
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc42.txt#1": {
+   "h": "cdbed80125",
+   "stages": [
+    "stage.invest",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.savings",
+    "plan.irp",
+    "fund.credit",
+    "tax.pension"
+   ],
+   "rules": [
+    "R-07"
+   ]
+  },
+  "doc42.txt#2": {
+   "h": "c89e6a65e8",
+   "stages": [
+    "stage.tax",
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.pension",
+    "plan.dc",
+    "tax.pension",
+    "tax.global",
+    "tax.retire"
+   ],
+   "rules": [
+    "R-07",
+    "R-08"
+   ]
+  },
+  "doc43.txt#0": {
+   "h": "c063db063b",
+   "stages": [
+    "stage.tax",
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc43.txt#1": {
+   "h": "c387e518d6",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc43.txt#2": {
+   "h": "a3fcc87640",
+   "stages": [
+    "stage.tax",
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.pension",
+    "fund.credit",
+    "wd.pension",
+    "tax.pension"
+   ],
+   "rules": [
+    "R-07"
+   ]
+  },
+  "doc43.txt#3": {
+   "h": "5b9ce03f72",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "account.pension"
+   ],
+   "rules": []
+  },
+  "doc43.txt#4": {
+   "h": "090ce5bf5b",
+   "stages": [
+    "stage.tax",
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.pension",
+    "tax.pension"
+   ],
+   "rules": [
+    "R-07"
+   ]
+  },
+  "doc43.txt#5": {
+   "h": "2850b4df3e",
+   "stages": [
+    "stage.tax",
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc44.txt#0": {
+   "h": "b70c535136",
+   "stages": [
+    "stage.pay",
+    "stage.tax"
+   ],
+   "nodes": [
+    "account.pension",
+    "plan.savings",
+    "plan.irp",
+    "fund.free",
+    "fund.credit",
+    "tax.pension",
+    "tax.none"
+   ],
+   "rules": [
+    "R-06",
+    "R-07",
+    "R-12"
+   ]
+  },
+  "doc44.txt#1": {
+   "h": "917d059ba7",
+   "stages": [
+    "stage.pay",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.savings",
+    "plan.irp",
+    "fund.free",
+    "fund.credit",
+    "tax.none",
+    "tax.pension"
+   ],
+   "rules": [
+    "R-07"
+   ]
+  },
+  "doc45.txt#0": {
+   "h": "42abd79bdc",
+   "stages": [
+    "stage.tax",
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.irp",
+    "fund.retire",
+    "tax.retire",
+    "event.retire"
+   ],
+   "rules": [
+    "R-09"
+   ]
+  },
+  "doc45.txt#1": {
+   "h": "9fe2cf3e81",
+   "stages": [
+    "stage.tax",
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "fund.retire",
+    "tax.retire",
+    "event.house",
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc45.txt#2": {
+   "h": "5376d01a6a",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "tax.retire"
+   ],
+   "rules": []
+  },
+  "doc46.txt#0": {
+   "h": "09dac6c0c9",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.pension",
+    "plan.dc",
+    "plan.irp",
+    "plan.db",
+    "event.care"
+   ],
+   "rules": [
+    "R-12"
+   ]
+  },
+  "doc46.txt#1": {
+   "h": "0ef0ee1f3b",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp_corp",
+    "plan.irp",
+    "event.care"
+   ],
+   "rules": []
+  },
+  "doc46.txt#2": {
+   "h": "672e6b9b5e",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.irp",
+    "event.care"
+   ],
+   "rules": []
+  },
+  "doc46.txt#3": {
+   "h": "268978080c",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.care"
+   ],
+   "rules": []
+  },
+  "doc46.txt#4": {
+   "h": "0827619e62",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.care"
+   ],
+   "rules": []
+  },
+  "doc47.txt#0": {
+   "h": "9b7fcb3c2a",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.pension",
+    "plan.dc",
+    "plan.irp",
+    "plan.db",
+    "event.rehab"
+   ],
+   "rules": [
+    "R-12"
+   ]
+  },
+  "doc47.txt#1": {
+   "h": "1ad4ddd5ab",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp_corp",
+    "plan.irp",
+    "event.rehab"
+   ],
+   "rules": []
+  },
+  "doc48.txt#0": {
+   "h": "d0a25d836f",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.pension",
+    "plan.dc",
+    "plan.irp",
+    "plan.db",
+    "event.lease"
+   ],
+   "rules": [
+    "R-12"
+   ]
+  },
+  "doc48.txt#1": {
+   "h": "64e62be92a",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "event.lease"
+   ],
+   "rules": []
+  },
+  "doc48.txt#2": {
+   "h": "5c0a832559",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.lease"
+   ],
+   "rules": []
+  },
+  "doc48.txt#3": {
+   "h": "87e0be0746",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.lease"
+   ],
+   "rules": []
+  },
+  "doc49.txt#0": {
+   "h": "c5142fc40b",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.pension",
+    "plan.dc",
+    "plan.irp",
+    "plan.db",
+    "event.house"
+   ],
+   "rules": [
+    "R-12"
+   ]
+  },
+  "doc49.txt#1": {
+   "h": "1f63bc4da9",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.house"
+   ],
+   "rules": []
+  },
+  "doc49.txt#2": {
+   "h": "2e6cd0e61b",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.house"
+   ],
+   "rules": []
+  },
+  "doc49.txt#3": {
+   "h": "a99fa78bc6",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.house"
+   ],
+   "rules": []
+  },
+  "doc5.txt#0": {
+   "h": "6acfe34e6d",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.savings",
+    "plan.old",
+    "wd.unavoidable",
+    "fund.credit"
+   ],
+   "rules": [
+    "R-12"
+   ]
+  },
+  "doc5.txt#1": {
+   "h": "30c33b4368",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.savings",
+    "fund.free",
+    "fund.retire",
+    "fund.credit"
+   ],
+   "rules": [
+    "R-06"
+   ]
+  },
+  "doc5.txt#2": {
+   "h": "4cf7751ceb",
+   "stages": [
+    "stage.tax",
+    "stage.early"
+   ],
+   "nodes": [
+    "fund.retire",
+    "fund.credit",
+    "wd.pension",
+    "wd.other",
+    "wd.unavoidable",
+    "tax.retire",
+    "tax.other",
+    "tax.pension"
+   ],
+   "rules": [
+    "R-07",
+    "R-09",
+    "R-10",
+    "R-11"
+   ]
+  },
+  "doc5.txt#3": {
+   "h": "32ce18e3ab",
+   "stages": [
+    "stage.early",
+    "stage.tax"
+   ],
+   "nodes": [
+    "wd.unavoidable",
+    "tax.pension",
+    "fund.retire",
+    "event.care",
+    "event.disaster",
+    "event.rehab"
+   ],
+   "rules": [
+    "R-11"
+   ]
+  },
+  "doc5.txt#4": {
+   "h": "d0ae332d61",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "wd.unavoidable",
+    "fund.retire",
+    "event.disaster",
+    "event.care"
+   ],
+   "rules": []
+  },
+  "doc5.txt#5": {
+   "h": "d367251f7e",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "wd.unavoidable",
+    "tax.pension",
+    "event.care",
+    "event.disaster"
+   ],
+   "rules": []
+  },
+  "doc5.txt#6": {
+   "h": "bf1309c8eb",
+   "stages": [
+    "stage.early",
+    "stage.tax"
+   ],
+   "nodes": [
+    "wd.unavoidable",
+    "wd.pension",
+    "fund.free",
+    "fund.retire",
+    "fund.credit",
+    "tax.pension",
+    "tax.global",
+    "event.rehab"
+   ],
+   "rules": [
+    "R-08"
+   ]
+  },
+  "doc5.txt#7": {
+   "h": "dc991bd4b9",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc5.txt#8": {
+   "h": "ca823f0b86",
+   "stages": [
+    "stage.early",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.savings",
+    "plan.old",
+    "fund.credit",
+    "wd.pension",
+    "wd.other",
+    "tax.pension",
+    "tax.other",
+    "tax.retire"
+   ],
+   "rules": [
+    "R-10"
+   ]
+  },
+  "doc5.txt#9": {
+   "h": "a5c884567e",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.old",
+    "tax.none",
+    "event.care",
+    "event.retire",
+    "event.disaster"
+   ],
+   "rules": []
+  },
+  "doc5.txt#10": {
+   "h": "e191bbb8df",
+   "stages": [
+    "stage.early",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.savings",
+    "wd.unavoidable",
+    "tax.pension",
+    "fund.retire",
+    "event.care",
+    "event.disaster",
+    "event.rehab"
+   ],
+   "rules": [
+    "R-11"
+   ]
+  },
+  "doc5.txt#11": {
+   "h": "e7d9b0d969",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "wd.unavoidable",
+    "fund.retire",
+    "event.disaster",
+    "event.care"
+   ],
+   "rules": []
+  },
+  "doc5.txt#12": {
+   "h": "d367251f7e",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "wd.unavoidable",
+    "tax.pension",
+    "event.care",
+    "event.disaster"
+   ],
+   "rules": []
+  },
+  "doc5.txt#13": {
+   "h": "8d6863805a",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "wd.unavoidable",
+    "event.rehab"
+   ],
+   "rules": []
+  },
+  "doc50.txt#0": {
+   "h": "4676c34db8",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.pension",
+    "plan.dc",
+    "plan.irp",
+    "plan.db",
+    "event.disaster"
+   ],
+   "rules": [
+    "R-12"
+   ]
+  },
+  "doc50.txt#1": {
+   "h": "7a944b7b7d",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.disaster"
+   ],
+   "rules": []
+  },
+  "doc50.txt#2": {
+   "h": "6ee8b32aad",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc51.txt#0": {
+   "h": "5f431ae707",
+   "stages": [
+    "stage.payout",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.savings",
+    "fund.retire",
+    "wd.pension",
+    "tax.retire",
+    "event.retire"
+   ],
+   "rules": [
+    "R-09"
+   ]
+  },
+  "doc51.txt#1": {
+   "h": "e341bfccb3",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "fund.retire",
+    "fund.credit",
+    "wd.pension",
+    "tax.retire",
+    "tax.pension",
+    "tax.global"
+   ],
+   "rules": [
+    "R-07",
+    "R-08",
+    "R-09"
+   ]
+  },
+  "doc51.txt#2": {
+   "h": "483035b9bf",
+   "stages": [
+    "stage.employer",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.savings",
+    "plan.dc",
+    "plan.db",
+    "plan.severance",
+    "fund.retire",
+    "event.retire",
+    "event.age55"
+   ],
+   "rules": []
+  },
+  "doc51.txt#3": {
+   "h": "418cbda4ba",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.savings",
+    "plan.dc",
+    "plan.db",
+    "fund.retire",
+    "fund.credit",
+    "tax.retire",
+    "tax.pension",
+    "event.age55"
+   ],
+   "rules": [
+    "R-07",
+    "R-09"
+   ]
+  },
+  "doc52.txt#0": {
+   "h": "238e938fe6",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.severance",
+    "tax.retire",
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc52.txt#1": {
+   "h": "dd870b554a",
+   "stages": [
+    "stage.tax",
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "plan.severance",
+    "actor.employer",
+    "tax.retire",
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc52.txt#2": {
+   "h": "afded8baad",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "account.pension",
+    "fund.retire",
+    "tax.retire"
+   ],
+   "rules": []
+  },
+  "doc52.txt#3": {
+   "h": "bfdabe1eac",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "tax.retire"
+   ],
+   "rules": []
+  },
+  "doc52.txt#4": {
+   "h": "4f726bc87f",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "tax.retire"
+   ],
+   "rules": []
+  },
+  "doc53.txt#0": {
+   "h": "21eff4237b",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.pension",
+    "plan.dc",
+    "plan.irp",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc53.txt#1": {
+   "h": "b288516909",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "plan.db",
+    "product.performance"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc53.txt#2": {
+   "h": "3e865235b8",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc53.txt#3": {
+   "h": "ac474321f9",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "plan.db",
+    "product.performance"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc53.txt#4": {
+   "h": "e62c17e940",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc53.txt#5": {
+   "h": "7951a39073",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc53.txt#6": {
+   "h": "dbbc8adc3e",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc54.txt#0": {
+   "h": "8e190c8d74",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#1": {
+   "h": "3e3ba5400b",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#2": {
+   "h": "22f63d8858",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#3": {
+   "h": "6411f52d9a",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp_corp",
+    "plan.irp",
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc54.txt#4": {
+   "h": "c5299b0bcd",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#5": {
+   "h": "49bd244f08",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp_corp",
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc54.txt#6": {
+   "h": "67b7ddbcfb",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#7": {
+   "h": "bee9892e3f",
+   "stages": [
+    "stage.invest",
+    "stage.transfer"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#8": {
+   "h": "22578bfd7b",
+   "stages": [
+    "stage.invest",
+    "stage.payout"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#9": {
+   "h": "55943e14f6",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#10": {
+   "h": "4817b24850",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#11": {
+   "h": "823aac8f3a",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#12": {
+   "h": "95b9681f8a",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#13": {
+   "h": "c3697272fe",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#14": {
+   "h": "879dcb6a51",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#15": {
+   "h": "47d1d90143",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#16": {
+   "h": "7f96a78c38",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#17": {
+   "h": "4bc91419b5",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#18": {
+   "h": "92a911ffd7",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#19": {
+   "h": "1ce8ba46b4",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#20": {
+   "h": "04ccf2d1fd",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#21": {
+   "h": "6a877b40af",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc54.txt#22": {
+   "h": "7ef8d118b2",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#23": {
+   "h": "3840cbea09",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc54.txt#24": {
+   "h": "ae4984f6d3",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#25": {
+   "h": "1879e33d77",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc54.txt#26": {
+   "h": "a7c8460c57",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "product.guaranteed",
+    "plan.default"
+   ],
+   "rules": []
+  },
+  "doc54.txt#27": {
+   "h": "b74c1fdd40",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc54.txt#28": {
+   "h": "f4a1e1c65a",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc54.txt#29": {
+   "h": "8a39a8a032",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.pension"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc54.txt#30": {
+   "h": "d7aa3566d7",
+   "stages": [],
+   "nodes": [],
+   "rules": []
+  },
+  "doc55.txt#0": {
+   "h": "c67e676648",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc55.txt#1": {
+   "h": "f300e22be7",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp_corp",
+    "actor.employer",
+    "event.unpaid"
+   ],
+   "rules": []
+  },
+  "doc55.txt#2": {
+   "h": "3a05c6a637",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.irp",
+    "actor.employer",
+    "fund.retire",
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#3": {
+   "h": "7d3bcf0667",
+   "stages": [
+    "stage.tax",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "tax.retire",
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc55.txt#4": {
+   "h": "c19fe54733",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.default",
+    "actor.hr"
+   ],
+   "rules": []
+  },
+  "doc55.txt#5": {
+   "h": "98cc54b3ce",
+   "stages": [
+    "stage.employer",
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.dc",
+    "actor.employer",
+    "actor.member"
+   ],
+   "rules": [
+    "R-01"
+   ]
+  },
+  "doc55.txt#6": {
+   "h": "17ad264348",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "actor.hr"
+   ],
+   "rules": []
+  },
+  "doc55.txt#7": {
+   "h": "33ec8039b5",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#8": {
+   "h": "fe7245184a",
+   "stages": [
+    "stage.pay",
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "actor.member",
+    "actor.employer"
+   ],
+   "rules": [
+    "R-01"
+   ]
+  },
+  "doc55.txt#9": {
+   "h": "dfd89011ab",
+   "stages": [
+    "stage.employer",
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#10": {
+   "h": "83e448f5c9",
+   "stages": [
+    "stage.employer",
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "actor.hr"
+   ],
+   "rules": []
+  },
+  "doc55.txt#11": {
+   "h": "1c436d3f38",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.dc",
+    "account.dc"
+   ],
+   "rules": [
+    "R-01",
+    "R-02"
+   ]
+  },
+  "doc55.txt#12": {
+   "h": "023ad728a6",
+   "stages": [
+    "stage.employer",
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.unpaid",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#13": {
+   "h": "bc94f190aa",
+   "stages": [
+    "stage.employer",
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.dc",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#14": {
+   "h": "0097f49cf9",
+   "stages": [
+    "stage.employer",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.irp",
+    "account.irp",
+    "event.retire",
+    "fund.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#15": {
+   "h": "1bcb5bb9ee",
+   "stages": [
+    "stage.employer",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.db",
+    "event.retire",
+    "event.plan_change",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#16": {
+   "h": "9216e3bb04",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.irp",
+    "account.irp",
+    "event.retire",
+    "event.age55",
+    "actor.hr",
+    "tax.retire",
+    "fund.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#17": {
+   "h": "e9530b2052",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "event.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#18": {
+   "h": "592715da10",
+   "stages": [
+    "stage.transfer",
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "event.plan_change",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#19": {
+   "h": "6396d975f4",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc55.txt#20": {
+   "h": "4acc05750b",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#21": {
+   "h": "5253c28e27",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#22": {
+   "h": "5e60bb1f0e",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc55.txt#23": {
+   "h": "0ed0444c7d",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.irp",
+    "account.irp",
+    "event.retire",
+    "tax.retire",
+    "fund.retire",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#24": {
+   "h": "57661538bf",
+   "stages": [
+    "stage.tax",
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "event.retire",
+    "tax.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#25": {
+   "h": "7645e9a5fd",
+   "stages": [
+    "stage.employer",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.retire",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#26": {
+   "h": "6ae99142da",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "account.irp",
+    "event.retire",
+    "actor.employer",
+    "fund.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#27": {
+   "h": "e669869061",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.irp",
+    "account.irp",
+    "plan.db",
+    "plan.dc",
+    "plan.severance",
+    "event.retire",
+    "event.age55",
+    "fund.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#28": {
+   "h": "28d7ed6a75",
+   "stages": [
+    "stage.employer",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "event.retire",
+    "actor.employer",
+    "tax.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#29": {
+   "h": "8e6bd251e1",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "event.retire",
+    "tax.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#30": {
+   "h": "181a1235d0",
+   "stages": [
+    "stage.employer",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.dc",
+    "account.savings",
+    "event.retire",
+    "event.age55",
+    "fund.retire",
+    "tax.retire",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#31": {
+   "h": "7e72aef911",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.house",
+    "tax.retire"
+   ],
+   "rules": [
+    "R-12",
+    "R-13"
+   ]
+  },
+  "doc55.txt#32": {
+   "h": "d583cad5fe",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.house",
+    "tax.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#33": {
+   "h": "ccd79e4a7a",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.house",
+    "event.lease",
+    "tax.retire"
+   ],
+   "rules": [
+    "R-13"
+   ]
+  },
+  "doc55.txt#34": {
+   "h": "ff7e8cd8c4",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.lease",
+    "event.care"
+   ],
+   "rules": [
+    "R-13"
+   ]
+  },
+  "doc55.txt#35": {
+   "h": "7c99d5a48a",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.care"
+   ],
+   "rules": []
+  },
+  "doc55.txt#36": {
+   "h": "aab99a4b47",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.care",
+    "event.rehab"
+   ],
+   "rules": [
+    "R-13"
+   ]
+  },
+  "doc55.txt#37": {
+   "h": "88d0d48d3f",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.rehab",
+    "event.disaster"
+   ],
+   "rules": [
+    "R-13"
+   ]
+  },
+  "doc55.txt#38": {
+   "h": "dc09d2494c",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.disaster"
+   ],
+   "rules": []
+  },
+  "doc55.txt#39": {
+   "h": "a1674ae5e3",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.db",
+    "event.plan_change"
+   ],
+   "rules": []
+  },
+  "doc55.txt#40": {
+   "h": "6fe4898fbc",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "product.guaranteed"
+   ],
+   "rules": []
+  },
+  "doc55.txt#41": {
+   "h": "4dd4c2dc17",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.house",
+    "event.lease"
+   ],
+   "rules": []
+  },
+  "doc55.txt#42": {
+   "h": "200f2f5a43",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.care"
+   ],
+   "rules": []
+  },
+  "doc55.txt#43": {
+   "h": "44bd9af7a5",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.care"
+   ],
+   "rules": []
+  },
+  "doc55.txt#44": {
+   "h": "4fd38bc6fe",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.care",
+    "event.rehab"
+   ],
+   "rules": []
+  },
+  "doc55.txt#45": {
+   "h": "34ceacab6e",
+   "stages": [
+    "stage.early"
+   ],
+   "nodes": [
+    "event.disaster"
+   ],
+   "rules": []
+  },
+  "doc55.txt#46": {
+   "h": "e2b8721357",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.db",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#47": {
+   "h": "b5e17a0e7d",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "account.dc"
+   ],
+   "rules": []
+  },
+  "doc55.txt#48": {
+   "h": "8f30370c8d",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc55.txt#49": {
+   "h": "7c13ed2c44",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc55.txt#50": {
+   "h": "e8894551e4",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "event.plan_change"
+   ],
+   "rules": []
+  },
+  "doc55.txt#51": {
+   "h": "b31756f624",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#52": {
+   "h": "bf83c9511a",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "actor.hr"
+   ],
+   "rules": []
+  },
+  "doc55.txt#53": {
+   "h": "16d8062fd9",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "actor.hr"
+   ],
+   "rules": []
+  },
+  "doc55.txt#54": {
+   "h": "67a7480587",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "actor.hr"
+   ],
+   "rules": []
+  },
+  "doc55.txt#55": {
+   "h": "1721097029",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc55.txt#56": {
+   "h": "b52e4547a2",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "event.retire",
+    "event.age55",
+    "account.savings"
+   ],
+   "rules": []
+  },
+  "doc55.txt#57": {
+   "h": "e58ed4e59d",
+   "stages": [
+    "stage.employer",
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc55.txt#58": {
+   "h": "ba6338e95f",
+   "stages": [
+    "stage.employer",
+    "stage.pay"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc55.txt#59": {
+   "h": "462e9d5f55",
+   "stages": [
+    "stage.employer",
+    "stage.pay"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc55.txt#60": {
+   "h": "1fd76e62ed",
+   "stages": [
+    "stage.employer",
+    "stage.pay"
+   ],
+   "nodes": [
+    "event.unpaid",
+    "plan.irp",
+    "account.irp"
+   ],
+   "rules": []
+  },
+  "doc55.txt#61": {
+   "h": "58015ca60e",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.irp",
+    "event.retire",
+    "event.age55",
+    "actor.hr",
+    "actor.employer",
+    "tax.retire",
+    "fund.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#62": {
+   "h": "07f84ecb8f",
+   "stages": [
+    "stage.employer",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.db",
+    "event.retire",
+    "event.age55",
+    "actor.hr",
+    "actor.employer",
+    "tax.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#63": {
+   "h": "9b50209890",
+   "stages": [
+    "stage.employer",
+    "stage.transfer"
+   ],
+   "nodes": [
+    "account.irp",
+    "account.savings",
+    "event.retire",
+    "event.age55"
+   ],
+   "rules": []
+  },
+  "doc55.txt#64": {
+   "h": "d70b195432",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc55.txt#65": {
+   "h": "4df9282d9e",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.irp",
+    "event.retire",
+    "tax.retire",
+    "fund.retire",
+    "actor.hr"
+   ],
+   "rules": []
+  },
+  "doc55.txt#66": {
+   "h": "c7c82478fc",
+   "stages": [
+    "stage.tax"
+   ],
+   "nodes": [
+    "event.retire",
+    "tax.retire",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#67": {
+   "h": "50aa6585ec",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "event.retire",
+    "event.age55",
+    "actor.hr",
+    "fund.retire"
+   ],
+   "rules": []
+  },
+  "doc55.txt#68": {
+   "h": "15b0e55e93",
+   "stages": [
+    "stage.early",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.house",
+    "event.lease",
+    "tax.retire",
+    "tax.other",
+    "fund.retire",
+    "fund.credit"
+   ],
+   "rules": [
+    "R-10",
+    "R-13"
+   ]
+  },
+  "doc55.txt#69": {
+   "h": "14dcba705c",
+   "stages": [
+    "stage.early",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.care",
+    "event.rehab",
+    "tax.retire",
+    "tax.pension",
+    "fund.retire",
+    "fund.credit",
+    "wd.unavoidable"
+   ],
+   "rules": [
+    "R-11",
+    "R-13"
+   ]
+  },
+  "doc55.txt#70": {
+   "h": "2328cf4bea",
+   "stages": [
+    "stage.early",
+    "stage.tax"
+   ],
+   "nodes": [
+    "plan.dc",
+    "event.disaster",
+    "tax.retire",
+    "tax.pension",
+    "tax.other",
+    "fund.retire",
+    "fund.credit",
+    "wd.unavoidable"
+   ],
+   "rules": [
+    "R-11",
+    "R-13"
+   ]
+  },
+  "doc55.txt#71": {
+   "h": "625dbb26f5",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc55.txt#72": {
+   "h": "be1674e5f1",
+   "stages": [
+    "stage.transfer"
+   ],
+   "nodes": [
+    "plan.dc",
+    "actor.employer"
+   ],
+   "rules": []
+  },
+  "doc55.txt#73": {
+   "h": "e36b002a70",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc55.txt#74": {
+   "h": "2191970dc9",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc55.txt#75": {
+   "h": "1677dd5867",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.dc",
+    "account.dc"
+   ],
+   "rules": []
+  },
+  "doc55.txt#76": {
+   "h": "49657f1b5d",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc55.txt#77": {
+   "h": "13414eaedf",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc55.txt#78": {
+   "h": "297cec7e35",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc55.txt#79": {
+   "h": "e4c070b99b",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc55.txt#80": {
+   "h": "fed999d1bb",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.db"
+   ],
+   "rules": []
+  },
+  "doc55.txt#81": {
+   "h": "ac7d97e829",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc55.txt#82": {
+   "h": "1e4ca9eb3a",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc55.txt#83": {
+   "h": "04f983de0c",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc56.txt#0": {
+   "h": "3596b59613",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.db",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc56.txt#1": {
+   "h": "b5d5bffe0a",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.db",
+    "product.guaranteed",
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc56.txt#2": {
+   "h": "9e7d921690",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.dc",
+    "plan.irp",
+    "product.guaranteed",
+    "product.performance"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc57.txt#0": {
+   "h": "6989d6cb51",
+   "stages": [
+    "stage.employer"
+   ],
+   "nodes": [
+    "event.retire",
+    "actor.member"
+   ],
+   "rules": []
+  },
+  "doc58.txt#0": {
+   "h": "f36fefa8e7",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "plan.irp",
+    "product.guaranteed"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc58.txt#1": {
+   "h": "423a79c8a3",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "product.performance"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc58.txt#2": {
+   "h": "fe8d792487",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "plan.irp"
+   ],
+   "rules": []
+  },
+  "doc58.txt#3": {
+   "h": "2e61de0225",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.db",
+    "plan.dc",
+    "plan.irp",
+    "product.guaranteed"
+   ],
+   "rules": [
+    "R-14"
+   ]
+  },
+  "doc58.txt#4": {
+   "h": "dbbc8adc3e",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "product.performance"
+   ],
+   "rules": []
+  },
+  "doc6.txt#0": {
+   "h": "f986566157",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.irp",
+    "account.irp",
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": [
+    "R-01"
+   ]
+  },
+  "doc6.txt#1": {
+   "h": "b79f9b7115",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.dc"
+   ],
+   "rules": [
+    "R-01"
+   ]
+  },
+  "doc6.txt#2": {
+   "h": "8fa4eb63a7",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.db",
+    "plan.dc"
+   ],
+   "rules": []
+  },
+  "doc6.txt#3": {
+   "h": "7df8b24900",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.dc",
+    "plan.savings",
+    "plan.isa",
+    "event.isa_maturity",
+    "account.pension"
+   ],
+   "rules": []
+  },
+  "doc6.txt#4": {
+   "h": "5fa13e21c6",
+   "stages": [
+    "stage.pay"
+   ],
+   "nodes": [
+    "plan.irp",
+    "account.irp",
+    "plan.isa",
+    "event.isa_maturity"
+   ],
+   "rules": []
+  },
+  "doc6.txt#5": {
+   "h": "5038b3c978",
+   "stages": [
+    "stage.pay",
+    "stage.payout"
+   ],
+   "nodes": [
+    "plan.irp",
+    "plan.isa",
+    "event.isa_maturity",
+    "fund.free",
+    "fund.retire",
+    "fund.credit"
+   ],
+   "rules": [
+    "R-03",
+    "R-06"
+   ]
+  },
+  "doc7.txt#0": {
+   "h": "92aac68131",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "plan.irp",
+    "account.irp"
+   ],
+   "rules": []
+  },
+  "doc7.txt#1": {
+   "h": "32b1f3489e",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#2": {
+   "h": "c2dec17899",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#3": {
+   "h": "0166cbab16",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#4": {
+   "h": "00c94768ac",
+   "stages": [
+    "stage.join"
+   ],
+   "nodes": [
+    "plan.irp",
+    "account.irp",
+    "plan.dc",
+    "account.dc",
+    "plan.irp_corp"
+   ],
+   "rules": []
+  },
+  "doc7.txt#5": {
+   "h": "eb93da4bd1",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#6": {
+   "h": "30dbf6acb2",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#7": {
+   "h": "d46d03dd60",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#8": {
+   "h": "d67a0fd639",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#9": {
+   "h": "72706fab7e",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#10": {
+   "h": "26e3e1f8f6",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#11": {
+   "h": "4b5038d5d3",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#12": {
+   "h": "6e69740387",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#13": {
+   "h": "fc31bec1c1",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#14": {
+   "h": "a245d6dd0d",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#15": {
+   "h": "f2a94ce2e8",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#16": {
+   "h": "d79f12c1f4",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#17": {
+   "h": "394177f5a9",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#18": {
+   "h": "c144063cd2",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#19": {
+   "h": "4cc2df8852",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#20": {
+   "h": "03c8a05208",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#21": {
+   "h": "18f2adbcb8",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#22": {
+   "h": "b043d1ee5b",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#23": {
+   "h": "0e6f82b386",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#24": {
+   "h": "52dbaedec2",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#25": {
+   "h": "2c308ec332",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#26": {
+   "h": "4d6a5b5b13",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#27": {
+   "h": "4aca0d51fb",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#28": {
+   "h": "d9d089b238",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#29": {
+   "h": "277d4790e1",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc7.txt#30": {
+   "h": "7f597b0900",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc8.txt#0": {
+   "h": "1af8953001",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc8.txt#1": {
+   "h": "9375658505",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc8.txt#2": {
+   "h": "d6b7215cc0",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc8.txt#3": {
+   "h": "b6c543317d",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.savings"
+   ],
+   "rules": []
+  },
+  "doc8.txt#4": {
+   "h": "4d631021ea",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc8.txt#5": {
+   "h": "ab9da2abfe",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc8.txt#6": {
+   "h": "cfa8005ffc",
+   "stages": [
+    "stage.invest",
+    "stage.transfer"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc8.txt#7": {
+   "h": "0686dd3814",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.savings"
+   ],
+   "rules": []
+  },
+  "doc8.txt#8": {
+   "h": "c7cae555b5",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.savings"
+   ],
+   "rules": []
+  },
+  "doc8.txt#9": {
+   "h": "646286f0bd",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc8.txt#10": {
+   "h": "a719df03f2",
+   "stages": [
+    "stage.payout"
+   ],
+   "nodes": [
+    "wd.pension"
+   ],
+   "rules": []
+  },
+  "doc8.txt#11": {
+   "h": "5ac64b31b3",
+   "stages": [
+    "stage.invest",
+    "stage.pay"
+   ],
+   "nodes": [
+    "account.savings"
+   ],
+   "rules": []
+  },
+  "doc8.txt#12": {
+   "h": "d27d06bdea",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc9.txt#0": {
+   "h": "634b6b0cf3",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc9.txt#1": {
+   "h": "57ac747b85",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc9.txt#2": {
+   "h": "ede043aff3",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.savings"
+   ],
+   "rules": []
+  },
+  "doc9.txt#3": {
+   "h": "91dc46e471",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc9.txt#4": {
+   "h": "b89589dcee",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc9.txt#5": {
+   "h": "9c6a1e9e62",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.savings"
+   ],
+   "rules": []
+  },
+  "doc9.txt#6": {
+   "h": "f33e8f1a9c",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  },
+  "doc9.txt#7": {
+   "h": "5b101db8bb",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.savings"
+   ],
+   "rules": []
+  },
+  "doc9.txt#8": {
+   "h": "55fe9f16d2",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [
+    "account.savings"
+   ],
+   "rules": []
+  },
+  "doc9.txt#9": {
+   "h": "3e11544534",
+   "stages": [
+    "stage.invest"
+   ],
+   "nodes": [],
+   "rules": []
+  }
+ }
+}

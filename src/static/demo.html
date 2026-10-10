@@ -1,0 +1,1899 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>연금 Agent 시연</title>
+<!--
+  본선 시연 화면 — 한 파일, 외부 CDN 없음, 바닐라 JS.
+  서버(src/server.py)가 /demo 로 이 파일을 내고, 같은 주소의 API 를 부른다.
+  · 상담           POST /chat · POST /session
+  · 먼저 알려주기  GET /alerts/profiles · POST /alerts · GET /alerts/outbox
+  · DIY 설계       POST /diy
+  · 규칙·온톨로지  GET /rules · GET /ontology
+  왜 이렇게 —
+  · 답변은 모델이 쓴 마크다운이라 태그가 섞일 수 있다(예선 답 200개 중 10개에 <br>). 그래서 렌더러를 직접 쓰고
+    **모든 입력을 먼저 HTML 이스케이프한 뒤** 제목·굵게·목록·표·코드만 태그로 바꾼다. 태그는 글자로 보인다.
+  · 서버 응답의 글자는 textContent 로만 넣는다. innerHTML 은 md() 결과에만 쓴다(h() 의 md 속성).
+  · 숫자 규칙은 서버(taxcalc)에만 있다. 이 화면은 계산하지 않고 받은 값을 보여주기만 한다
+    (won() 은 슬라이더 표기용으로 taxcalc.won 과 같은 모양만 맞춘다).
+  · 서버 없이 파일로 열어도 깨지지 않게, 요청이 실패하면 '서버 연결 안 됨'만 표시한다.
+  개발용 점검: 콘솔에서 __selftest() — 렌더러·카드·그래프 배치를 네트워크 없이 검사해 'N/N 통과'를 찍는다.
+  주소 끝에 ?selftest=1 을 붙이면 열자마자 돌리고 결과를 화면 아래에 띄운다.
+-->
+<style>
+:root {
+  --orange: #F58220; --orange-d: #d4690a; --orange-soft: #fff3e8;
+  --navy: #043B72; --navy-d: #022a52; --navy-soft: #e9f0f8;
+  --ink: #16202c; --muted: #5a6577; --line: #dde3eb; --bg: #f3f5f8; --card: #ffffff;
+  --ok: #2b8a3e; --ok-soft: #e7f5ea;
+  --warn: #d4690a; --warn-soft: #fff3e8;
+  --bad: #c92a2a; --bad-soft: #fdecec;
+  --sev-high: #c92a2a; --sev-high-soft: #fdecec;
+  --sev-mid: #d4690a; --sev-mid-soft: #fff3e8;
+  --sev-info: #043B72; --sev-info-soft: #e9f0f8;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(4, 59, 114, .06), 0 4px 14px rgba(4, 59, 114, .06);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: "Pretendard", "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  font-size: 17px; line-height: 1.55;
+  display: flex; flex-direction: column; overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid rgba(245, 130, 32, .55); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+
+/* ---------- 머리줄·탭 ---------- */
+header.top {
+  flex: none; height: 60px; background: var(--navy); color: #fff;
+  display: flex; align-items: stretch; padding: 0 20px; gap: 22px;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; white-space: nowrap; }
+.brand .logo {
+  width: 32px; height: 32px; border-radius: 9px; background: var(--orange);
+  display: grid; place-items: center; font-size: 17px; color: #fff;
+}
+.brand small { font-weight: 500; font-size: 13px; color: #a9bdd6; }
+nav.tabs { display: flex; gap: 2px; }
+nav.tabs button {
+  background: none; border: 0; color: #b9cbe0; font-size: 17px; font-weight: 700;
+  padding: 0 16px; border-bottom: 4px solid transparent; border-top: 4px solid transparent; white-space: nowrap;
+}
+nav.tabs button:hover { color: #fff; }
+nav.tabs button.on { color: #fff; border-bottom-color: var(--orange); }
+nav.tabs .k { font-size: 12px; color: var(--orange); margin-right: 6px; }
+.server { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 14px; color: #cfdbea; white-space: nowrap; }
+.server .dot { width: 10px; height: 10px; border-radius: 50%; background: #8a96a8; }
+.server.ok .dot { background: #51cf66; }
+.server.bad .dot { background: #ff6b6b; }
+.server.bad { color: #ffd6d6; font-weight: 700; }
+
+main { flex: 1; min-height: 0; position: relative; }
+section.tab { position: absolute; inset: 0; display: none; }
+section.tab.on { display: flex; }
+
+/* ---------- 공통 조각 ---------- */
+.panel-title { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; font-weight: 800; color: var(--navy); }
+.panel-title .bar { width: 4px; height: 16px; border-radius: 2px; background: var(--orange); }
+.btn {
+  border: 2px solid var(--navy); background: #fff; color: var(--navy); border-radius: 10px;
+  padding: 7px 14px; font-weight: 700; font-size: 15px;
+}
+.btn:hover:not(:disabled) { background: var(--navy-soft); }
+.btn.primary { background: var(--orange); border-color: var(--orange); color: #fff; }
+.btn.primary:hover:not(:disabled) { background: var(--orange-d); border-color: var(--orange-d); }
+.btn.navy { background: var(--navy); color: #fff; }
+.btn.navy:hover:not(:disabled) { background: var(--navy-d); }
+.btn.small { padding: 4px 10px; font-size: 14px; border-width: 1.5px; }
+.empty { color: var(--muted); font-size: 15px; }
+.offline {
+  display: inline-flex; align-items: center; gap: 8px; color: var(--bad); background: var(--bad-soft);
+  border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: 15px;
+}
+.offline::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
+.rchip {
+  display: inline-flex; align-items: baseline; gap: 6px; border: 1.5px solid var(--navy); color: var(--navy);
+  background: #fff; border-radius: 8px; padding: 2px 9px; font-size: 14px; font-weight: 800; margin: 0 6px 6px 0;
+}
+.rchip .nm { font-weight: 500; color: var(--ink); font-size: 13px; }
+.rchip:hover { background: var(--navy-soft); }
+.dchip {
+  display: inline-block; border-radius: 8px; padding: 2px 9px; font-size: 13px; margin: 0 6px 6px 0;
+  background: var(--bg); color: var(--muted); font-weight: 600;
+}
+.tag { display: inline-block; font-size: 12px; font-weight: 800; border-radius: 6px; padding: 1px 7px; vertical-align: 1px; }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.tag.info { background: var(--navy-soft); color: var(--navy); }
+
+/* ---------- 마크다운 ---------- */
+.md { font-size: 16px; overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0 0 .65em; }
+.md h3, .md h4, .md h5, .md h6 { margin: .9em 0 .4em; color: var(--navy); line-height: 1.35; }
+.md h3 { font-size: 19px; } .md h4 { font-size: 17px; } .md h5, .md h6 { font-size: 16px; }
+.md strong { font-weight: 800; color: var(--navy-d); }
+.md ul, .md ol { margin: 0 0 .65em; padding-left: 1.35em; }
+.md li { margin: .15em 0; }
+.md li::marker { color: var(--orange); font-weight: 800; }
+.md code { font-family: Consolas, "D2Coding", monospace; font-size: .92em; background: #eef1f5; border-radius: 5px; padding: 1px 5px; }
+.md pre { background: #0f1b2b; color: #e6edf6; border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 0 0 .7em; }
+.md pre code { background: none; padding: 0; color: inherit; white-space: pre; }
+.md blockquote { margin: 0 0 .7em; padding: 6px 12px; border-left: 4px solid var(--orange); background: var(--orange-soft); border-radius: 0 8px 8px 0; }
+.md hr { border: 0; border-top: 1px solid var(--line); margin: .8em 0; }
+.md .tbl { overflow-x: auto; margin: 0 0 .7em; }
+.md table { border-collapse: collapse; font-size: 15px; min-width: 60%; }
+.md th, .md td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+.md th { background: var(--navy-soft); color: var(--navy); font-weight: 800; white-space: nowrap; }
+.md td { font-variant-numeric: tabular-nums; }
+
+/* ---------- 1. 상담 ---------- */
+.chat-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.log { flex: 1; overflow-y: auto; padding: 18px 24px 8px; scroll-behavior: smooth; position: relative; }
+.welcome { max-width: 760px; margin: 24px auto; text-align: center; }
+.welcome h2 { margin: 0 0 6px; font-size: 26px; color: var(--navy); }
+.welcome p { margin: 0; color: var(--muted); }
+.welcome .four { display: flex; justify-content: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.welcome .four span { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 6px 14px; font-weight: 700; color: var(--navy); }
+.welcome .four b { color: var(--orange); margin-right: 6px; }
+.msg-user { display: flex; justify-content: flex-end; margin: 6px 0 12px; }
+.msg-user .bubble {
+  background: var(--navy); color: #fff; border-radius: 16px 16px 4px 16px; padding: 10px 16px;
+  max-width: 78%; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.msg-bot { margin: 0 0 22px; border-radius: 16px; padding: 4px; border: 2px solid transparent; cursor: default; }
+.msg-bot.sel { border-color: rgba(245, 130, 32, .35); background: rgba(245, 130, 32, .03); }
+.bot-head { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); margin: 0 4px 8px; flex-wrap: wrap; }
+.avatar { width: 28px; height: 28px; border-radius: 8px; background: var(--orange); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 14px; }
+.bot-head .who { font-weight: 800; color: var(--ink); }
+.pill { border-radius: 999px; padding: 2px 10px; font-weight: 800; font-size: 13px; }
+.pill.time { background: var(--navy-soft); color: var(--navy); }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.cards { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; min-width: 0; box-shadow: var(--shadow); }
+.card.result { grid-column: 1 / -1; border-left: 6px solid var(--orange); }
+.card h4 { margin: 0 0 8px; font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 8px; font-weight: 800; }
+.card h4 .n { background: var(--navy); color: #fff; border-radius: 6px; width: 22px; height: 22px; display: grid; place-items: center; font-size: 13px; }
+.card.result .md { font-size: 17px; }
+.card ul.plain { list-style: none; margin: 0; padding: 0; font-size: 15px; }
+.card ul.plain li { padding: 5px 0; border-bottom: 1px dashed var(--line); }
+.card ul.plain li:last-child { border-bottom: 0; }
+.ev .ev-n { color: var(--orange); font-weight: 800; margin-right: 6px; }
+.ev .ev-title { font-weight: 700; }
+.ev .ev-meta { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.ev .ev-rules { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.as li::before { content: "가정"; font-size: 11px; font-weight: 800; color: var(--navy); background: var(--navy-soft); border-radius: 5px; padding: 1px 6px; margin-right: 7px; vertical-align: 1px; }
+.as li.need::before { content: "필요"; color: var(--warn); background: var(--warn-soft); }
+.next { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.act { text-align: left; border: 1.5px solid var(--navy); background: #fff; color: var(--navy); border-radius: 10px; padding: 7px 12px; font-weight: 700; font-size: 15px; }
+.act:hover:not(:disabled) { background: var(--navy-soft); }
+.act .kd { font-size: 11px; font-weight: 800; color: #fff; background: var(--navy); border-radius: 5px; padding: 1px 6px; margin-right: 7px; vertical-align: 1px; }
+.act.k-diy .kd { background: var(--orange); }
+.act.k-handoff { border-color: var(--ok); color: var(--ok); }
+.act.k-handoff .kd { background: var(--ok); }
+.act.done { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.acts .act { padding: 4px 10px; font-size: 14px; }
+details.full { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+details.full summary { cursor: pointer; color: var(--navy); font-weight: 700; font-size: 14px; }
+details.full .md { margin-top: 8px; font-size: 15px; }
+.pending .card.result { display: flex; align-items: center; gap: 14px; color: var(--muted); }
+.spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--orange-soft); border-top-color: var(--orange); animation: spin .9s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.err-block { margin: 0 0 18px; }
+.sysnote { text-align: center; margin: 4px 0 16px; }
+.sysnote span { display: inline-block; background: var(--ok-soft); color: var(--ok); font-weight: 700; font-size: 14px; border-radius: 999px; padding: 4px 14px; }
+
+.mode-col { display: flex; flex-direction: column; gap: 6px; }
+.mode select { font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: inherit; }
+.composer { flex: none; border-top: 1px solid var(--line); background: #fff; padding: 10px 24px 14px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.chip-q {
+  border: 1.5px solid var(--line); background: var(--bg); border-radius: 999px; padding: 4px 13px; font-size: 14px; color: var(--ink);
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chip-q b { color: var(--orange); margin-right: 5px; }
+.chip-q:hover:not(:disabled) { border-color: var(--orange); background: var(--orange-soft); }
+.input-row { display: flex; gap: 10px; align-items: stretch; }
+.input-row textarea {
+  flex: 1; resize: none; font-size: 17px; border: 2px solid var(--line); border-radius: 12px; padding: 11px 14px; height: 52px; line-height: 1.4;
+}
+.input-row textarea:focus { border-color: var(--orange); outline: none; }
+.input-row .btn { padding: 0 22px; font-size: 17px; }
+
+.side { width: 370px; flex: none; border-left: 1px solid var(--line); background: #fff; overflow-y: auto; padding: 16px 18px 24px; }
+.side .blk { margin-bottom: 20px; }
+.side .sess { font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 14px; }
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: st; }
+.steps li { position: relative; padding: 0 0 12px 34px; counter-increment: st; opacity: 0; animation: stepin .35s ease forwards; }
+.steps li::before {
+  content: counter(st); position: absolute; left: 0; top: 1px; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--navy); color: #fff; font-size: 13px; font-weight: 800; display: grid; place-items: center;
+}
+.steps li::after { content: ""; position: absolute; left: 11px; top: 26px; bottom: 2px; width: 2px; background: var(--navy-soft); }
+.steps li:last-child::after { display: none; }
+.steps .st { font-weight: 800; font-size: 15px; }
+.steps .dt { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.steps.wait li { animation: pulse 1.4s ease-in-out infinite; opacity: .5; }
+.steps.wait li::before { background: #b8c4d3; }
+@keyframes stepin { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+@keyframes pulse { 50% { opacity: .2; } }
+.figs-mini { display: flex; flex-wrap: wrap; gap: 6px; }
+.figs-mini span { background: var(--orange-soft); color: var(--orange-d); font-weight: 800; border-radius: 8px; padding: 2px 9px; font-size: 14px; }
+.verify { border-radius: 12px; padding: 12px 14px; background: var(--ok-soft); }
+.verify.warn { background: var(--warn-soft); }
+.verify.bad { background: var(--bad-soft); }
+.verify .big { font-size: 26px; font-weight: 800; color: var(--ok); line-height: 1.2; }
+.verify.warn .big { color: var(--warn); }
+.verify.bad .big { color: var(--bad); }
+.verify .act { font-weight: 800; font-size: 15px; }
+.verify ul { margin: 8px 0 0; padding-left: 1.1em; font-size: 14px; }
+details.trace summary { cursor: pointer; font-weight: 700; color: var(--navy); font-size: 14px; }
+details.trace pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; background: var(--bg); border-radius: 8px; padding: 10px; max-height: 320px; overflow-y: auto; margin: 8px 0 0; font-family: Consolas, "D2Coding", monospace; }
+
+/* ---------- 2. 먼저 알려주기 ---------- */
+#tab-alerts, #tab-rules { flex-direction: column; }
+.toolbar { flex: none; display: flex; gap: 14px; align-items: flex-end; padding: 14px 24px; background: #fff; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; font-weight: 700; }
+.field select, .field input[type=date], .field input[type=number], .field input[type=text] {
+  font-size: 16px; padding: 7px 10px; border: 2px solid var(--line); border-radius: 10px; background: #fff; height: 42px;
+}
+.field select:focus, .field input:focus { border-color: var(--orange); outline: none; }
+.toolbar .psum { flex: 1 1 260px; font-size: 15px; color: var(--muted); align-self: center; min-width: 0; }
+.alerts-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; padding: 16px 24px; }
+.alerts-body > div { overflow-y: auto; min-height: 0; padding-right: 4px; }
+.sumline { font-size: 15px; color: var(--muted); margin: 0 0 10px; }
+.alert {
+  --sev: var(--sev-info); --sev-soft: var(--sev-info-soft);
+  background: #fff; border: 1px solid var(--line); border-left: 6px solid var(--sev); border-radius: var(--radius);
+  padding: 14px 16px; margin-bottom: 12px; box-shadow: var(--shadow); transition: box-shadow .3s, transform .3s;
+}
+.alert.sev-high { --sev: var(--sev-high); --sev-soft: var(--sev-high-soft); }
+.alert.sev-mid { --sev: var(--sev-mid); --sev-soft: var(--sev-mid-soft); }
+.alert.flash { box-shadow: 0 0 0 4px rgba(245, 130, 32, .45); }
+.alert .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.alert .sev { background: var(--sev-soft); color: var(--sev); font-weight: 800; border-radius: 6px; padding: 2px 9px; font-size: 13px; }
+.alert .when { margin-left: auto; font-weight: 700; color: var(--ink); }
+.alert h3 { margin: 6px 0 6px; font-size: 19px; line-height: 1.35; }
+.alert .md { font-size: 16px; }
+.figs { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.fig { background: var(--bg); border-radius: 10px; padding: 6px 12px; min-width: 0; }
+.fig .k { font-size: 12px; color: var(--muted); font-weight: 700; }
+.fig .v { font-weight: 800; font-size: 18px; color: var(--navy); font-variant-numeric: tabular-nums; }
+.alert .foot { display: flex; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+.alert .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.report { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); }
+.report-wrap .rhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+
+/* 휴대폰 알림처럼 위에서 내려오는 push */
+#push-wrap { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: 440px; max-width: calc(100vw - 32px); z-index: 60; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+.push {
+  pointer-events: auto; cursor: pointer; background: rgba(255, 255, 255, .97); border-radius: 20px;
+  box-shadow: 0 14px 34px rgba(2, 42, 82, .28), 0 0 0 1px rgba(2, 42, 82, .06);
+  padding: 12px 16px 12px 12px; display: grid; grid-template-columns: 42px 1fr; gap: 12px;
+  animation: drop .55s cubic-bezier(.2, .9, .3, 1.15) both; border-left: 5px solid var(--sev, var(--navy));
+}
+.push.sev-high { --sev: var(--sev-high); }
+.push.sev-mid { --sev: var(--sev-mid); }
+.push.out { animation: rise .35s ease forwards; }
+.push .ic { width: 42px; height: 42px; border-radius: 11px; background: var(--orange); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 18px; }
+.push .app { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.push .app b { color: var(--ink); }
+.push .ttl { font-weight: 800; font-size: 16px; line-height: 1.35; margin-top: 1px; }
+.push .msg { font-size: 14px; color: #3b4656; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@keyframes drop { from { transform: translateY(-160%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes rise { to { transform: translateY(-160%); opacity: 0; } }
+#snack { position: fixed; bottom: 22px; left: 50%; transform: translate(-50%, 30px); opacity: 0; visibility: hidden; pointer-events: none; background: var(--navy-d); color: #fff; padding: 10px 20px; border-radius: 12px; font-weight: 700; z-index: 70; transition: transform .3s, opacity .3s, visibility .3s; box-shadow: 0 10px 30px rgba(0,0,0,.25); max-width: calc(100vw - 32px); }
+#snack.on { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
+
+/* ---------- 3. DIY ---------- */
+.diy-form { width: 440px; flex: none; overflow-y: auto; background: #fff; border-right: 1px solid var(--line); padding: 16px 20px 24px; }
+.diy-out { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 24px 24px; }
+.frow { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 12px; flex-wrap: wrap; }
+.frow .field { flex: 1 1 0; min-width: 0; }
+.frow .field input, .frow .field select { width: 100%; }
+.unit { font-size: 13px; color: var(--muted); }
+.combo { border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+.combo .ch { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.combo .ch input { flex: 1 1 auto; min-width: 0; max-width: 190px; font-weight: 800; border: 1.5px solid var(--line); border-radius: 8px; padding: 3px 8px; font-size: 15px; }
+.combo .ch .sum { margin-left: auto; font-size: 14px; color: var(--muted); }
+.combo .ch .sum b { color: var(--ink); }
+.combo .ch .x { border: 0; background: none; color: var(--muted); font-size: 20px; line-height: 1; padding: 0 4px; }
+.srow { display: grid; grid-template-columns: 64px 1fr 94px; align-items: center; gap: 8px; font-size: 14px; }
+.srow input[type=range] { width: 100%; accent-color: var(--orange); }
+.srow .val { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sec-h { display: flex; align-items: center; justify-content: space-between; margin: 18px 0 8px; }
+.sec-h label { font-weight: 800; color: var(--navy); display: flex; gap: 8px; align-items: center; }
+.sec-h input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--orange); }
+details.adv { margin: 4px 0 10px; }
+details.adv summary { cursor: pointer; font-size: 14px; color: var(--navy); font-weight: 700; }
+.credit-line { font-size: 14px; color: var(--muted); margin: 0 0 10px; }
+.diy-go { width: 100%; margin-top: 8px; padding: 11px; font-size: 17px; position: sticky; bottom: 0; box-shadow: 0 -8px 14px #fff; }
+.cmp { border-collapse: separate; border-spacing: 0; width: 100%; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); font-size: 16px; }
+.cmp th, .cmp td { padding: 10px 14px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+.cmp tr:last-child td, .cmp tr:last-child th { border-bottom: 0; }
+.cmp thead th { background: var(--navy); color: #fff; font-size: 17px; text-align: center; }
+.cmp tbody th { text-align: left; color: var(--muted); font-weight: 700; background: #fafbfc; white-space: nowrap; }
+.cmp td.hl { font-weight: 800; color: var(--navy); font-size: 18px; }
+.cmp td.warnc { color: var(--warn); font-weight: 700; }
+.wrapx { overflow-x: auto; margin-bottom: 18px; }
+.yr { border-collapse: collapse; width: 100%; background: #fff; font-size: 15px; border: 1px solid var(--line); }
+.yr th, .yr td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.yr th { background: var(--navy-soft); color: var(--navy); position: sticky; top: 0; }
+.yr td:first-child, .yr th:first-child { text-align: center; }
+.yr tr.flag td { background: var(--warn-soft); }
+.boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+.box { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.box.warnbox { border-color: #f5c08f; background: var(--warn-soft); }
+.box ul { margin: 0; padding-left: 1.1em; font-size: 15px; }
+.box .md { font-size: 15px; }
+.lead { font-size: 18px; font-weight: 700; margin: 0 0 14px; }
+
+/* ---------- 4. 규칙·온톨로지 ---------- */
+.seg { display: inline-flex; border: 2px solid var(--navy); border-radius: 10px; overflow: hidden; }
+.seg button { border: 0; background: #fff; color: var(--navy); font-weight: 800; padding: 7px 18px; font-size: 15px; }
+.seg button.on { background: var(--navy); color: #fff; }
+.rview { flex: 1; min-height: 0; display: none; }
+.rview.on { display: flex; }
+.rules-wrap { flex: 1; overflow: auto; padding: 14px 24px 24px; }
+table.rules { border-collapse: separate; border-spacing: 0; width: 100%; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); font-size: 15px; }
+table.rules th, table.rules td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+table.rules thead th { background: var(--navy); color: #fff; position: sticky; top: 0; z-index: 1; font-size: 15px; }
+table.rules thead th:first-child { border-top-left-radius: var(--radius); }
+table.rules thead th:last-child { border-top-right-radius: var(--radius); }
+table.rules tr.flash td { background: var(--orange-soft); }
+table.rules td.rid { font-weight: 800; color: var(--orange-d); white-space: nowrap; }
+table.rules td.nm { font-weight: 800; white-space: nowrap; }
+.how { display: inline-block; font-size: 12px; font-weight: 800; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.how.calc { background: var(--orange-soft); color: var(--orange-d); }
+.how.judge { background: var(--navy-soft); color: var(--navy); }
+.how.only { background: #eef0f3; color: var(--muted); }
+.quote { border-left: 3px solid var(--line); padding: 2px 0 2px 10px; margin: 0 0 6px; font-size: 14px; color: #34404f; white-space: pre-line; overflow-wrap: anywhere; }
+.quote .src { display: block; font-size: 12px; color: var(--muted); font-weight: 700; }
+details.more summary { cursor: pointer; font-size: 13px; color: var(--navy); font-weight: 700; }
+.graph-wrap { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 260px; gap: 16px; padding: 14px 24px 20px; }
+.graph-box { position: relative; min-height: 0; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.graph-box svg { width: 100%; height: 100%; display: block; }
+.graph-box .msg { position: absolute; inset: 0; display: grid; place-items: center; }
+.graph-side { overflow-y: auto; min-height: 0; }
+.legend { list-style: none; margin: 0 0 16px; padding: 0; font-size: 14px; }
+.legend li { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.legend .sw { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.legend .c { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ninfo { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+.ninfo h4 { margin: 0 0 4px; font-size: 17px; }
+.ninfo ul { margin: 6px 0 0; padding-left: 1.1em; }
+svg .edge { fill: none; stroke: #b9c3d0; stroke-width: 1.1; transition: opacity .15s; }
+svg .elabel { font-size: 11px; fill: var(--orange-d); font-weight: 700; display: none; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+svg .node { cursor: pointer; transition: opacity .15s; }
+svg .node circle { stroke: #fff; stroke-width: 2; }
+svg .node text { font-size: 14px; fill: var(--ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; font-weight: 600; }
+svg .tlabel { font-size: 13px; font-weight: 800; }
+svg.focus .node:not(.hl) { opacity: .15; }
+svg.focus .edge:not(.hl) { opacity: .06; }
+svg .edge.hl { stroke: var(--orange); stroke-width: 2.2; }
+svg .elabel.hl { display: block; }
+svg .node.pick circle { stroke: var(--orange); stroke-width: 4; }
+
+/* ---------- 개발용 점검 결과 ---------- */
+#selftest-out { position: fixed; left: 12px; bottom: 12px; z-index: 80; background: #0f1b2b; color: #e6edf6; font: 13px/1.5 Consolas, monospace; border-radius: 10px; padding: 10px 14px; max-width: min(640px, calc(100vw - 24px)); max-height: 50vh; overflow: auto; white-space: pre-wrap; }
+
+/* 좁은 화면 — 발표는 1280×720 기준이지만 노트북 반쪽 창에서도 가로 스크롤 없이 */
+@media (max-width: 980px) {
+  body { overflow: auto; height: auto; }
+  header.top { height: auto; flex-wrap: wrap; padding: 8px 16px; gap: 8px 16px; }
+  nav.tabs { overflow-x: auto; max-width: 100%; }
+  nav.tabs button { padding: 8px 10px; font-size: 15px; }
+  main { min-height: calc(100vh - 110px); }
+  section.tab { position: static; }
+  section.tab.on { display: flex; flex-direction: column; }
+  .side, .diy-form { width: auto; border-left: 0; border-right: 0; border-top: 1px solid var(--line); }
+  .log { max-height: none; overflow: visible; padding: 14px 16px; }
+  .composer { position: sticky; bottom: 0; padding: 10px 16px; }
+  .chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .chip-q { flex: none; }
+  .cards { grid-template-columns: 1fr; }
+  .alerts-body { grid-template-columns: 1fr; padding: 14px 16px; }
+  .alerts-body > div { overflow: visible; }
+  .toolbar, .rules-wrap, .diy-out { padding-left: 16px; padding-right: 16px; }
+  .graph-wrap { grid-template-columns: 1fr; padding: 14px 16px; }
+  .graph-box { height: 70vh; }
+  .boxes { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">연</span>연금 Agent <small>본선 시연</small></div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="chat" class="on"><span class="k">1</span>상담</button>
+    <button role="tab" data-tab="alerts"><span class="k">2</span>먼저 알려주기</button>
+    <button role="tab" data-tab="diy"><span class="k">3</span>DIY 설계</button>
+    <button role="tab" data-tab="rules"><span class="k">4</span>규칙·온톨로지</button>
+  </nav>
+  <div class="server" id="server" title="서버 상태"><span class="dot"></span><span class="txt">확인 중</span></div>
+</header>
+
+<main>
+  <!-- 1. 상담 -->
+  <section class="tab on" id="tab-chat" role="tabpanel">
+    <div class="chat-col">
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="composer">
+        <div class="chips" id="chips"></div>
+        <div class="input-row">
+          <textarea id="q" placeholder="연금 질문을 입력하세요 (Enter 보내기 · Shift+Enter 줄바꿈)" maxlength="2000"></textarea>
+          <div class="mode-col">
+            <label class="mode" title="빠른 모드: 초안 1개(생각 깊게) · 정밀 모드: 초안 여러 개를 맞춰 봄">
+              <select id="mode"><option value="fast" selected>빠른 모드</option><option value="quality">정밀 모드</option></select>
+            </label>
+            <button class="btn primary" id="send">보내기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <aside class="side" id="side"></aside>
+  </section>
+
+  <!-- 2. 먼저 알려주기 -->
+  <section class="tab" id="tab-alerts" role="tabpanel">
+    <div class="toolbar">
+      <div class="field"><label for="profile">가상 고객</label><select id="profile"><option value="">불러오는 중…</option></select></div>
+      <div class="field"><label for="today">기준일</label><input type="date" id="today"></div>
+      <button class="btn primary" id="scan">점검하기</button>
+      <button class="btn navy" id="pull">push 받기</button>
+      <div class="psum" id="psum"></div>
+    </div>
+    <div class="alerts-body">
+      <div id="alert-list"><p class="empty">고객과 기준일을 고르고 ‘점검하기’를 누르세요.</p></div>
+      <div class="report-wrap" id="report-wrap"></div>
+    </div>
+  </section>
+
+  <!-- 3. DIY 설계 -->
+  <section class="tab" id="tab-diy" role="tabpanel">
+    <form class="diy-form" id="diy-form" autocomplete="off">
+      <div class="panel-title"><span class="bar"></span>내 정보</div>
+      <div class="frow">
+        <div class="field"><label for="d-kind">소득 기준</label>
+          <select id="d-kind" title="직장인은 총급여, 그 밖에는 종합소득금액"><option value="총급여">총급여</option><option value="종합소득">종합소득</option></select></div>
+        <div class="field"><label for="d-income">금액 <span class="unit">만 원</span></label><input type="number" id="d-income" min="0" step="100" value="5000"></div>
+        <div class="field" style="flex:0 0 84px"><label for="d-age">나이</label><input type="number" id="d-age" min="19" max="90" value="40"></div>
+      </div>
+      <div class="sec-h"><label><input type="checkbox" id="d-cmp" checked>납입 조합 비교 <span class="unit">연간, 만 원</span></label><button type="button" class="btn small" id="add-combo">+ 조합 추가</button></div>
+      <div id="combos"></div>
+      <div class="sec-h"><label><input type="checkbox" id="d-pay" checked>수령 설계도 보기</label></div>
+      <div id="pay-fields">
+        <div class="frow">
+          <div class="field"><label for="d-start">시작 나이</label><input type="number" id="d-start" min="55" max="90" value="60"></div>
+          <div class="field"><label for="d-years">기간 <span class="unit">년</span></label><input type="number" id="d-years" min="1" max="40" value="10"></div>
+          <div class="field"><label for="d-balance">평가액 <span class="unit">만 원</span></label><input type="number" id="d-balance" min="0" step="100" value="10000"></div>
+        </div>
+        <details class="adv" id="d-adv">
+          <summary>재원 나누기 · 수익률(선택)</summary>
+          <div class="frow" style="margin-top:8px">
+            <div class="field"><label for="d-free">공제 안 받은 돈</label><input type="number" id="d-free" min="0" step="100" value="0"></div>
+            <div class="field"><label for="d-retire">퇴직금</label><input type="number" id="d-retire" min="0" step="100" value="0"></div>
+          </div>
+          <div class="frow">
+            <div class="field"><label for="d-eff">퇴직소득세 실효세율 <span class="unit">%</span></label><input type="number" id="d-eff" min="0" max="50" step="0.1" placeholder="모르면 비움"></div>
+            <div class="field"><label for="d-ret">연 수익률 <span class="unit">%</span></label><input type="number" id="d-ret" min="-20" max="20" step="0.5" value="0"></div>
+          </div>
+        </details>
+        <p class="credit-line" id="credit-line"></p>
+      </div>
+      <button type="submit" class="btn primary diy-go" id="diy-go">비교하기</button>
+    </form>
+    <div class="diy-out" id="diy-out">
+      <p class="empty">왼쪽에서 조합을 정하고 ‘비교하기’를 누르세요. 조합은 나란히 보여 드리고, 고르는 건 고객입니다.</p>
+    </div>
+  </section>
+
+  <!-- 4. 규칙·온톨로지 -->
+  <section class="tab" id="tab-rules" role="tabpanel">
+    <div class="toolbar">
+      <div class="seg" id="rseg"><button data-v="rules" class="on">규칙표 R-01~R-15</button><button data-v="graph">온톨로지 그래프</button></div>
+      <div class="seg" id="lseg" hidden><button data-v="circle" class="on">원형</button><button data-v="layers">계층</button></div>
+      <div class="psum" id="rsum"></div>
+    </div>
+    <div class="rview on" id="rv-rules"><div class="rules-wrap" id="rules-wrap"><p class="empty">불러오는 중…</p></div></div>
+    <div class="rview" id="rv-graph">
+      <div class="graph-wrap">
+        <div class="graph-box" id="graph-box"><div class="msg empty">불러오는 중…</div></div>
+        <div class="graph-side">
+          <div class="panel-title"><span class="bar"></span>노드 종류</div>
+          <ul class="legend" id="legend"></ul>
+          <div class="panel-title"><span class="bar"></span>선택한 노드</div>
+          <div class="ninfo" id="ninfo"><span class="empty">노드에 마우스를 올리면 연결이, 누르면 관계 목록이 나옵니다.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="push-wrap" aria-live="polite"></div>
+<div id="snack" role="status"></div>
+<noscript><p style="padding:20px">이 화면은 자바스크립트가 필요합니다.</p></noscript>
+
+<script>
+'use strict';
+/* =========================================================================
+   공통 도구
+   ========================================================================= */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/** DOM 만들기. 글자는 모두 텍스트 노드로 들어간다. innerHTML 은 md 속성(→ md() 결과)에만 쓴다. */
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'md') el.innerHTML = md(v);
+      else if (k === 'style') el.style.cssText = v;
+      else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? '' : String(v));
+    }
+  }
+  for (const k of kids.flat(Infinity)) {
+    if (k == null || k === false) continue;
+    el.append(k instanceof Node ? k : String(k));
+  }
+  return el;
+}
+const SVGNS = 'http://www.w3.org/2000/svg';
+function s(tag, attrs, ...kids) {
+  const el = document.createElementNS(SVGNS, tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (v == null) continue;
+    if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, String(v));
+  }
+  for (const k of kids.flat(Infinity)) if (k != null) el.append(k instanceof Node ? k : String(k));
+  return el;
+}
+
+const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function esc(t) { return String(t ?? '').replace(/[&<>"']/g, c => ESC[c]); }
+
+/** 만 원 → '148만 5천 원' — taxcalc.won 과 같은 모양(슬라이더·입력값 표시에만 쓴다). */
+function won(man) {
+  if (man == null || man === '' || !isFinite(man)) return '-';
+  const neg = man < 0;
+  const w = Math.round(Math.abs(Number(man)) * 10000);
+  const eok = Math.floor(w / 1e8), rest = w % 1e8;
+  const m = Math.floor(rest / 1e4), r = rest % 1e4;
+  const parts = [];
+  if (eok) parts.push(eok.toLocaleString('en-US') + '억');
+  if (m) parts.push(m.toLocaleString('en-US') + '만');
+  let out;
+  if (r && r % 1000 !== 0) out = (parts.join(' ') + ' ' + r.toLocaleString('en-US') + '원').trim();
+  else {
+    if (r) parts.push((r / 1000) + '천');
+    out = parts.length ? parts.join(' ') + ' 원' : '0원';
+  }
+  return (neg && out !== '0원' ? '-' : '') + out;
+}
+function pct(x) { return (Math.round(Number(x) * 100) / 100) + '%'; }
+function docName(file) { return String(file || '').replace(/\.txt$/i, ''); }
+function audLabel(a) {
+  if (!a) return '';
+  return a === '고객' ? '고객용' : a === '직원' ? '직원용' : a;
+}
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function asList(v) { return Array.isArray(v) ? v : v == null || v === '' ? [] : [v]; }
+
+/* =========================================================================
+   마크다운 — 이스케이프 먼저, 그다음 제목·굵게·목록·표·코드만 태그로.
+   입력의 '<' '>' '&' '"' "'" 는 전부 글자가 되므로 어떤 태그·속성도 들어올 수 없다.
+   만드는 태그의 속성은 정렬(style)·번호 시작(start)뿐이고 둘 다 입력 글자가 아니라 고정값·숫자다.
+   ========================================================================= */
+function inline(t) {
+  // t 는 이미 이스케이프된 한 줄. `코드` 를 먼저 떼어 두고(안의 ** 는 그대로) 나머지만 굵게를 바꾼다.
+  return t.split(/(`[^`]+`)/).map((p, i) => {
+    if (i % 2 === 1) return '<code>' + p.slice(1, -1) + '</code>';
+    return p.replace(/\*\*(?=\S)(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/__(?=\S)(.+?)__/g, '<strong>$1</strong>');
+  }).join('');
+}
+const RE_FENCE = /^\s*```/;
+const RE_HEAD = /^\s*(#{1,6})\s+(.*)$/;
+const RE_HR = /^\s*([-*_])(\s*\1){2,}\s*$/;
+const RE_LI = /^(\s*)([-*+•]|\d{1,3}[.)])\s+(.*)$/;
+const RE_QUOTE = /^\s*&gt;\s?/;
+function isSep(l) { return l.includes('|') && /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(l); }
+function cells(l) {
+  let t = l.trim();
+  if (t.startsWith('|')) t = t.slice(1);
+  if (t.endsWith('|')) t = t.slice(0, -1);
+  return t.split('|').map(c => c.trim());
+}
+function isTableStart(lines, i) { return lines[i].includes('|') && i + 1 < lines.length && isSep(lines[i + 1]); }
+function isBlockStart(lines, i) {
+  const l = lines[i];
+  return RE_FENCE.test(l) || RE_HEAD.test(l) || RE_HR.test(l) || RE_LI.test(l) || RE_QUOTE.test(l) || isTableStart(lines, i);
+}
+function renderList(items) {
+  let out = '';
+  const stack = [];
+  for (const it of items) {
+    const tag = it.ord ? 'ol' : 'ul';
+    const open = () => {
+      const st = it.ord && it.start > 1 ? ` start="${it.start}"` : '';
+      out += `<${tag}${st}>`;
+      stack.push({ ind: it.ind, tag });
+    };
+    if (!stack.length || it.ind > stack[stack.length - 1].ind) open();
+    else {
+      while (stack.length > 1 && it.ind < stack[stack.length - 1].ind) out += `</li></${stack.pop().tag}>`;
+      out += '</li>';
+      if (stack[stack.length - 1].tag !== tag) { out += `</${stack.pop().tag}>`; open(); }
+    }
+    out += '<li>' + it.lines.map(inline).join('<br>');
+  }
+  while (stack.length) out += `</li></${stack.pop().tag}>`;
+  return out;
+}
+function md(src) {
+  if (src == null || src === '') return '';
+  const lines = esc(String(src).replace(/\r\n?/g, '\n')).split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    let m;
+    if (!l.trim()) { i++; continue; }
+    if (RE_FENCE.test(l)) {                                   // 코드 블록
+      const buf = [];
+      i++;
+      while (i < lines.length && !RE_FENCE.test(lines[i])) buf.push(lines[i++]);
+      i++;
+      out.push('<pre><code>' + buf.join('\n') + '</code></pre>');
+      continue;
+    }
+    if ((m = l.match(RE_HEAD))) {                             // 제목 — 카드 안이라 h3 부터
+      const lv = Math.min(6, m[1].length + 2);
+      // 끝의 '##' 는 떼되, 정규식 하나로 하지 않는다(공백이 길 때 되짚기가 늘어난다)
+      let txt = m[2].trimEnd();
+      while (txt.endsWith('#')) txt = txt.slice(0, -1);
+      out.push(`<h${lv}>${inline(txt.trimEnd())}</h${lv}>`);
+      i++;
+      continue;
+    }
+    if (RE_HR.test(l)) { out.push('<hr>'); i++; continue; }
+    if (isTableStart(lines, i)) {                             // 표
+      const head = cells(l);
+      const al = cells(lines[i + 1]).map(c => /^:-+:$/.test(c) ? 'center' : /-:$/.test(c) ? 'right' : '');
+      const sty = j => al[j] ? ` style="text-align:${al[j]}"` : '';
+      i += 2;
+      const rows = [];
+      while (i < lines.length && lines[i].trim() && lines[i].includes('|')) rows.push(cells(lines[i++]));
+      let t = '<div class="tbl"><table><thead><tr>' + head.map((c, j) => `<th${sty(j)}>${inline(c)}</th>`).join('') + '</tr></thead><tbody>';
+      for (const r of rows) {
+        t += '<tr>' + head.map((_, j) => `<td${sty(j)}>${inline(r[j] ?? '')}</td>`).join('') + '</tr>';
+      }
+      out.push(t + '</tbody></table></div>');
+      continue;
+    }
+    if (RE_LI.test(l)) {                                      // 목록(들여쓰기로 한 단계 이상 중첩)
+      const items = [];
+      while (i < lines.length) {
+        const x = lines[i];
+        const mm = x.match(RE_LI);
+        if (mm && !RE_HR.test(x)) {
+          const ord = /\d/.test(mm[2]);
+          items.push({ ind: mm[1].replace(/\t/g, '    ').length, ord, start: ord ? parseInt(mm[2], 10) : 1, lines: [mm[3]] });
+          i++;
+        } else if (x.trim() && /^\s{2,}/.test(x) && items.length && !isTableStart(lines, i) && !RE_FENCE.test(x)) {
+          items[items.length - 1].lines.push(x.trim());        // 들여 쓴 이어지는 줄
+          i++;
+        } else break;
+      }
+      out.push(renderList(items));
+      continue;
+    }
+    if (RE_QUOTE.test(l)) {
+      const buf = [];
+      while (i < lines.length && RE_QUOTE.test(lines[i])) buf.push(lines[i++].replace(RE_QUOTE, ''));
+      out.push('<blockquote>' + buf.map(inline).join('<br>') + '</blockquote>');
+      continue;
+    }
+    const buf = [lines[i++]];                                 // 문단 — 줄바꿈은 <br>
+    while (i < lines.length && lines[i].trim() && !isBlockStart(lines, i)) buf.push(lines[i++]);
+    out.push('<p>' + buf.map(x => inline(x.trim())).join('<br>') + '</p>');
+  }
+  return out.join('');
+}
+
+/* =========================================================================
+   서버 호출 — 같은 주소(서버가 /demo 로 이 파일을 낸다). 실패는 종류별로 나눈다.
+   ========================================================================= */
+class ApiError extends Error {
+  constructor(kind, status, detail) { super(kind); this.kind = kind; this.status = status; this.detail = detail; }
+}
+async function api(path, { method = 'GET', body, timeout = 30000 } = {}) {
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), timeout);
+  let res;
+  try {
+    res = await fetch(path, {
+      method,
+      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: ctl.signal,
+    });
+  } catch (e) {
+    clearTimeout(tm);
+    if (e && e.name === 'AbortError') throw new ApiError('timeout');
+    setServer(false);
+    throw new ApiError('offline');
+  }
+  clearTimeout(tm);
+  setServer(true);
+  if (!res.ok) {
+    let d = '';
+    try { d = await res.text(); } catch (e) { /* 무시 */ }
+    throw new ApiError('http', res.status, d.slice(0, 300));
+  }
+  try { return await res.json(); } catch (e) { throw new ApiError('badjson'); }
+}
+function errText(e) {
+  const k = e && e.kind;
+  if (k === 'offline') return '서버 연결 안 됨';
+  if (k === 'timeout') return '응답이 너무 오래 걸려 멈췄어요';
+  if (k === 'http') {
+    let why = '';
+    try { const j = JSON.parse(e.detail || ''); why = typeof j.detail === 'string' ? j.detail : typeof j.error === 'string' ? j.error : ''; } catch (x) { /* 본문이 JSON 이 아님 */ }
+    return `서버 오류 (${e.status})` + (why ? ': ' + why.slice(0, 160) : '');
+  }
+  if (k === 'badjson') return '서버 응답 형식 오류';
+  return '화면 오류: ' + (e && e.message ? e.message : String(e));
+}
+function errNode(e) { return h('div', { class: 'offline' }, errText(e)); }
+function setServer(ok) {
+  const el = $('#server');
+  if (!el) return;
+  el.classList.toggle('ok', ok);
+  el.classList.toggle('bad', !ok);
+  $('.txt', el).textContent = ok ? '서버 연결됨' : '서버 연결 안 됨';
+}
+let snackTimer = 0;
+function snack(text) {
+  const el = $('#snack');
+  el.textContent = text;
+  el.classList.add('on');
+  clearTimeout(snackTimer);
+  snackTimer = setTimeout(() => el.classList.remove('on'), 2600);
+}
+
+/* =========================================================================
+   규칙 이름 — GET /rules 한 번 받아 R-xx 칩에 이름을 붙인다(규칙 내용은 서버 taxcalc.RULEBOOK 에만 있다)
+   ========================================================================= */
+const RULES = { list: null, byId: {}, promise: null };
+function ensureRules() {
+  if (!RULES.promise) {
+    RULES.promise = api('/rules').then(list => {
+      RULES.list = Array.isArray(list) ? list : [];
+      for (const r of RULES.list) RULES.byId[r.rid] = r;
+      refreshRuleChips();
+      return RULES.list;
+    }).catch(e => { RULES.promise = null; throw e; });
+  }
+  return RULES.promise;
+}
+function ruleChip(rid) {
+  const r = RULES.byId[rid];
+  return h('button', { class: 'rchip', type: 'button', 'data-rid': rid, title: r ? r.summary || '' : '규칙표에서 보기', onclick: () => showRule(rid) },
+    rid, h('span', { class: 'nm' }, r ? r.name : ''));
+}
+function refreshRuleChips() {
+  for (const el of $$('.rchip[data-rid]')) {
+    const r = RULES.byId[el.dataset.rid];
+    if (!r) continue;
+    const nm = $('.nm', el);
+    if (nm && !nm.textContent) nm.textContent = r.name || '';
+    if (!el.title || el.title === '규칙표에서 보기') el.title = r.summary || '';
+  }
+}
+
+/* =========================================================================
+   탭
+   ========================================================================= */
+const TAB_INIT = {};
+function switchTab(name) {
+  for (const b of $$('nav.tabs button')) b.classList.toggle('on', b.dataset.tab === name);
+  for (const sec of $$('section.tab')) sec.classList.toggle('on', sec.id === 'tab-' + name);
+  if (!TAB_INIT[name]) {
+    TAB_INIT[name] = true;
+    if (name === 'alerts') loadProfiles();
+    if (name === 'rules') loadRulesView();
+  }
+  if (name === 'chat') $('#q').focus();
+}
+
+/* =========================================================================
+   1. 상담
+   ========================================================================= */
+const SCENES = [
+  { tag: '장면 1', label: '55세 전 해지', q: '55세 전에 연금저축 빼면 전부 16.5%예요? 2,000만 원 해지하면 330만 원 내는 거죠?' },
+  { tag: '장면 2', label: '퇴직금 섞인 IRP', q: '만 62세예요. IRP에 퇴직금이랑 공제받은 돈이 섞였는데, 올해 1,800만 원 빼면 세금이 어떻게 돼요?' },
+  { tag: '장면 2 이어서', label: '정보 보충', q: '평가액은 1억이고 퇴직금이 6,000만 원, 나머지는 공제받은 돈이에요. 퇴직소득세 실효세율은 4%, 올해 퇴직해서 처음 받아요.' },
+  { tag: '장면 3', label: '상품 골라 달라', q: '제일 좋은 연금 상품이 뭐예요?' },
+  { tag: 'DIY', label: '납입 조합 비교', q: '총급여 5,000만 원인데 연금저축 600 + IRP 300이랑 연금저축 900만 넣는 거 비교해 주세요.' },
+  { tag: '장면 4', label: '먼저 알려주기', tab: 'alerts' },
+];
+const chat = { session: null, busy: false, timer: 0, turns: 0 };
+
+function welcomeNode() {
+  return h('div', { class: 'welcome' },
+    h('h2', null, '연금, 무엇이든 물어보세요'),
+    h('p', null, '세금·수령·납입 질문에 아래 네 칸으로 답합니다. 숫자는 규칙으로 계산하고 문서 근거를 붙입니다.'),
+    h('div', { class: 'four' },
+      h('span', null, h('b', null, '1'), '결과'), h('span', null, h('b', null, '2'), '근거'),
+      h('span', null, h('b', null, '3'), '가정'), h('span', null, h('b', null, '4'), '다음 행동')));
+}
+function scrollLog() { const l = $('#log'); l.scrollTop = l.scrollHeight; }
+function setBusy(b) {
+  chat.busy = b;
+  $('#send').disabled = b;
+  for (const c of $$('#chips .chip-q')) if (!c.dataset.tab) c.disabled = b;
+}
+
+function cardHead(n, title) { return h('h4', null, h('span', { class: 'n' }, n), title); }
+
+/** 답 하나 → 머리줄 + 4칸 카드(결과 / 근거 / 가정 / 다음 행동). sections 가 없으면 answer 를 결과로. */
+function renderBot(r) {
+  const sec = (r && r.sections) || {};
+  const result = sec.result || r.answer || '';
+  const ev = asList(sec.evidence);
+  const asm = asList(sec.assumptions);
+  const needs = asList(sec.needs).concat(asList(r.calc && r.calc.needs)).filter((x, i, a) => a.indexOf(x) === i);
+  const acts = asList(sec.next_actions);
+  const v = r.verify;
+
+  const head = h('div', { class: 'bot-head' },
+    h('span', { class: 'avatar' }, '연'), h('span', { class: 'who' }, '연금 Agent'),
+    typeof r.elapsed === 'number' ? h('span', { class: 'pill time num' }, `응답 ${r.elapsed.toFixed(1)}초`) : null,
+    v && typeof v.checked === 'number' ? h('span', { class: 'pill ' + verifyClass(v) }, `숫자 대조 ${v.matched ?? 0}/${v.checked}`) : null);
+
+  const resultCard = h('div', { class: 'card result' }, cardHead('1', '결과'),
+    h('div', { class: 'md', md: result || '(답이 비어 있어요)' }),
+    r.answer && r.answer.trim() !== String(result).trim()
+      ? h('details', { class: 'full' }, h('summary', null, '전체 답변 보기'), h('div', { class: 'md', md: r.answer }))
+      : null);
+
+  const evCard = h('div', { class: 'card ev' }, cardHead('2', '근거'),
+    ev.length ? h('ul', { class: 'plain' }, ev.map((e, k) => {
+      if (typeof e !== 'object' || e === null) return h('li', null, String(e));
+      const meta = [docName(e.file), e.page ? `${e.page}쪽` : null, '기준일 ' + (e.as_of || '미상')].filter(Boolean).join(' · ');
+      const aud = audLabel(e.audience);
+      return h('li', null,
+        h('span', { class: 'ev-n' }, `[${e.n ?? k + 1}]`), h('span', { class: 'ev-title' }, e.title || docName(e.file) || '문서'),
+        h('div', { class: 'ev-meta' }, meta, aud ? ' · ' : '', aud ? h('span', { class: 'tag ' + (e.audience === '고객' ? 'info' : 'warn') }, aud) : null),
+        // 이 문서가 뒷받침하는 규칙(계산 블록의 R 번호, 없으면 온톨로지 조각 꼬리표) — 누르면 규칙표로
+        asList(e.rules).length ? h('div', { class: 'ev-rules' }, asList(e.rules).slice(0, 6).map(ruleChip)) : null);
+    })) : h('p', { class: 'empty' }, '붙은 근거 문서가 없어요.'));
+
+  const asCard = h('div', { class: 'card as' }, cardHead('3', '가정'),
+    asm.length || needs.length ? h('ul', { class: 'plain' },
+      asm.map(a => h('li', null, String(a))),
+      needs.map(n => h('li', { class: 'need' }, `${n} — 알려 주시면 더 정확해져요`)))
+      : h('p', { class: 'empty' }, '대신 채운 값 없이 질문에 있는 값만 썼어요.'));
+
+  const nextCard = h('div', { class: 'card nextc' }, cardHead('4', '다음 행동'),
+    acts.length ? h('div', { class: 'next' }, acts.map(actButton)) : h('p', { class: 'empty' }, '이어서 물어보셔도 돼요.'));
+
+  const node = h('div', { class: 'msg-bot' }, head, h('div', { class: 'cards' }, resultCard, evCard, asCard, nextCard));
+  node._resp = r;
+  node.addEventListener('click', ev2 => {
+    if (ev2.target.closest('button, a, summary')) return;
+    selectBot(node);
+  });
+  return node;
+}
+function selectBot(node) {
+  for (const n of $$('.msg-bot.sel')) n.classList.remove('sel');
+  node.classList.add('sel');
+  $('#side').replaceChildren(renderSideNode(node._resp));
+}
+
+const KIND_TAG = { chat: '질문', diy: 'DIY', handoff: '상담' };
+function actButton(a) {
+  if (!a || typeof a !== 'object') a = { label: String(a), kind: 'chat', payload: String(a) };
+  const kind = a.kind || 'chat';
+  return h('button', { type: 'button', class: 'act k-' + kind, title: typeof a.payload === 'string' ? a.payload : '',
+    onclick: e => doAction(a, e.currentTarget) },
+    h('span', { class: 'kd' }, KIND_TAG[kind] || kind), a.label || (typeof a.payload === 'string' ? a.payload : '실행'));
+}
+/** 다음 행동 — chat: 그 문장으로 다시 질문 / diy: DIY 탭 열기(설계값이 오면 채워서 바로 비교) / handoff: 상담 연결 표시 */
+function doAction(a, btn) {
+  const kind = a.kind || 'chat';
+  if (kind === 'handoff') {
+    for (const b of btn ? [btn] : []) {
+      b.classList.add('done');
+      b.disabled = true;
+      b.replaceChildren(h('span', { class: 'kd' }, '상담'), '상담 연결 요청됨');
+    }
+    if ($('#tab-chat').classList.contains('on')) {
+      $('#log').append(h('div', { class: 'sysnote' }, h('span', null, '상담 연결 요청됨')));
+      scrollLog();
+    }
+    snack('상담 연결 요청됨');
+    return;
+  }
+  if (kind === 'diy') {
+    switchTab('diy');
+    let plan = a.payload;
+    if (typeof plan === 'string') { try { plan = JSON.parse(plan); } catch (e) { plan = null; } }
+    if (plan && typeof plan === 'object' && (plan.combos || plan.income || plan.payout)) {
+      fillDiy(plan);
+      runDiy();
+    }
+    return;
+  }
+  const q = typeof a.payload === 'string' && a.payload.trim() ? a.payload : a.label;
+  switchTab('chat');
+  if (q) ask(q);
+}
+
+function verifyClass(v) {
+  const act = String(v.action || '');
+  if (v.contradiction || /대체|상담|어긋/.test(act)) return 'bad';
+  if ((v.unmatched && v.unmatched.length) || (act && act !== '통과')) return 'warn';
+  return 'ok';
+}
+
+/** 오른쪽 패널 — 오케스트레이터 단계(plan), 계산 규칙(R-xx)·숫자, 숫자 대조, 생각 과정 원문 */
+function renderSideNode(r) {
+  const plan = asList(r.plan);
+  const calc = r.calc || {};
+  const v = r.verify;
+  const frag = h('div');
+  frag.append(h('div', { class: 'sess' },
+    h('span', null, chat.session ? `대화 기억 중 · ${chat.turns}번째 질문` : '새 대화'),
+    typeof r.elapsed === 'number' ? h('span', { class: 'pill time num' }, `${r.elapsed.toFixed(1)}초`) : null));
+
+  frag.append(h('div', { class: 'blk' }, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '오케스트레이터 단계'),
+    plan.length ? h('ol', { class: 'steps' }, plan.map((p, k) => h('li', { style: `animation-delay:${k * 0.12}s` },
+      h('div', { class: 'st' }, typeof p === 'object' ? p.step || '' : String(p)),
+      typeof p === 'object' && p.detail ? h('div', { class: 'dt' }, String(p.detail)) : null)))
+      : h('p', { class: 'empty' }, '단계 기록 없음')));
+
+  const rids = asList(calc.rule_ids);
+  const figs = asList(calc.figures);
+  frag.append(h('div', { class: 'blk' }, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '계산 규칙'),
+    rids.length ? h('div', null, rids.map(ruleChip)) : h('p', { class: 'empty' }, '이번 답에는 규칙 계산이 없어요.'),
+    figs.length ? h('div', { class: 'figs-mini', style: 'margin-top:6px' }, figs.map(f => h('span', { class: 'num' }, String(f)))) : null));
+
+  if (v && typeof v.checked === 'number') {
+    const cls = verifyClass(v);
+    const um = asList(v.unmatched);
+    frag.append(h('div', { class: 'blk' }, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '숫자 대조'),
+      h('div', { class: 'verify ' + cls },
+        h('div', { class: 'big num' }, `${v.matched ?? 0} / ${v.checked}`, h('span', { style: 'font-size:15px;font-weight:700;margin-left:8px' }, '일치')),
+        h('div', { class: 'act' }, v.action || (cls === 'ok' ? '통과' : '')),
+        v.checked === 0 ? h('div', { class: 'muted', style: 'font-size:14px' }, '답에 대조할 숫자가 없어요.') : null,
+        um.length ? h('ul', null, um.map(u => h('li', null, typeof u === 'object'
+          ? [h('b', null, u.text ?? String(u.value ?? '')), u.sentence ? ` — ${u.sentence}` : '']
+          : String(u)))) : null,
+        asList(v.key_figures).length ? h('div', { style: 'font-size:13px;margin-top:6px' }, '규칙 계산 핵심값: ' + asList(v.key_figures).join(', ')) : null)));
+  }
+  if (r.trace) {
+    frag.append(h('div', { class: 'blk' }, h('details', { class: 'trace' }, h('summary', null, '생각 과정 원문 (think_trace)'), h('pre', null, String(r.trace)))));
+  }
+  return frag;
+}
+function sideWaiting(sec) {
+  const names = ['안전 관문', '고객 상태 파악', '규칙 계산', '문서 검색', '답 작성', '숫자 대조'];
+  return h('div', null,
+    h('div', { class: 'sess' }, h('span', null, '답을 준비하는 중'), h('span', { class: 'pill time num', id: 'side-sec' }, sec)),
+    h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '오케스트레이터 단계'),
+    h('ol', { class: 'steps wait' }, names.map((n, k) => h('li', { style: `animation-delay:${k * 0.15}s;opacity:.5` }, h('div', { class: 'st' }, n)))));
+}
+function sideIdle() {
+  return h('div', null,
+    h('div', { class: 'sess' }, h('span', null, chat.session ? '대화 기억 중' : '새 대화'),
+      h('button', { class: 'btn small', type: 'button', onclick: newChat }, '새 대화')),
+    h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '오케스트레이터 단계'),
+    h('p', { class: 'empty' }, '질문을 보내면 여기에 Agent 가 거친 단계, 쓴 계산 규칙(R-xx), 답 속 숫자 대조 결과가 나옵니다.'));
+}
+
+async function ask(text) {
+  const q = String(text || '').trim();
+  if (!q || chat.busy) return;
+  setBusy(true);
+  const log = $('#log');
+  const w = $('.welcome', log);
+  if (w) w.remove();
+  const userEl = h('div', { class: 'msg-user' }, h('div', { class: 'bubble' }, q));
+  log.append(userEl);
+  const secEl = h('span', { class: 'pill time num' }, '0.0초');
+  const pend = h('div', { class: 'msg-bot pending' },
+    h('div', { class: 'bot-head' }, h('span', { class: 'avatar' }, '연'), h('span', { class: 'who' }, '연금 Agent'), secEl),
+    h('div', { class: 'cards' }, h('div', { class: 'card result' }, h('span', { class: 'spinner' }), '규칙을 확인하고 문서를 찾아 답을 쓰고 있어요…')));
+  log.append(pend);
+  scrollLog();
+  $('#side').replaceChildren(sideWaiting('0.0초'));
+  const t0 = performance.now();
+  clearInterval(chat.timer);
+  chat.timer = setInterval(() => {
+    const t = ((performance.now() - t0) / 1000).toFixed(1) + '초';
+    secEl.textContent = t;
+    const ss = $('#side-sec');
+    if (ss) ss.textContent = t;
+  }, 100);
+  try {
+    const modeEl = document.getElementById('mode');
+    const body = { question: q, mode: (modeEl && modeEl.value) || 'fast' };
+    if (chat.session) body.session_id = chat.session;
+    const r = await api('/chat', { method: 'POST', body, timeout: 300000 });
+    if (r.session_id) chat.session = r.session_id;
+    chat.turns++;
+    if (typeof r.elapsed !== 'number') r.elapsed = (performance.now() - t0) / 1000;
+    const node = renderBot(r);
+    pend.replaceWith(node);
+    selectBot(node);
+    log.scrollTop = Math.max(0, userEl.offsetTop - 8);     // 답은 길 수 있다 — 결론(맨 위)부터 보이게
+  } catch (e) {
+    pend.replaceWith(h('div', { class: 'err-block' }, errNode(e)));
+    scrollLog();
+    $('#side').replaceChildren(h('div', null, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '오케스트레이터 단계'), errNode(e)));
+  } finally {
+    clearInterval(chat.timer);
+    setBusy(false);
+  }
+}
+
+async function newChat() {
+  if (chat.busy) return;
+  chat.session = null;
+  chat.turns = 0;
+  $('#log').replaceChildren(welcomeNode());
+  $('#side').replaceChildren(sideIdle());
+  $('#q').value = '';
+  try {
+    const r = await api('/session', { method: 'POST' });
+    chat.session = (r && r.session_id) || null;
+    $('#side').replaceChildren(sideIdle());
+  } catch (e) {
+    $('#side').replaceChildren(sideIdle(), errNode(e));
+  }
+}
+
+function initChat() {
+  const chips = $('#chips');
+  for (const sc of SCENES) {
+    chips.append(h('button', { type: 'button', class: 'chip-q', title: sc.q || '먼저 알려주기 탭으로', 'data-tab': sc.tab || null,
+      onclick: () => {
+        if (sc.tab) { switchTab(sc.tab); if (sc.tab === 'alerts') scanWhenReady(); return; }
+        ask(sc.q);
+      } }, h('b', null, sc.tag), sc.label));
+  }
+  chips.append(h('button', { type: 'button', class: 'chip-q', title: '대화 기억을 지우고 새로 시작', onclick: newChat }, h('b', null, '↺'), '새 대화'));
+  const ta = $('#q');
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      const v = ta.value;
+      if (v.trim() && !chat.busy) { ta.value = ''; ask(v); }
+    }
+  });
+  $('#send').addEventListener('click', () => {
+    const v = ta.value;
+    if (v.trim() && !chat.busy) { ta.value = ''; ask(v); }
+  });
+  $('#log').replaceChildren(welcomeNode());
+  $('#side').replaceChildren(sideIdle());
+}
+
+/* =========================================================================
+   2. 먼저 알려주기
+   ========================================================================= */
+const KIND_LABEL = {
+  year_end_credit: '연말 세액공제', isa_maturity: 'ISA 만기', age55: '만 55세 도래', over_limit_plan: '한도 초과 인출',
+  over_1500: '연 1,500만 원 초과', rate_step: '세율 단계 변화', risk_limit: '위험자산 한도', actual_year_11: '퇴직소득세 감면율 변화',
+};
+function sevKey(sv) { return sv === '높음' ? 'high' : sv === '중간' ? 'mid' : 'info'; }
+const alertsState = { profiles: [], loading: null };
+
+function loadProfiles() {
+  const sel = $('#profile');
+  if (!$('#today').value) $('#today').value = todayStr();
+  alertsState.loading = api('/alerts/profiles').then(list => {
+    alertsState.profiles = Array.isArray(list) ? list : [];
+    sel.replaceChildren(...alertsState.profiles.map(p => h('option', { value: p.id }, p.name || p.id)));
+    if (!alertsState.profiles.length) sel.replaceChildren(h('option', { value: '' }, '가상 고객 없음'));
+    showProfileSummary();
+    return alertsState.profiles;
+  }).catch(e => {
+    TAB_INIT.alerts = false;                       // 다음에 탭을 열 때 다시 시도
+    sel.replaceChildren(h('option', { value: '' }, '불러오지 못함'));
+    $('#psum').replaceChildren(errNode(e));
+    return [];
+  });
+  return alertsState.loading;
+}
+function showProfileSummary() {
+  const p = alertsState.profiles.find(x => String(x.id) === $('#profile').value);
+  $('#psum').textContent = p ? (p.summary || '') : '';
+}
+function scanWhenReady() {
+  const go = () => { if ($('#profile').value) scan(); };
+  if (alertsState.loading) alertsState.loading.then(go);
+}
+
+function renderAlert(a) {
+  const sk = sevKey(a.severity);
+  const figs = a.figures && typeof a.figures === 'object' ? Object.entries(a.figures) : [];
+  return h('article', { class: 'alert sev-' + sk, id: 'alert-' + String(a.id ?? '').replace(/[^\w-]/g, '_') },
+    h('div', { class: 'top' }, h('span', { class: 'sev' }, a.severity || '참고'),
+      h('span', null, KIND_LABEL[a.kind] || a.kind || ''),
+      a.when || a.dday ? h('span', { class: 'when' }, [[a.when_label && a.when_label !== '지금' ? a.when_label : '', a.when].filter(Boolean).join(' '), a.dday].filter(Boolean).join(' · ')) : null),
+    h('h3', null, a.title || ''),
+    h('div', { class: 'md', md: a.message || '' }),
+    figs.length ? h('div', { class: 'figs' }, figs.map(([k, v]) => h('div', { class: 'fig' }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, String(v))))) : null,
+    h('div', { class: 'foot' }, asList(a.rule_ids).map(ruleChip), asList(a.docs).map(d => h('span', { class: 'dchip' }, docName(d)))),
+    alertMore(a),
+    asList(a.next_actions).length ? h('div', { class: 'acts' }, asList(a.next_actions).map(actButton)) : null);
+}
+/** 알림의 계산 줄·가정·원문 — 접어 두고 필요할 때 연다(alerts.scan 이 detail·assumptions·quotes 를 줄 때만) */
+function alertMore(a) {
+  const det = asList(a.detail), asm = asList(a.assumptions), needs = asList(a.needs), qs = asList(a.quotes).filter(q => q && q.text);
+  if (!det.length && !asm.length && !needs.length && !qs.length) return null;
+  return h('details', { class: 'more', style: 'margin:2px 0 4px' }, h('summary', null, '계산·가정·원문 보기'),
+    det.length ? h('ul', { style: 'margin:6px 0;padding-left:1.2em;font-size:14px' }, det.map(x => h('li', null, String(x)))) : null,
+    asm.length || needs.length ? h('ul', { class: 'plain as', style: 'font-size:14px;margin:6px 0' }, asm.map(x => h('li', null, String(x))), needs.map(x => h('li', { class: 'need' }, String(x)))) : null,
+    qs.map(q => h('div', { class: 'quote' }, h('span', { class: 'src' }, [q.rid, docName(q.file), q.as_of ? '기준일 ' + q.as_of : null].filter(Boolean).join(' · ')), String(q.text))));
+}
+function renderAlertList(alerts, target) {
+  const box = target || $('#alert-list');
+  const list = asList(alerts);
+  if (!list.length) { box.replaceChildren(h('p', { class: 'empty' }, '이 날짜에는 알릴 일이 없어요.')); return; }
+  const cnt = { 높음: 0, 중간: 0, 참고: 0 };
+  for (const a of list) cnt[a.severity] = (cnt[a.severity] || 0) + 1;
+  box.replaceChildren(
+    h('p', { class: 'sumline' }, `알림 ${list.length}건 — 높음 ${cnt['높음'] || 0} · 중간 ${cnt['중간'] || 0} · 참고 ${cnt['참고'] || 0}`),
+    ...list.map(renderAlert));
+}
+function renderReport(mdText) {
+  return h('div', null,
+    h('div', { class: 'rhead' }, h('div', { class: 'panel-title', style: 'margin:0' }, h('span', { class: 'bar' }), '고객에게 보낼 리포트'),
+      h('button', { class: 'btn small', type: 'button', onclick: () => copyText(mdText) }, '마크다운 복사')),
+    h('div', { class: 'report md', md: mdText || '(리포트 없음)' }));
+}
+function copyText(t) {
+  if (navigator.clipboard) navigator.clipboard.writeText(String(t || '')).then(() => snack('복사했어요'), () => snack('복사하지 못했어요'));
+}
+async function scan() {
+  const pid = $('#profile').value;
+  if (!pid) return;
+  const btn = $('#scan');
+  btn.disabled = true;
+  $('#alert-list').replaceChildren(h('p', { class: 'empty' }, h('span', { class: 'spinner', style: 'display:inline-block;vertical-align:middle;margin-right:8px' }), '점검하는 중…'));
+  try {
+    const r = await api('/alerts', { method: 'POST', body: { profile_id: pid, today: $('#today').value || todayStr() } });
+    renderAlertList(r.alerts);
+    $('#report-wrap').replaceChildren(renderReport(r.report_md));
+  } catch (e) {
+    $('#alert-list').replaceChildren(errNode(e));
+    $('#report-wrap').replaceChildren();
+  } finally { btn.disabled = false; }
+}
+async function pull() {
+  const pid = $('#profile').value;
+  if (!pid) return;
+  const btn = $('#pull');
+  btn.disabled = true;
+  try {
+    const r = await api('/alerts/outbox?profile_id=' + encodeURIComponent(pid));
+    const list = asList(r && r.alerts);
+    if (!$('#alert-list .alert') && list.length) renderAlertList(list);
+    pushToasts(list);
+  } catch (e) {
+    pushToast({ title: errText(e), message: '', severity: '높음' });
+  } finally { btn.disabled = false; }
+}
+function pushToasts(list) {
+  if (!list.length) { pushToast({ title: '새 알림 없음', message: '지금 보낼 알림이 없어요.' }); return; }
+  // 덜 중요한 것부터 띄워 가장 중요한 알림이 맨 위에 오게(새 알림이 위로 쌓인다)
+  list.slice().reverse().forEach((a, k) => setTimeout(() => pushToast(a), k * 900));
+}
+function pushToast(a) {
+  const wrap = $('#push-wrap');
+  const plain = String(a.message || '').replace(/\*\*|__|`/g, '');
+  const el = h('div', { class: 'push sev-' + sevKey(a.severity), role: 'status' },
+    h('div', { class: 'ic' }, '연'),
+    h('div', null, h('div', { class: 'app' }, h('b', null, '연금 Agent · 먼저 알려드려요'), h('span', null, '지금')),
+      h('div', { class: 'ttl' }, a.title || ''), plain ? h('div', { class: 'msg' }, plain) : null));
+  const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 360); };
+  el.addEventListener('click', () => {
+    close();
+    const card = a.id != null && document.getElementById('alert-' + String(a.id).replace(/[^\w-]/g, '_'));
+    if (card) {
+      switchTab('alerts');
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('flash');
+      setTimeout(() => card.classList.remove('flash'), 1600);
+    }
+  });
+  wrap.prepend(el);
+  while (wrap.children.length > 4) wrap.lastElementChild.remove();
+  setTimeout(close, 9000);
+}
+function initAlerts() {
+  $('#today').value = todayStr();
+  $('#profile').addEventListener('change', showProfileSummary);
+  $('#scan').addEventListener('click', scan);
+  $('#pull').addEventListener('click', pull);
+}
+
+/* =========================================================================
+   3. DIY 설계 — 계산은 서버(diy.simulate)가 한다. 화면은 입력을 모으고 결과를 나란히 보여준다.
+   ========================================================================= */
+const COMBO_MAX = 3, COMBO_MIN = 2, SLIDER_MAX = 1800, SLIDER_STEP = 50;
+function comboNode(c) {
+  const node = h('div', { class: 'combo' });
+  const name = h('input', { type: 'text', value: c.name || '', maxlength: 12, 'aria-label': '조합 이름' });
+  const sum = h('span', { class: 'sum' });
+  const rows = [['연금저축', 'savings'], ['IRP', 'irp']].map(([lab, key]) => {
+    const rng = h('input', { type: 'range', min: 0, max: SLIDER_MAX, step: SLIDER_STEP, value: c[key] || 0, 'data-k': key, 'aria-label': lab });
+    const val = h('span', { class: 'val' });
+    const upd = () => { val.textContent = won(+rng.value); updSum(); };
+    rng.addEventListener('input', upd);
+    return { el: h('div', { class: 'srow' }, h('span', null, lab), rng, val), upd };
+  });
+  function updSum() {
+    const t = $$('input[type=range]', node).reduce((a, x) => a + (+x.value), 0);
+    sum.replaceChildren('합계 ', h('b', { class: 'num' }, won(t)));
+  }
+  const x = h('button', { type: 'button', class: 'x', title: '조합 삭제', 'aria-label': '조합 삭제', onclick: () => {
+    if ($$('#combos .combo').length <= COMBO_MIN) return;
+    node.remove(); updComboButtons();
+  } }, '×');
+  node.append(h('div', { class: 'ch' }, name, sum, x), ...rows.map(r => r.el));
+  rows.forEach(r => r.upd());
+  return node;
+}
+function setCmp(on) {
+  $('#d-cmp').checked = on;
+  $('#combos').hidden = !on;
+  $('#add-combo').hidden = !on;
+}
+function updComboButtons() {
+  const n = $$('#combos .combo').length;
+  $('#add-combo').disabled = n >= COMBO_MAX;
+  for (const b of $$('#combos .combo .x')) b.disabled = n <= COMBO_MIN;
+}
+function setCombos(list) {
+  $('#combos').replaceChildren(...list.slice(0, COMBO_MAX).map(comboNode));
+  updComboButtons();
+}
+function numOr(el, d) { const v = el.value.trim(); return v === '' || !isFinite(+v) ? d : +v; }
+function updCreditLine() {
+  const bal = numOr($('#d-balance'), 0), fr = numOr($('#d-free'), 0), re = numOr($('#d-retire'), 0);
+  const cr = Math.max(0, bal - fr - re);
+  $('#credit-line').textContent = `공제받은 돈·수익 = 평가액 − 공제 안 받은 돈 − 퇴직금 = ${won(cr)}` + (fr + re > bal ? ' (재원 합이 평가액보다 커요)' : '');
+}
+function diyPlan() {
+  const plan = {
+    income: { kind: $('#d-kind').value, v: numOr($('#d-income'), 0) },
+    age: numOr($('#d-age'), 40),
+  };
+  if ($('#d-cmp').checked) {
+    plan.combos = $$('#combos .combo').map((c, k) => ({
+      name: $('input[type=text]', c).value.trim() || String.fromCharCode(65 + k),
+      savings: +$('input[data-k=savings]', c).value,
+      irp: +$('input[data-k=irp]', c).value,
+    }));
+  }
+  if ($('#d-pay').checked) {
+    const bal = numOr($('#d-balance'), 0), fr = numOr($('#d-free'), 0), re = numOr($('#d-retire'), 0);
+    const eff = $('#d-eff').value.trim();
+    plan.payout = {
+      start_age: numOr($('#d-start'), 60), years: numOr($('#d-years'), 10), balance: bal,
+      free: fr, retire: re, credit: Math.max(0, bal - fr - re),
+      eff: eff === '' || !isFinite(+eff) ? null : +eff,
+      return_rate: numOr($('#d-ret'), 0) / 100,      // 화면은 %, 서버는 비율(0.03 = 3%)
+    };
+  }
+  return plan;
+}
+function fillDiy(plan) {
+  if (plan.income) {
+    if (plan.income.kind) $('#d-kind').value = plan.income.kind === '종합소득' ? '종합소득' : '총급여';
+    if (plan.income.v != null) $('#d-income').value = plan.income.v;
+  }
+  if (plan.age != null) $('#d-age').value = plan.age;
+  // 알림·상담에서 온 설계값은 그 모양 그대로 — 조합이 없으면 조합 비교를 끄고, 수령 설계가 없으면 수령 설계를 끈다
+  const hasC = Array.isArray(plan.combos) && plan.combos.length > 0;
+  if (hasC) {
+    const cs = plan.combos.slice(0, COMBO_MAX);
+    while (cs.length < COMBO_MIN) cs.push({ name: String.fromCharCode(65 + cs.length), savings: 0, irp: 0 });
+    setCombos(cs);
+  }
+  setCmp(hasC);
+  const p = plan.payout;
+  $('#d-pay').checked = !!p;
+  $('#pay-fields').hidden = !p;
+  if (p) {
+    if (p.start_age != null) $('#d-start').value = p.start_age;
+    if (p.years != null) $('#d-years').value = p.years;
+    if (p.balance != null) $('#d-balance').value = p.balance;
+    $('#d-free').value = p.free || 0;
+    $('#d-retire').value = p.retire || 0;
+    $('#d-eff').value = p.eff == null ? '' : p.eff;
+    $('#d-ret').value = p.return_rate ? Math.round(p.return_rate * 1000) / 10 : 0;
+    if (p.free || p.retire || p.eff != null || p.return_rate) $('#d-adv').open = true;
+    updCreditLine();
+  }
+}
+async function runDiy() {
+  const btn = $('#diy-go');
+  const out = $('#diy-out');
+  if (!$('#d-cmp').checked && !$('#d-pay').checked) {
+    out.replaceChildren(h('p', { class: 'empty' }, '납입 조합 비교나 수령 설계 중 하나는 켜 주세요.'));
+    return;
+  }
+  btn.disabled = true;
+  out.replaceChildren(h('p', { class: 'empty' }, h('span', { class: 'spinner', style: 'display:inline-block;vertical-align:middle;margin-right:8px' }), '계산하는 중…'));
+  try {
+    const r = await api('/diy', { method: 'POST', body: diyPlan() });
+    out.replaceChildren(renderDiyNode(r));
+  } catch (e) {
+    out.replaceChildren(errNode(e));
+  } finally { btn.disabled = false; }
+}
+
+/* DIY 결과(diy.simulate) 그리기. 금액 글자는 서버가 taxcalc.won 으로 만든 text.* 를 먼저 쓰고, 없을 때만 won() 으로.
+   조합은 입력 순서대로 같은 모양의 열로 둔다 — 어느 쪽도 색·굵기로 띄우지 않는다('추천' 표시 없음). */
+function tv(o, k) {
+  const t = o && o.text && o.text[k];
+  if (t != null && t !== '') return String(t);
+  const v = o ? o[k] : null;
+  return v == null ? '-' : typeof v === 'number' ? won(v) : String(v);
+}
+function factChip(k, v) { return h('div', { class: 'fig' }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, v)); }
+function combosTable(combos) {
+  const anyYears = combos.some(c => c.years_to_start);
+  const yrs = (combos.find(c => c.years_to_start) || {}).years_to_start;
+  const rows = [
+    ['연금저축 납입', c => won(c.savings)],
+    ['IRP 납입', c => won(c.irp)],
+    ['납입 합계', c => tv(c, 'total'), c => c.over_cap > 0],
+    ['세액공제 대상', c => tv(c, 'eligible')],
+    ['공제율', c => c.text && c.text.rate ? c.text.rate : c.rate == null ? '소득 필요' : pct(c.rate)],
+    ['올해 환급액', c => c.refund == null ? '소득 필요' : tv(c, 'refund'), null, true],
+    ['공제 못 받는 금액 (나중에 비과세)', c => tv(c, 'excluded')],
+  ];
+  if (anyYears) {
+    rows.push([`수령 전 ${yrs}년 누적 환급`, c => c.refund_total == null ? '-' : tv(c, 'refund_total')]);
+    rows.push([`수령 전 ${yrs}년 누적 비과세 쌓임`, c => tv(c, 'excluded_total')]);
+  }
+  return h('table', { class: 'cmp' },
+    h('thead', null, h('tr', null, h('th', { style: 'text-align:left' }, '항목'), combos.map((c, k) => h('th', null, '조합 ' + (c.name || String.fromCharCode(65 + k)))))),
+    h('tbody', null,
+      rows.map(([lab, f, warnIf, hl]) => h('tr', null, h('th', null, lab),
+        combos.map(c => h('td', { class: (hl ? 'hl ' : '') + (warnIf && warnIf(c) ? 'warnc' : '') }, f(c) + (warnIf && warnIf(c) ? ` (한도 초과 ${won(c.over_cap)})` : ''))))),
+      h('tr', null, h('th', null, '근거'), combos.map(c => h('td', { style: 'text-align:left' }, asList(c.rule_ids).map(ruleChip), asList(c.docs).map(d => h('span', { class: 'dchip' }, docName(d))))))));
+}
+function yearsTable(p) {
+  const rows = asList(p.rows);
+  const cols = ['회차', '나이', '수령연차', '연초 평가액', '연금수령한도', '인출', '세율', '세금', '누적 세금', '표시'];
+  const tb = h('tbody');
+  for (const y of rows) {
+    const flags = [];
+    if (y.early) flags.push('55세 전');
+    if (y.over_limit > 0) flags.push(`한도 초과 ${won(y.over_limit)}`);
+    if (y.over_1500) flags.push('1,500만 원 초과');
+    const tr = h('tr', { class: flags.length ? 'flag' : null, style: 'cursor:pointer', title: '누르면 재원별 계산이 보여요' },
+      h('td', null, y.year ?? ''), h('td', null, y.age != null ? y.age + '세' : ''),
+      h('td', null, y.year_n != null ? y.year_n + '년차' : '-'),
+      h('td', null, tv(y, 'balance_start')), h('td', null, tv(y, 'limit')), h('td', null, tv(y, 'withdraw')),
+      h('td', null, y.text && y.text.rate ? y.text.rate : y.rate != null ? pct(y.rate) : '-'),
+      h('td', null, y.tax == null ? '세율 필요' : tv(y, 'tax')), h('td', null, y.cum_tax == null ? '-' : tv(y, 'cum_tax')),
+      h('td', { style: 'text-align:left' }, flags.join(' · ')));
+    const lines = asList(y.lines);
+    const det = h('tr', { hidden: true }, h('td', { colspan: cols.length, style: 'text-align:left;white-space:normal;background:#fafbfc' },
+      lines.length ? h('ul', { style: 'margin:0;padding-left:1.2em' }, lines.map(l => h('li', null, String(l)))) : h('span', { class: 'empty' }, '계산 줄 없음')));
+    tr.addEventListener('click', () => { det.hidden = !det.hidden; });
+    tb.append(tr, det);
+  }
+  return h('table', { class: 'yr' }, h('thead', null, h('tr', null, cols.map(c => h('th', null, c)))), tb);
+}
+function renderDiyNode(r) {
+  const root = h('div');
+  if (!r || typeof r !== 'object') { root.append(h('p', { class: 'empty' }, '결과가 비어 있어요.')); return root; }
+  const summ = asList(r.summary);
+  if (summ.length) {
+    root.append(h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '결론'),
+      h('ul', { class: 'lead', style: 'padding-left:1.2em;font-weight:600;font-size:17px' }, summ.map(x => h('li', null, String(x)))));
+  }
+  const combos = asList(r.combos).filter(c => c && typeof c === 'object');
+  if (combos.length) {
+    root.append(h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '납입 조합 비교',
+      r.income ? h('span', { class: 'muted', style: 'font-weight:600;font-size:14px' }, ` — ${r.income.kind || ''} ${r.income.text || won(r.income.v)}` + (r.income.rate != null ? `, 공제율 ${pct(r.income.rate)}` : '')) : null),
+      h('div', { class: 'wrapx' }, combosTable(combos)));
+    const lines = combos.filter(c => asList(c.lines).length);
+    if (lines.length) {
+      root.append(h('details', { class: 'more', style: 'margin:-8px 0 18px' }, h('summary', null, '조합별 계산 과정 보기'),
+        lines.map(c => h('div', { class: 'box', style: 'margin-top:8px' }, h('b', null, '조합 ' + c.name), h('ul', null, asList(c.lines).map(l => h('li', null, String(l))))))));
+    }
+  }
+  const p = r.payout && typeof r.payout === 'object' ? r.payout : null;
+  if (p) {
+    const fund = p.fund || {};
+    root.append(h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '연도별 수령'),
+      h('div', { class: 'figs' },
+        factChip('시작', `${p.start_age}세부터 ${p.years}년`),
+        factChip('평가액', won(p.balance)),
+        factChip('재원 ① · ② · ③', `${won(fund.free || 0)} · ${won(fund.retire || 0)} · ${won(fund.credit || 0)}`),
+        factChip('해마다 인출', tv(p, 'annual')),
+        factChip('세금 합계', p.total_tax == null ? '퇴직소득세율 필요' : tv(p, 'total_tax')),
+        p.avg_rate != null ? factChip('받는 돈 대비 세금', pct(p.avg_rate)) : null,
+        p.return_rate ? factChip('연 수익률 가정', pct(p.return_rate * 100)) : null),
+      asList(p.rows).length ? h('div', { class: 'wrapx' }, yearsTable(p)) : null,
+      h('div', { style: 'margin:-10px 0 18px', class: 'muted' }, h('span', { style: 'font-size:13px' }, '줄을 누르면 재원별(① 공제 안 받은 돈 → ② 퇴직금 → ③ 공제받은 돈·수익) 계산이 펼쳐집니다.')));
+  }
+  if (!combos.length && !p && !summ.length) {
+    root.append(h('pre', { class: 'box', style: 'white-space:pre-wrap;font-size:13px' }, JSON.stringify(r, null, 1).slice(0, 4000)));
+  }
+  const warns = asList(r.warnings), asm = asList(r.assumptions), needs = asList(r.needs);
+  if (warns.length || asm.length || needs.length) {
+    root.append(h('div', { class: 'boxes' },
+      h('div', { class: 'box warnbox' }, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '주의'),
+        warns.length || needs.length ? h('ul', null, warns.map(w => h('li', null, String(w))), needs.map(n => h('li', null, '필요: ' + String(n))))
+          : h('p', { class: 'empty' }, '없음')),
+      h('div', { class: 'box' }, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '가정'),
+        asm.length ? h('ul', null, asm.map(a => h('li', null, String(a)))) : h('p', { class: 'empty' }, '없음'))));
+  }
+  const rids = asList(r.rule_ids);
+  if (rids.length) {
+    const evs = asList(r.evidence).filter(e => e && e.text);
+    root.append(h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '근거 규칙·문서'),
+      h('div', { style: 'margin-bottom:6px' }, rids.map(ruleChip), asList(r.docs).map(d => h('span', { class: 'dchip' }, docName(d)))),
+      evs.length ? h('details', { class: 'more', style: 'margin-bottom:16px' }, h('summary', null, `근거 원문 ${evs.length}개 보기`),
+        evs.map(e => h('div', { class: 'quote', style: 'margin-top:6px' }, h('span', { class: 'src' }, `${e.rid || ''} ${e.name || ''} · ${docName(e.file)}`), String(e.text)))) : null);
+  }
+  const acts = asList(r.next_actions);
+  if (acts.length) root.append(h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '다음 행동'), h('div', { class: 'next', style: 'max-width:520px' }, acts.map(actButton)));
+  return root;
+}
+function initDiy() {
+  setCombos([{ name: 'A', savings: 600, irp: 300 }, { name: 'B', savings: 900, irp: 0 }]);
+  $('#add-combo').addEventListener('click', () => {
+    const n = $$('#combos .combo').length;
+    if (n >= COMBO_MAX) return;
+    $('#combos').append(comboNode({ name: String.fromCharCode(65 + n), savings: 300, irp: 600 }));
+    updComboButtons();
+  });
+  $('#d-pay').addEventListener('change', e => { $('#pay-fields').hidden = !e.target.checked; });
+  $('#d-cmp').addEventListener('change', e => setCmp(e.target.checked));
+  for (const id of ['#d-balance', '#d-free', '#d-retire']) $(id).addEventListener('input', updCreditLine);
+  updCreditLine();
+  $('#diy-form').addEventListener('submit', e => { e.preventDefault(); runDiy(); });
+}
+
+/* =========================================================================
+   4. 규칙·온톨로지
+   ========================================================================= */
+const HOW_CLASS = { '계산': 'calc', '판정': 'judge', '규칙만': 'only' };
+function renderRulesTable(list) {
+  return h('table', { class: 'rules' },
+    h('thead', null, h('tr', null, ['번호', '규칙', '요약', '방식', '원문 근거 (문서 · 기준일)'].map(t => h('th', null, t)))),
+    h('tbody', null, list.map(r => {
+      const qs = asList(r.quotes);
+      const q = x => h('div', { class: 'quote' }, h('span', { class: 'src' }, `${docName(x.file)} · 기준일 ${x.as_of || '미상'}`), String(x.text || ''));
+      return h('tr', { id: 'rule-' + String(r.rid).replace(/[^\w-]/g, '_') },
+        h('td', { class: 'rid' }, r.rid), h('td', { class: 'nm' }, r.name || ''), h('td', null, r.summary || ''),
+        h('td', null, r.how ? h('span', { class: 'how ' + (HOW_CLASS[r.how] || 'only') }, r.how) : ''),
+        h('td', null, qs.length ? q(qs[0]) : h('span', { class: 'empty' }, '-'),
+          qs.length > 1 ? h('details', { class: 'more' }, h('summary', null, `원문 ${qs.length - 1}개 더`), qs.slice(1).map(q)) : null));
+    })));
+}
+function loadRulesView() {
+  const wrap = $('#rules-wrap');
+  wrap.replaceChildren(h('p', { class: 'empty' }, '불러오는 중…'));
+  return ensureRules().then(list => {
+    wrap.replaceChildren(renderRulesTable(list));
+    const n = { 계산: 0, 판정: 0, 규칙만: 0 };
+    for (const r of list) n[r.how] = (n[r.how] || 0) + 1;
+    $('#rsum').textContent = `규칙 ${list.length}개 — 계산 ${n['계산'] || 0} · 판정 ${n['판정'] || 0} · 규칙만 ${n['규칙만'] || 0}. 원문은 문서 글자 그대로입니다.`;
+  }).catch(e => { TAB_INIT.rules = false; wrap.replaceChildren(errNode(e)); });
+}
+function showRule(rid) {
+  switchTab('rules');
+  setRView('rules');
+  const go = () => {
+    const tr = document.getElementById('rule-' + String(rid).replace(/[^\w-]/g, '_'));
+    if (!tr) return;
+    tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    tr.classList.add('flash');
+    setTimeout(() => tr.classList.remove('flash'), 1800);
+  };
+  if (RULES.list && $('#rules-wrap table')) go();
+  else loadRulesView().then(go);
+}
+function setRView(v) {
+  for (const b of $$('#rseg button')) b.classList.toggle('on', b.dataset.v === v);
+  $('#rv-rules').classList.toggle('on', v === 'rules');
+  $('#rv-graph').classList.toggle('on', v === 'graph');
+  $('#lseg').hidden = v !== 'graph';
+  if (v === 'graph' && !graph.data && !graph.loading) loadGraph();
+}
+
+/* 온톨로지 그래프 — 라이브러리 없이 SVG.
+   원형: 종류별로 모아 원 위에 두고 이름은 바깥으로 비스듬히(58개가 겹치지 않게).
+   계층: 위에서 아래로 '주체·제도·계좌 → 재원·사건 → 인출·세목 → 규칙 → 문서' 줄. 이름은 위아래로 번갈아. */
+const graph = { data: null, loading: false, layout: 'circle' };
+const TYPE_ORDER = ['actor', 'plan', 'account', 'fund', 'product', 'event', 'alert', 'withdrawal', 'tax', 'rule', 'doc',
+  '주체', '제도', '계좌', '재원', '상품', '사건', '알림', '인출 유형', '세목', '규칙', '문서'];
+const TYPE_TIER = { actor: 0, plan: 0, account: 0, fund: 1, product: 1, event: 1, alert: 1, withdrawal: 2, tax: 2, rule: 3, doc: 4,
+  주체: 0, 제도: 0, 계좌: 0, 재원: 1, 상품: 1, 사건: 1, 알림: 1, '인출 유형': 2, 세목: 2, 규칙: 3, 문서: 4 };
+// 종류별 색 — 규칙은 주황(계산의 중심), 문서는 회색(근거), 나머지는 서로 헷갈리지 않는 색. 모르는 종류는 PALETTE 에서.
+const TYPE_COLOR = { actor: '#043B72', plan: '#1971c2', account: '#0b7285', fund: '#2f9e44', withdrawal: '#5c940d', tax: '#7048e8',
+  product: '#c2255c', event: '#9c36b5', alert: '#e03131', rule: '#F58220', doc: '#6b7684' };
+const PALETTE = ['#1098ad', '#862e9c', '#a61e4d', '#364fc7', '#087f5b', '#5f3dc4', '#d9480f', '#2b8a3e'];
+const tkey = n => String(n.type || '기타');
+const nid = x => String(x);
+function typeRank(t, legend) {
+  const L = asList(legend).map(x => x.type);
+  const i = L.indexOf(t);
+  if (i >= 0) return i;
+  const j = TYPE_ORDER.indexOf(String(t).toLowerCase());
+  return j < 0 ? 900 : 100 + j;
+}
+function typesOf(nodes, legend) {
+  const ts = [...new Set(nodes.map(tkey))];
+  ts.sort((a, b) => typeRank(a, legend) - typeRank(b, legend) || a.localeCompare(b, 'ko'));
+  return ts;
+}
+function typeLabel(t, legend) { const x = asList(legend).find(l => l.type === t); return x && x.label ? x.label : t; }
+function colorMap(types) {
+  const m = {};
+  let k = 0;
+  types.forEach(t => { m[t] = TYPE_COLOR[String(t).toLowerCase()] || PALETTE[k++ % PALETTE.length]; });
+  return m;
+}
+function layoutCircle(nodes, W, H, legend) {
+  const types = typesOf(nodes, legend);
+  const order = [...nodes].sort((a, b) => types.indexOf(tkey(a)) - types.indexOf(tkey(b)));
+  // 화면이 가로로 넓어 원 대신 타원 — 같은 높이에서 노드 간격이 넓어진다
+  const cx = W / 2, cy = H / 2, Rx = Math.max(60, W / 2 - 150), Ry = Math.max(60, H / 2 - 100);
+  const pos = {};
+  const n = Math.max(1, order.length);
+  order.forEach((nd, i) => {
+    const a = -Math.PI / 2 + 2 * Math.PI * i / n;
+    pos[nid(nd.id)] = { x: cx + Rx * Math.cos(a), y: cy + Ry * Math.sin(a), a };
+  });
+  return { pos, cx, cy, Rx, Ry, types };
+}
+function layoutLayers(nodes, W, H, legend) {
+  const types = typesOf(nodes, legend);
+  const tierOf = t => (t in TYPE_TIER ? TYPE_TIER[t] : 5);
+  const tiers = [...new Set(types.map(tierOf))].sort((a, b) => a - b);
+  const padL = 150, padR = 40, padY = 60;
+  const pos = {}, rows = [];
+  tiers.forEach((tier, ri) => {
+    const row = nodes.filter(n => tierOf(tkey(n)) === tier)
+      .sort((a, b) => types.indexOf(tkey(a)) - types.indexOf(tkey(b)));
+    const y = tiers.length === 1 ? H / 2 : padY + (H - 2 * padY) * ri / (tiers.length - 1);
+    row.forEach((nd, k) => {
+      const x = row.length === 1 ? (padL + W - padR) / 2 : padL + (W - padL - padR) * (k + 0.5) / row.length;
+      pos[nid(nd.id)] = { x, y, k };
+    });
+    rows.push({ y, types: [...new Set(row.map(tkey))] });
+  });
+  return { pos, types, rows };
+}
+function short(t, n = 12) { t = String(t ?? ''); return t.length > n ? t.slice(0, n - 1) + '…' : t; }
+function nodeText(nd) { return nd.type === 'rule' && nd.short ? nd.short : nd.label || nd.id; }
+function drawGraphNode(data, layout = 'circle') {
+  const legend = data && data.legend;
+  const nodes = asList(data && data.nodes).filter(n => n && n.id != null);
+  const ids = new Set(nodes.map(n => nid(n.id)));
+  const edges = asList(data && data.edges).filter(e => e && ids.has(nid(e.from)) && ids.has(nid(e.to)));
+  const W = layout === 'layers' ? 1180 : 1120, H = layout === 'layers' ? 640 : 660;
+  const L = layout === 'layers' ? layoutLayers(nodes, W, H, legend) : layoutCircle(nodes, W, H, legend);
+  const colors = colorMap(L.types);
+  const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': '연금 온톨로지 그래프' });
+  const gE = s('g'), gL = s('g'), gN = s('g');
+  const adj = {};
+  ids.forEach(id => { adj[id] = new Set(); });
+  edges.forEach((e, k) => {
+    const a = nid(e.from), b = nid(e.to);
+    adj[a].add(k); adj[b].add(k);
+    const p = L.pos[a], q = L.pos[b];
+    let d, mx, my;
+    if (layout === 'layers') {
+      if (Math.abs(p.y - q.y) < 1) {                       // 같은 줄끼리는 위로 휘게
+        const cyy = p.y - 30 - Math.min(60, Math.abs(q.x - p.x) / 6);
+        d = `M${p.x},${p.y} Q${(p.x + q.x) / 2},${cyy} ${q.x},${q.y}`;
+        mx = (p.x + q.x) / 2; my = (p.y + cyy) / 2;
+      } else {
+        const my2 = (p.y + q.y) / 2;
+        d = `M${p.x},${p.y} C${p.x},${my2} ${q.x},${my2} ${q.x},${q.y}`;
+        mx = (p.x + q.x) / 2; my = my2;
+      }
+    } else {
+      const ctx = L.cx + ((p.x + q.x) / 2 - L.cx) * 0.2, cty = L.cy + ((p.y + q.y) / 2 - L.cy) * 0.2;
+      d = `M${p.x},${p.y} Q${ctx},${cty} ${q.x},${q.y}`;
+      mx = 0.25 * p.x + 0.5 * ctx + 0.25 * q.x; my = 0.25 * p.y + 0.5 * cty + 0.25 * q.y;
+    }
+    gE.append(s('path', { class: 'edge', d, 'data-k': k }));
+    if (e.label) gL.append(s('text', { class: 'elabel', x: mx, y: my, 'text-anchor': 'middle', 'data-k': k }, String(e.label)));
+  });
+  nodes.forEach(nd => {
+    const id = nid(nd.id), p = L.pos[id];
+    const r = 6 + Math.min(6, adj[id].size);
+    let label;
+    if (layout === 'layers') {
+      const below = p.k % 2 === 0;
+      label = s('text', { x: p.x, y: below ? p.y + r + 14 : p.y - r - 6, 'text-anchor': 'middle' }, short(nodeText(nd), 10));
+    } else {
+      const c = Math.cos(p.a), deg = p.a * 180 / Math.PI;
+      const right = c >= -1e-9;
+      label = s('text', { x: p.x + (r + 6) * Math.cos(p.a), y: p.y + (r + 6) * Math.sin(p.a), dy: '0.35em',
+        'text-anchor': right ? 'start' : 'end',
+        transform: `rotate(${right ? deg : deg + 180} ${p.x + (r + 6) * Math.cos(p.a)} ${p.y + (r + 6) * Math.sin(p.a)})` }, short(nodeText(nd), 13));
+    }
+    const tip = [nd.label || nd.id, typeLabel(tkey(nd), legend), nd.title, nd.summary].filter(Boolean).join(' · ');
+    const g = s('g', { class: 'node', 'data-id': id, tabindex: 0 },
+      s('title', null, tip), s('circle', { cx: p.x, cy: p.y, r, fill: colors[tkey(nd)] }), label);
+    g.addEventListener('mouseenter', () => focusNode(svg, id, adj, edges));
+    g.addEventListener('mouseleave', () => unfocus(svg));
+    g.addEventListener('focus', () => focusNode(svg, id, adj, edges));
+    g.addEventListener('blur', () => unfocus(svg));
+    g.addEventListener('click', () => pickNode(svg, nd, nodes, edges, colors, legend));
+    g.addEventListener('keydown', ev => { if (ev.key === 'Enter') pickNode(svg, nd, nodes, edges, colors, legend); });
+    gN.append(g);
+  });
+  if (layout === 'layers') {
+    L.rows.forEach(rw => svg.append(s('text', { class: 'tlabel', x: 14, y: rw.y + 4, fill: '#5a6577' }, rw.types.map(t => typeLabel(t, legend)).join('·'))));
+  }
+  svg.append(gE, gN, gL);
+  svg._colors = colors; svg._types = L.types; svg._pos = L.pos;
+  return svg;
+}
+function focusNode(svg, id, adj, edges) {
+  svg.classList.add('focus');
+  const ks = adj[id] || new Set();
+  const nb = new Set([id]);
+  ks.forEach(k => { nb.add(nid(edges[k].from)); nb.add(nid(edges[k].to)); });
+  svg.querySelectorAll('.edge, .elabel').forEach(el => el.classList.toggle('hl', ks.has(+el.dataset.k)));
+  svg.querySelectorAll('.node').forEach(el => el.classList.toggle('hl', nb.has(el.dataset.id)));
+}
+function unfocus(svg) {
+  svg.classList.remove('focus');
+  svg.querySelectorAll('.hl').forEach(el => el.classList.remove('hl'));
+}
+function pickNode(svg, nd, nodes, edges, colors, legend) {
+  svg.querySelectorAll('.node.pick').forEach(el => el.classList.remove('pick'));
+  const id = nid(nd.id);
+  const g = [...svg.querySelectorAll('.node')].find(el => el.dataset.id === id);
+  if (g) g.classList.add('pick');
+  const byId = Object.fromEntries(nodes.map(n => [nid(n.id), n]));
+  const nm = x => { const n = byId[nid(x)]; return n ? n.label || n.id : x; };
+  const rel = edges.filter(e => nid(e.from) === id || nid(e.to) === id);
+  const rid = /^R-\d{2}$/.test(id) ? id : (nd.short && /^R-\d{2}$/.test(nd.short) ? nd.short : null);
+  const meta = [];
+  if (nd.how) meta.push('방식: ' + nd.how);
+  if (nd.title) meta.push(nd.title);
+  if (nd.audience) meta.push(audLabel(nd.audience));
+  if (nd.type === 'doc') meta.push('기준일 ' + (nd.as_of || '미상'));
+  $('#ninfo').replaceChildren(
+    h('h4', null, nd.label || nd.id),
+    h('span', { class: 'tag', style: `background:${colors[tkey(nd)]};color:#fff` }, typeLabel(tkey(nd), legend)),
+    nd.summary ? h('p', { style: 'margin:6px 0 0' }, String(nd.summary)) : null,
+    meta.length ? h('p', { class: 'muted', style: 'margin:6px 0 0' }, meta.join(' · ')) : null,
+    rel.length ? h('ul', null, rel.map(e => nid(e.from) === id
+      ? h('li', null, h('b', null, e.label || '→'), ' → ', nm(e.to))
+      : h('li', null, nm(e.from), ' → ', h('b', null, e.label || '→'), ' → 이 노드'))) : h('p', { class: 'empty' }, '연결 없음'),
+    rid ? h('button', { class: 'btn small', type: 'button', style: 'margin-top:8px', onclick: () => showRule(rid) }, '규칙표에서 보기') : null);
+}
+function renderGraph() {
+  const box = $('#graph-box');
+  if (!graph.data) return;
+  const svg = drawGraphNode(graph.data, graph.layout);
+  box.replaceChildren(svg);
+  const nodes = asList(graph.data.nodes);
+  const cnt = {};
+  nodes.forEach(n => { cnt[tkey(n)] = (cnt[tkey(n)] || 0) + 1; });
+  $('#legend').replaceChildren(...svg._types.map(t => h('li', null, h('span', { class: 'sw', style: `background:${svg._colors[t]}` }), typeLabel(t, graph.data.legend), h('span', { class: 'c' }, cnt[t]))));
+  $('#rsum').textContent = `노드 ${nodes.length}개 · 관계 ${asList(graph.data.edges).length}개 — 노드에 마우스를 올리면 이어진 관계만 남습니다.`;
+}
+async function loadGraph() {
+  graph.loading = true;
+  $('#graph-box').replaceChildren(h('div', { class: 'msg empty' }, '불러오는 중…'));
+  try {
+    graph.data = await api('/ontology');
+    renderGraph();
+  } catch (e) {
+    $('#graph-box').replaceChildren(h('div', { class: 'msg' }, errNode(e)));
+  } finally { graph.loading = false; }
+}
+function initRules() {
+  for (const b of $$('#rseg button')) b.addEventListener('click', () => setRView(b.dataset.v));
+  for (const b of $$('#lseg button')) b.addEventListener('click', () => {
+    graph.layout = b.dataset.v;
+    for (const x of $$('#lseg button')) x.classList.toggle('on', x === b);
+    renderGraph();
+  });
+}
+
+/* =========================================================================
+   시작
+   ========================================================================= */
+function init() {
+  for (const b of $$('nav.tabs button')) b.addEventListener('click', () => switchTab(b.dataset.tab));
+  initChat();
+  initAlerts();
+  initDiy();
+  initRules();
+  api('/health', { timeout: 8000 }).catch(() => setServer(false));   // 상태 표시만. 실패해도 화면은 그대로
+  ensureRules().catch(() => {});                                      // R-xx 칩 이름용. 없어도 동작
+  if (/[?&]selftest=1\b/.test(location.search)) {
+    const r = window.__selftest();
+    document.body.append(h('div', { id: 'selftest-out' }, `__selftest: ${r.passed}/${r.total} 통과` +
+      (r.failed.length ? '\n실패:\n' + r.failed.map(f => `- ${f.name}: ${f.note}`).join('\n') : '')));
+  }
+}
+
+/* =========================================================================
+   개발용 자체 점검 — 콘솔에서 __selftest(). 네트워크를 쓰지 않는다.
+   ========================================================================= */
+window.__selftest = function () {
+  const results = [];
+  const t = (name, fn) => {
+    try { const ok = fn(); results.push({ name, ok: ok === true, note: ok === true ? '' : String(ok).slice(0, 200) }); }
+    catch (e) { results.push({ name, ok: false, note: 'throw: ' + e.message }); }
+  };
+  const R = src => { const d = document.createElement('div'); d.innerHTML = md(src); return d; };
+  const MOCK_CHAT = {
+    answer: '**결론**: 올해 세금은 57만 6천 원입니다.\n\n| 재원 | 세금 |\n|---|---:|\n| 퇴직금 | 16만 8천 원 |',
+    elapsed: 12.3, session_id: 'sess-test',
+    sections: {
+      result: '**올해 세금은 57만 6천 원**입니다.',
+      evidence: [{ n: 1, title: '연금수령한도 안내', page: 0, file: 'doc39.txt', as_of: '미상', audience: '고객', rules: ['R-05', 'R-06'] }],
+      assumptions: ['올해가 연금수령연차 1년차'], needs: ['연금계좌 평가액'],
+      next_actions: [{ label: '올해 한도까지만 받으면?', kind: 'chat', payload: '올해 한도까지만 받으면 세금은요?' }, { label: '상담 연결', kind: 'handoff', payload: '' }],
+    },
+    plan: [{ step: '안전 관문', detail: '통과' }, { step: '고객 상태', detail: '나이 62세 · IRP · 퇴직금' }, { step: '다음 행동', detail: '계산 → 설명' }],
+    calc: { rule_ids: ['R-05', 'R-06'], figures: ['57만 6천 원'], needs: [] },
+    verify: { checked: 5, matched: 5, unmatched: [], action: '통과' },
+    trace: 'think_trace <b>원문</b>',
+  };
+
+  // 마크다운 — 이스케이프 먼저
+  t("'<b>x</b>' 는 글자로 보임", () => { const d = R('<b>x</b>'); return (!d.querySelector('b') && d.textContent === '<b>x</b>') || d.innerHTML; });
+  t("답 속 '<br>' 은 글자로", () => { const d = R('가<br>나'); return (!d.querySelector('br') && d.textContent === '가<br>나') || d.innerHTML; });
+  t('img onerror 주입 막힘', () => { const d = R('<img src=x onerror="window.__pwned=1">'); return !d.querySelector('img') && !window.__pwned; });
+  t('script 주입 막힘', () => !R('<script>window.__pwned=1<\/script>').querySelector('script'));
+  t('굵게 속 태그도 글자', () => { const d = R('**<i>a</i>**'); return (!d.querySelector('i') && d.querySelector('strong').textContent === '<i>a</i>') || d.innerHTML; });
+  t('esc 따옴표·앰퍼샌드', () => esc(`"'&<>`) === '&quot;&#39;&amp;&lt;&gt;' || esc(`"'&<>`));
+  t('굵게', () => R('앞 **굵게** 뒤').querySelector('strong')?.textContent === '굵게');
+  t('제목', () => { const d = R('## 결론'); return d.querySelector('h4')?.textContent === '결론' || d.innerHTML; });
+  t('목록(-)', () => R('- 하나\n- 둘').querySelectorAll('ul > li').length === 2);
+  t('번호 목록', () => { const d = R('1. 가\n2. 나'); return d.querySelectorAll('ol > li').length === 2 || d.innerHTML; });
+  t('번호 목록 시작 번호', () => R('3. 다\n4. 라').querySelector('ol')?.getAttribute('start') === '3');
+  t('중첩 목록', () => { const d = R('- 가\n  - 나\n- 다'); return (d.querySelectorAll('ul ul li').length === 1 && d.querySelectorAll('ul > li').length === 3) || d.innerHTML; });
+  t('표(머리·정렬·굵게)', () => {
+    const d = R('| 재원 | 세금 |\n|---|---:|\n| 퇴직금 | **57만 6천 원** |\n| 공제받은 돈 | 0원 |');
+    const tds = d.querySelectorAll('tbody td');
+    return (d.querySelectorAll('th').length === 2 && d.querySelectorAll('tbody tr').length === 2 &&
+      d.querySelector('td strong')?.textContent === '57만 6천 원' && tds[1].style.textAlign === 'right') || d.innerHTML;
+  });
+  t('표 셀 속 <br> 은 글자', () => { const d = R('| a |\n|---|\n| x<br>y |'); return (!d.querySelector('td br') && d.querySelector('td').textContent === 'x<br>y') || d.innerHTML; });
+  t('표 칸 수 맞춤(모자란 칸)', () => R('| a | b |\n|---|---|\n| 1 |').querySelectorAll('tbody td').length === 2);
+  t('코드 블록', () => { const d = R('```\n<x> **y**\n```'); return (d.querySelector('pre code')?.textContent === '<x> **y**' && !d.querySelector('strong')) || d.innerHTML; });
+  t('인라인 코드 안 ** 유지', () => { const d = R('`**a**` **b**'); return (d.querySelector('code').textContent === '**a**' && d.querySelectorAll('strong').length === 1) || d.innerHTML; });
+  t('문단 줄바꿈', () => R('가\n나').querySelector('p br') != null);
+  t('구분선', () => R('가\n\n---\n\n나').querySelector('hr') != null);
+  t('빈 입력·null', () => md(null) === '' && md('') === '');
+  t('링크 문법은 글자로(href 없음)', () => !R('[x](javascript:alert(1))').querySelector('a'));
+  t('긴 입력도 빠르게(되짚기 폭주 없음)', () => {
+    const t0 = performance.now();
+    md(['# ' + ' '.repeat(20000) + 'x', '** '.repeat(3000), '| ' + '-'.repeat(5000) + ' x', '- '.repeat(5000) + 'x'].join('\n'));
+    const ms = performance.now() - t0;
+    return ms < 300 || `${ms.toFixed(0)}ms`;
+  });
+  t('제목 끝 # 제거', () => R('## 결론 ##').querySelector('h4')?.textContent === '결론');
+
+  // won — taxcalc.won 과 같은 표기
+  t('won 표기', () => {
+    const c = [[148.5, '148만 5천 원'], [99, '99만 원'], [10000, '1억 원'], [0.56, '5,600원'], [0, '0원'], [12345.6, '1억 2,345만 6천 원'], [330, '330만 원'], [1800, '1,800만 원']];
+    const bad = c.filter(([v, w]) => won(v) !== w);
+    return !bad.length || bad.map(([v, w]) => `${v}→${won(v)}≠${w}`).join(', ');
+  });
+
+  // 응답 카드
+  t('응답 4칸 카드', () => {
+    const n = renderBot(MOCK_CHAT);
+    return (n.querySelectorAll('.cards > .card').length === 4 && n.querySelectorAll('.ev li').length === 1 &&
+      n.querySelectorAll('.nextc button').length === 2 && /12\.3초/.test(n.textContent) && /5\/5/.test(n.textContent)) || n.textContent.slice(0, 200);
+  });
+  t('근거 카드 규칙 칩', () => { const c = renderBot(MOCK_CHAT).querySelectorAll('.ev .ev-rules .rchip'); return c.length === 2 || c.length; });
+  t('근거 메타(문서·기준일·독자)', () => { const n = renderBot(MOCK_CHAT); const m = n.querySelector('.ev-meta').textContent; return (/doc39/.test(m) && /기준일 미상/.test(m) && /고객용/.test(m) && !/쪽/.test(m)) || m; });
+  t('가정·필요 정보', () => renderBot(MOCK_CHAT).querySelectorAll('.as li').length === 2);
+  t('sections 없어도 4칸', () => renderBot({ answer: '**a**', elapsed: 1 }).querySelectorAll('.cards > .card').length === 4);
+  t('응답 속 태그 무력화', () => !renderBot({ answer: '<img src=x>', sections: { result: '<script>x<\/script>', evidence: [{ n: 1, title: '<b>t</b>', file: 'doc1.txt' }], assumptions: ['<i>a</i>'], next_actions: [{ label: '<b>x</b>', kind: 'chat', payload: 'x' }] } }).querySelector('img,script,b,i'));
+  t('오른쪽 패널(단계·규칙·대조)', () => {
+    const n = renderSideNode(MOCK_CHAT);
+    return (n.querySelectorAll('.steps li').length === 3 && n.querySelectorAll('.rchip').length === 2 && /5 \/ 5/.test(n.textContent) && n.querySelector('details.trace pre').textContent === 'think_trace <b>원문</b>') || n.textContent.slice(0, 200);
+  });
+  t('숫자 대조 어긋남 표시', () => verifyClass({ checked: 3, matched: 1, unmatched: [{ text: '1,500만 원' }], contradiction: true, action: '계산값으로 대체 · 상담 연결' }) === 'bad' &&
+    verifyClass({ checked: 3, matched: 2, unmatched: [{ text: 'x' }], action: '주의(미확인 숫자 표시)' }) === 'warn' && verifyClass(MOCK_CHAT.verify) === 'ok');
+
+  // 알림
+  t('알림 카드(중요도·숫자·근거)', () => {
+    const a = renderAlert({ id: 'a1', kind: 'year_end_credit', severity: '높음', title: '공제 한도가 남았어요', message: '**600만 원** 더 넣으면 99만 원 환급', figures: { '남은 공제 대상': '600만 원', '더 받을 환급': '99만 원' }, rule_ids: ['R-01', 'R-02'], docs: ['doc41.txt'], when: '2026-12-31', next_actions: [{ label: 'DIY로 보기', kind: 'diy', payload: { income: { kind: '총급여', v: 5000 } } }] });
+    return (a.classList.contains('sev-high') && a.querySelectorAll('.fig').length === 2 && a.querySelectorAll('.rchip').length === 2 && a.querySelector('.md strong') && a.querySelectorAll('.acts button').length === 1) || a.outerHTML.slice(0, 200);
+  });
+  t('알림 중요도 색 구분', () => sevKey('높음') === 'high' && sevKey('중간') === 'mid' && sevKey('참고') === 'info');
+
+  // DIY
+  t('DIY 비교 표(추천 표시 없음)', () => {
+    const n = renderDiyNode({ combos: [{ name: 'A', savings: 600, irp: 300, eligible: 900, refund: 148.5 }, { name: 'B', savings: 900, irp: 0, eligible: 600, refund: 99, not_eligible: 300 }], rule_ids: ['R-01', 'R-02'], assumptions: ['x'], warnings: [] });
+    const txt = n.textContent;
+    return (n.querySelectorAll('table.cmp thead th').length === 3 && /148만 5천 원/.test(txt) && /99만 원/.test(txt) && !/추천|최적|유리|가장 좋은/.test(txt)) || txt.slice(0, 200);
+  });
+  t('DIY 연도별 표(서버 글자 우선·초과 표시)', () => {
+    const n = renderDiyNode({ payout: { start_age: 60, years: 2, balance: 10000, fund: { free: 0, retire: 6000, credit: 4000 }, annual: 5000, total_tax: 300, avg_rate: 3,
+      text: { annual: '5,000만 원', total_tax: '300만 원' },
+      rows: [{ year: 1, age: 60, year_n: 1, withdraw: 5000, limit: 1200, over_limit: 3800, tax: 200, cum_tax: 200, text: { withdraw: '5,000만 원', limit: '1,200만 원', tax: '200만 원', cum_tax: '200만 원', rate: '5.5%' }, lines: ['② 퇴직금 …'] },
+             { year: 2, age: 61, year_n: 2, withdraw: 5000, limit: null, over_limit: 0, tax: null, cum_tax: null, text: { limit: '한도 없음(11년차부터)' }, lines: [] }] } });
+    const trs = n.querySelectorAll('table.yr tbody tr:not([hidden])');
+    return (trs.length === 2 && trs[0].classList.contains('flag') && /한도 초과 3,800만 원/.test(trs[0].textContent) && /세율 필요/.test(trs[1].textContent) &&
+      /한도 없음/.test(trs[1].textContent) && /300만 원/.test(n.textContent)) || n.textContent.slice(0, 300);
+  });
+  t('DIY 서버 글자(text.*) 우선', () => tv({ refund: 148.5, text: { refund: '148만 5천 원' } }, 'refund') === '148만 5천 원' && tv({ refund: 99 }, 'refund') === '99만 원' && tv({}, 'x') === '-');
+  t('DIY 설계값 모으기', () => { const p = diyPlan(); return (p.income && p.income.v >= 0 && p.combos.length >= 2 && 'savings' in p.combos[0]) || JSON.stringify(p); });
+
+  // 그래프
+  const GN = { nodes: Array.from({ length: 60 }, (_, i) => ({ id: 'n' + i, label: '노드' + i, type: ['제도', '계좌', '재원', '규칙', '문서'][i % 5] })), edges: Array.from({ length: 80 }, (_, i) => ({ from: 'n' + (i % 60), to: 'n' + ((i * 7 + 3) % 60), label: '관계' })) };
+  t('그래프 원형 좌표', () => { const L = layoutCircle(GN.nodes, 960, 660); return Object.values(L.pos).every(p => isFinite(p.x) && isFinite(p.y) && p.x > 0 && p.x < 960 && p.y > 0 && p.y < 660); });
+  t('그래프 계층 좌표', () => { const L = layoutLayers(GN.nodes, 960, 660); return Object.values(L.pos).every(p => isFinite(p.x) && isFinite(p.y)) && L.types.length === 5; });
+  t('그래프 SVG(노드·간선 수, 없는 끝점 제외)', () => {
+    const g = drawGraphNode({ nodes: GN.nodes, edges: GN.edges.concat([{ from: 'n1', to: 'nope' }]) }, 'circle');
+    return (g.querySelectorAll('.node').length === 60 && g.querySelectorAll('.edge').length === 80) || `${g.querySelectorAll('.node').length}/${g.querySelectorAll('.edge').length}`;
+  });
+  t('그래프 노드 1개·빈 그래프', () => drawGraphNode({ nodes: [{ id: 'a', label: 'a' }], edges: [] }, 'layers').querySelectorAll('.node').length === 1 && drawGraphNode({}, 'circle').querySelectorAll('.node').length === 0);
+
+  // 서버 실패 문구
+  t("fetch 실패 → '서버 연결 안 됨'", () => errText(new ApiError('offline')) === '서버 연결 안 됨');
+  t('서버 오류 이유 표시', () => errText(new ApiError('http', 400, '{"detail":"combos 는 5개까지입니다"}')) === '서버 오류 (400): combos 는 5개까지입니다' && errText(new ApiError('http', 500, '<html>')) === '서버 오류 (500)');
+  t('DIY 설계값 채우기(조합 없으면 조합 비교 끔)', () => {
+    const keep = diyPlan(), advOpen = $('#d-adv').open;
+    fillDiy({ age: 62, payout: { start_age: 62, years: 10, balance: 10000, free: 0, retire: 6000, credit: 4000, eff: 4, return_rate: 0.03 } });
+    const p = diyPlan();
+    const ok = !('combos' in p) && p.payout.retire === 6000 && p.payout.credit === 4000 && p.payout.eff === 4 && Math.abs(p.payout.return_rate - 0.03) < 1e-9 && p.age === 62;
+    fillDiy(keep);                                   // 화면을 원래 값으로 되돌린다
+    $('#d-adv').open = advOpen;
+    const back = diyPlan();
+    return (ok && back.combos.length === keep.combos.length && back.age === keep.age) || JSON.stringify(p);
+  });
+
+  const passed = results.filter(r => r.ok).length;
+  try { console.table(results); } catch (e) { /* 무시 */ }
+  console.log(`${passed}/${results.length} 통과`);
+  return { passed, total: results.length, failed: results.filter(r => !r.ok), results };
+};
+
+init();
+</script>
+</body>
+</html>

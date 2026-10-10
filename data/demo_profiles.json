@@ -1,0 +1,74 @@
+{
+  "_설명": {
+    "목적": "'먼저 알려주기'(src/alerts.py) 시연용 가상 고객. 실제 고객 정보가 아니다. 금액 단위는 모두 만 원.",
+    "id": "고객 구분자(영문) — 알림 id·outbox 열쇠",
+    "name": "화면에 보일 이름(가상)",
+    "summary": "고객 고르기 목록에 보일 한 줄 요약",
+    "birth": "생년월일 YYYY-MM-DD — 만 나이, 만 55세 도래(R-04), 70·80세 세율 구간(R-07)",
+    "income": "{kind: '총급여'|'종합소득', v: 만 원} — 세액공제율(R-02). 없으면 연말 공제·ISA 환급 금액을 내지 않는다",
+    "retire_plan": "{date: 퇴직 예정일, amount: 예상 퇴직급여(만 원)} — 55세 알림에서 퇴직금 IRP 이전 안내(R-04 가입기간 요건 없음)",
+    "isa": "{maturity: ISA 만기일, amount: 연금계좌로 옮길 수 있는 만기 지급액(만 원)} — ISA 전환 알림(R-03)",
+    "accounts": "계좌 목록. 아래 accounts[] 항목",
+    "accounts[].type": "'연금저축' | 'IRP' | 'DC'(DC 는 위험자산 알림만)",
+    "accounts[].opened": "가입일 — 연금 개시 가능일(만 55세·가입 5년, 퇴직금이 있으면 5년 요건 없음), 연금수령연차(2013.3.1 전 가입은 6년차부터, R-05)",
+    "accounts[].paid_this_year": "올해 지금까지 납입액(만 원) — 연말 공제 알림(R-01). 연금저축·IRP 만",
+    "accounts[].balance": "평가액(만 원, 올해 1월 1일 또는 연금 개시일 기준) — 연금수령한도(R-05), 위험자산 금액(R-14)",
+    "accounts[].funds": "{free: 세액공제 안 받은 돈, retire: 퇴직금(이연퇴직소득), credit: 세액공제 받은 돈·운용수익} — 인출 순서·재원별 세금(R-06·R-09·R-10). 없으면 인출 알림을 내지 않는다",
+    "accounts[].retire_eff": "퇴직소득세 실효세율(%) — 퇴직금 재원 세금(R-09·R-10)",
+    "accounts[].plan_this_year": "올해 인출 계획(만 원) — 한도 초과(R-05)·1,500만 원(R-08)·세율 변화(R-07)",
+    "accounts[].paid_years": "올해 전까지 연금을 실제로 받은 해 수 — 연금실제수령연차(R-09, doc40)",
+    "accounts[].risky_pct": "위험자산 비중(%) — DC·IRP 70% 한도(R-14). 조건을 충족한 TDF 는 빼고 센 값(doc53)",
+    "값 검사": "숫자 필드의 음수·NaN·숫자가 아닌 글자, 날짜 형식 오류, 0~100 밖의 비율·세율, income.kind 가 '총급여'·'종합소득'이 아닌 값은 그 필드만 빼고 계산한다(리포트 '확인 필요' 줄). funds 합계가 balance 보다 작으면 차이를 운용수익(③)으로, 크면 운용손실로 보고 ③에서 뺀다(가정에 적음)"
+  },
+  "profiles": [
+    {
+      "id": "young_worker",
+      "name": "김지훈 (가상, 34세 직장인)",
+      "summary": "34세 직장인 · 총급여 5,000만 원 · 연금저축만 300만 원 납입 · ISA 11월 20일 만기",
+      "birth": "1992-05-14",
+      "income": {"kind": "총급여", "v": 5000},
+      "isa": {"maturity": "2026-11-20", "amount": 2000},
+      "accounts": [
+        {"type": "연금저축", "opened": "2023-01-15", "paid_this_year": 300}
+      ]
+    },
+    {
+      "id": "pre_retiree",
+      "name": "박성호 (가상, 55세 직전 퇴직 예정)",
+      "summary": "54세 · 12월 15일 만 55세 · 12월 말 퇴직 예정 · 총급여 8,000만 원 · DC 위험자산 72%",
+      "birth": "1971-12-15",
+      "income": {"kind": "총급여", "v": 8000},
+      "retire_plan": {"date": "2026-12-31", "amount": 20000},
+      "accounts": [
+        {"type": "연금저축", "opened": "2010-05-03", "paid_this_year": 400, "balance": 8000},
+        {"type": "IRP", "opened": "2019-02-01", "paid_this_year": 200, "balance": 1800, "risky_pct": 55},
+        {"type": "DC", "balance": 20000, "risky_pct": 72}
+      ]
+    },
+    {
+      "id": "retiree_irp",
+      "name": "이영숙 (가상, 62세 퇴직금 IRP)",
+      "summary": "62세 · 올해 퇴직 · IRP 1억 원(퇴직금 6,000만·공제받은 돈 4,000만) · 올해 1,800만 원 인출 계획",
+      "birth": "1964-04-02",
+      "accounts": [
+        {"type": "IRP", "opened": "2026-07-01", "balance": 10000,
+         "funds": {"free": 0, "retire": 6000, "credit": 4000},
+         "retire_eff": 4, "plan_this_year": 1800, "paid_years": 0, "risky_pct": 66}
+      ]
+    },
+    {
+      "id": "pensioner_69",
+      "name": "최정민 (가상, 69세 연금 수령 중)",
+      "summary": "69세 · 내년 3월 만 70세 · 연금저축 1,800만 원 + 퇴직금 IRP 1,000만 원 인출 계획 · IRP 수령 10년째",
+      "birth": "1957-03-20",
+      "accounts": [
+        {"type": "연금저축", "opened": "2005-04-01", "balance": 12000,
+         "funds": {"free": 200, "retire": 0, "credit": 11800},
+         "plan_this_year": 1800, "paid_years": 14},
+        {"type": "IRP", "opened": "2017-01-10", "balance": 6000,
+         "funds": {"free": 0, "retire": 6000, "credit": 0},
+         "retire_eff": 5, "plan_this_year": 1000, "paid_years": 9, "risky_pct": 30}
+      ]
+    }
+  ]
+}

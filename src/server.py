@@ -5,6 +5,15 @@
 주최측 규격 (API명세.md):
   GET /answer?question_id={id}&question={질의}
   → JSON {question_id, question, retrieved_context, think_trace, answer}  전부 문자열
+
+대화 기억(본선, O5): POST /session 으로 세션 ID 를 받아 &session_id={ID} 를 붙이면 같은 세션의 앞 질문·답변과
+고객이 말한 조건을 기억해 이어지는 질문("그럼 70살이면요?")을 풀어 답한다. 응답 형식은 같다. session_id 가 없거나
+형식이 맞지 않으면 예전과 똑같이 질문 하나만 보고 답한다(대회 평가 경로는 그대로).
+  POST   /session                서버가 만든 추측 불가능한 세션 ID 발급(클라이언트가 고른 ID 로 남의 대화를 읽지 못하게)
+  GET    /session/{session_id}   기억 내용 보기 — AGENT_SESSION_DEBUG=1 일 때만(시연 점검용)
+시연 화면(본선): GET /demo, POST /chat(응답 4칸·오케스트레이터 단계·숫자 대조), /alerts, /diy, /rules, /ontology — 파일 끝 참고
+  DELETE /session/{session_id}   기억 지우기 — 같은 조건
+막힌 질문(가드 차단)은 기억에 넣지 않는다. 지시문이 의심되는 질문은 내용 없이 자리만 남긴다.
   타임아웃 300초 · 팀당 순차 1건씩 · 5xx/타임아웃 시 최대 2회 재시도
 
 설계상 지킨 것
@@ -32,6 +41,13 @@ from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 
 import clova
+import hashlib
+import secrets
+from memory import STORE
+
+MAX_Q = int(os.environ.get("AGENT_MAX_QUESTION", "2000"))   # 질문 길이 상한(긴 입력으로 서버를 붙잡는 일 방지)
+SESSION_DEBUG = os.environ.get("AGENT_SESSION_DEBUG") == "1"
+_SID = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
 from answer import (answer, observed_call_seconds, get_index, get_hybrid,
                     DRAFT_EFFORT, MERGE_EFFORT, SKIP_MERGE_AT, AGENT_MODE, DEFAULT_SAMPLES)
 
@@ -149,6 +165,9 @@ _MASKS = [
 ]
 
 
+_PII_OUT = re.compile(r"\d{6}\s*-\s*[1-4]\d{6}|01[016-9]\s*-\s*\d{3,4}\s*-\s*\d{4}")
+
+
 def mask(t):
     for pat, rep_ in _MASKS:
         t = pat.sub(rep_, t or "")
@@ -162,13 +181,16 @@ def _trace_field(trace, head):
     return ""
 
 
-def log_query(question_id, question, out, elapsed, load, samples, error=None):
+def log_query(question_id, question, out, elapsed, load, samples, error=None, session_id="", standalone=""):
     try:
         trace = out.get("think_trace", "")
         rec = {
             "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "question_id": question_id,
+            # 세션 아이디는 그대로 남기지 않는다(해시 앞 8자리만 — 같은 대화끼리 묶어 보기용)
+            "session": hashlib.sha256(session_id.encode()).hexdigest()[:8] if session_id else "",
             "question": mask(question),
+            "standalone": mask(standalone) if standalone and standalone != question else "",
             "guard": _trace_field(trace, "가드:"),
             "type": _trace_field(trace, "유형:"),
             "top": next((l.split("상위:", 1)[1].strip() for l in trace.split("\n") if "상위:" in l), ""),
@@ -201,6 +223,10 @@ def _to_schema(r, question_id, question):
     """
     r = r or {}
     out = {k: r.get(k, "") for k in SCHEMA_FIELDS}
+    for k in ("retrieved_context", "answer"):
+        # 근거 원문(doc9 화면 캡처)에 휴대폰번호 꼴 번호가 있다 — 내보낼 때 가린다. 날짜(2026-10-08)는 건드리지 않게
+        # 주민번호·휴대폰번호 꼴만 가린다(로그용 _MASKS 의 '계좌번호' 규칙은 날짜도 먹는다)
+        out[k] = _PII_OUT.sub("[가림]", str(out[k] or ""))
     out["question_id"] = str(out["question_id"] or question_id or "")
     out["question"] = str(out["question"] or question or "")
     for k in ("retrieved_context", "think_trace", "answer"):
@@ -214,12 +240,38 @@ def _to_schema(r, question_id, question):
     return out
 
 
+@app.post("/session")
+def session_new():
+    return {"session_id": secrets.token_urlsafe(24)}
+
+
+@app.get("/session/{session_id}")
+def session_view(session_id: str):
+    if not SESSION_DEBUG:
+        return JSONResponse({"error": "disabled"}, status_code=404)
+    return STORE.view(session_id)
+
+
+@app.delete("/session/{session_id}")
+def session_reset(session_id: str):
+    if not SESSION_DEBUG:
+        return JSONResponse({"error": "disabled"}, status_code=404)
+    return {"reset": STORE.reset(session_id)}
+
+
 @app.get("/answer")
 async def answer_endpoint(
     question_id: str = Query("", description="질의 ID"),
     question: str = Query("", description="평가 질의"),
+    session_id: str = Query("", description="대화 기억용 세션 ID(선택). 없으면 질문 하나만 보고 답한다"),
 ):
     t0 = time.time()
+    if len(question) > MAX_Q:
+        return JSONResponse({
+            "question_id": question_id, "question": question[:MAX_Q],
+            "retrieved_context": "", "think_trace": f"질문이 너무 깁니다({len(question)}자)",
+            "answer": f"질문이 너무 깁니다. {MAX_Q}자 이내로 나눠서 질문해 주시기 바랍니다.",
+        })
     if not question.strip():
         return JSONResponse({
             "question_id": question_id, "question": question,
@@ -252,11 +304,18 @@ async def answer_endpoint(
             n = None              # 프리셋보다 늘리지는 않는다(fast 는 초안 1개)
         try:
             # answer() 는 동기 함수 — 이벤트 루프를 막지 않도록 스레드로 넘긴다
-            r = await asyncio.to_thread(answer, question, question_id, samples=n)
+            sid = session_id.strip() if _SID.match(session_id.strip() or "-") else ""
+            history = STORE.history(sid) if sid else None
+            r = await asyncio.to_thread(answer, question, question_id, samples=n, history=history)
             note = f" (동시 {load}건, 초안 {n}개로 축소)" if n else f" (동시 {load}건)"
             r["think_trace"] = f"{r['think_trace']}\n소요 {time.time()-t0:.1f}s{note}"
             out = _to_schema(r, question_id, question)
-            log_query(question_id, question, out, time.time() - t0, load, n)
+            if sid and not r.get("blocked"):
+                # 기억 저장은 정규식 파싱이 있어 이벤트 루프 밖에서 한다
+                await asyncio.to_thread(STORE.add, sid, question, r.get("standalone") or question, out["answer"],
+                                        bool(r.get("injection")), r.get("needs"))
+            log_query(question_id, question, out, time.time() - t0, load, n,
+                      session_id=sid, standalone=r.get("standalone", ""))
             return JSONResponse(out)
         except Exception as e:
             # 5xx 를 내면 주최측이 재시도한다. 재시도도 실패하면 0점이므로
@@ -276,6 +335,159 @@ async def answer_endpoint(
     finally:
         async with _inflight_lock:
             _inflight -= 1
+
+
+# ---------------------------------------------------------------- 시연 화면(본선)
+# 대회 규격(/answer 5필드)은 그대로 두고, 시연 화면은 아래 경로를 쓴다.
+#   GET  /demo                  시연 화면(src/static/demo.html)
+#   POST /chat                  상담 — 답 + 응답 4칸(결과·근거·가정·다음 행동) + 오케스트레이터 단계 + 숫자 대조
+#   GET  /alerts/profiles       가상 고객 목록        POST /alerts   알림 점검 + 리포트(push 함에 쌓음)
+#   GET  /alerts/outbox         push 함에서 꺼내기    POST /diy      DIY 연금 설계 계산
+#   GET  /rules                 규칙표 R-01~R-15      GET  /ontology 온톨로지 그래프
+# 새 모듈(alerts·diy·ontology·doc_meta)은 경로 안에서 불러온다 — 하나가 없어도 서버와 /answer 는 뜬다.
+from fastapi import Body
+from fastapi.responses import FileResponse, HTMLResponse
+
+STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+
+@app.get("/demo")
+def demo_page():
+    path = os.path.join(STATIC, "demo.html")
+    if not os.path.exists(path):
+        return HTMLResponse("<p>demo.html 이 없습니다</p>", status_code=404)
+    return FileResponse(path, media_type="text/html; charset=utf-8")
+
+
+@app.post("/chat")
+async def chat(body: dict = Body(...)):
+    t0 = time.time()
+    question = str(body.get("question") or "").strip()[:MAX_Q]
+    sid = str(body.get("session_id") or "").strip()
+    # 시연 화면은 세션 없이 첫 질문을 보낼 수 있다 — 서버가 만들어 돌려준다(없으면 대화 기억이 안 쌓인다)
+    sid = sid if _SID.match(sid or "-") else secrets.token_urlsafe(24)
+    if not question:
+        return {"answer": "질문을 입력해 주십시오.", "elapsed": 0, "session_id": sid}
+    global _inflight
+    async with _inflight_lock:
+        _inflight += 1
+    try:
+        history = STORE.history(sid) if sid else None
+        try:
+            # 빠른 모드: 초안 1개(생각 high) / 정밀 모드: 기본 설정(초안 여러 개) — 화면에서 고른다
+            kw = {}
+            if str(body.get("mode") or "") == "fast":
+                kw = {"samples": 1, "draft_effort": "high", "draft_maxtok": 4096}
+            r = await asyncio.to_thread(answer, question, "", history=history, clarify_template=True, **kw)
+        except Exception as e:
+            print(f"[error] /chat: {e}\n{traceback.format_exc(limit=3)}", flush=True)
+            return {"answer": "죄송합니다. 일시적인 오류로 답변을 생성하지 못했습니다.", "elapsed": round(time.time() - t0, 1),
+                    "session_id": sid, "error": type(e).__name__}
+        out = _to_schema(r, "", question)
+        if sid and not r.get("blocked"):
+            await asyncio.to_thread(STORE.add, sid, question, r.get("standalone") or question, out["answer"],
+                                    bool(r.get("injection")), r.get("needs"))
+        el = time.time() - t0
+        log_query("chat", question, out, el, _inflight, None, session_id=sid, standalone=r.get("standalone", ""))
+        sec = r.get("sections") or {"result": out["answer"], "evidence": [], "assumptions": [], "needs": [],
+                                    "next_actions": []}
+        return {"answer": out["answer"], "elapsed": round(el, 1), "session_id": sid,
+                "sections": sec, "plan": r.get("plan") or [], "calc": r.get("calc"),
+                "verify": r.get("verify"), "action": r.get("action", ""), "trace": out["think_trace"],
+                "standalone": r.get("standalone", "")}
+    finally:
+        async with _inflight_lock:
+            _inflight -= 1
+
+
+def _module(name):
+    try:
+        return __import__(name)
+    except Exception as e:
+        print(f"[demo] {name} 모듈을 불러오지 못함: {e}", flush=True)
+        return None
+
+
+@app.get("/alerts/profiles")
+def alert_profiles():
+    m = _module("alerts")
+    if not m:
+        return JSONResponse({"error": "alerts 모듈 없음"}, status_code=503)
+    out = []
+    for p in m.load_profiles():
+        out.append({"id": p.get("id"), "name": p.get("name"), "summary": p.get("summary", "")})
+    return out
+
+
+@app.post("/alerts")
+def alerts_scan(body: dict = Body(...)):
+    m = _module("alerts")
+    if not m:
+        return JSONResponse({"error": "alerts 모듈 없음"}, status_code=503)
+    pid = body.get("profile_id")
+    prof = body.get("profile") or next((p for p in m.load_profiles() if p.get("id") == pid), None)
+    if not isinstance(prof, dict):
+        return JSONResponse({"error": "고객을 찾을 수 없음"}, status_code=404)
+    today = str(body.get("today") or time.strftime("%Y-%m-%d"))
+    try:
+        al = m.scan(prof, today)
+    except ValueError as e:                      # 기준일 형식 등 입력 오류
+        return JSONResponse({"error": str(e)}, status_code=400)
+    try:
+        m.push(prof.get("id"), al)
+    except Exception:
+        pass
+    return {"alerts": al, "report_md": m.report(prof, today, alerts=al), "today": today}
+
+
+@app.get("/alerts/outbox")
+def alerts_outbox(profile_id: str = Query("")):
+    m = _module("alerts")
+    if not m:
+        return JSONResponse({"error": "alerts 모듈 없음"}, status_code=503)
+    return {"alerts": m.pull(profile_id)}
+
+
+@app.post("/diy")
+def diy_simulate(body: dict = Body(...)):
+    m = _module("diy")
+    if not m:
+        return JSONResponse({"error": "diy 모듈 없음"}, status_code=503)
+    try:
+        return m.simulate(body)
+    except ValueError as e:                      # 입력 오류만 400 — 코드 오류는 500 으로 드러나게
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        print(f"[error] /diy: {e}\n{traceback.format_exc(limit=3)}", flush=True)
+        return JSONResponse({"error": f"{type(e).__name__}"}, status_code=500)
+
+
+@app.get("/rules")
+def rules_table():
+    import taxcalc
+    dm = _module("doc_meta")
+    out = []
+    for rid, name, keys, summary, how in taxcalc.RULEBOOK:
+        quotes = []
+        for k in keys:
+            f, text = taxcalc.RULES[k]
+            asof = ""
+            if dm:
+                try:
+                    asof = dm.as_of(f) or ""
+                except Exception:
+                    asof = ""
+            quotes.append({"file": f, "text": text, "as_of": asof})
+        out.append({"rid": rid, "name": name, "summary": summary, "how": how, "quotes": quotes})
+    return out
+
+
+@app.get("/ontology")
+def ontology_graph():
+    m = _module("ontology")
+    if not m:
+        return JSONResponse({"error": "ontology 모듈 없음"}, status_code=503)
+    return m.graph()
 
 
 if __name__ == "__main__":

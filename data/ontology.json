@@ -1,0 +1,338 @@
+{
+ "meta": {
+  "name": "연금 온톨로지",
+  "version": "v1 (2026-10-08)",
+  "source": "현서_2차/현서_2차/07_연금온톨로지.md (초안 v0.1) — 문서 묶음은 06_문서분류지도.md",
+  "note": "07 문서의 클래스(§2)·관계(§3)·속성(§4)·규칙(§5)·재원×인출 표(§6)·질의 경로(§7)·문서 노드 활용(§8)을 옮겼다. 규칙 번호·이름은 src/taxcalc.py RULEBOOK 과 같다(test_ontology 가 검사). 문서 노드의 독자·기준일은 data/doc_meta.json(문서 꼬리표)에서 붙인다.",
+  "deviations": [
+   "§3 관계 예시 세 개는 §5 표보다 한 칸 앞선 옛 번호로 보인다 — '조건이다' 예시 R-03(나이 ≥ 55)은 §5 기준 R-04, '적용된다' 예시 R-06(③ × 연금수령)은 R-07, '개정한다' 예시 R-07(1,200만 → 1,500만)은 R-08. 예시 문구는 원문 그대로 두고, 이 파일의 엣지는 §5 번호로 연결했다.",
+   "§2 재원의 '세액공제 받은 납입금'과 '운용수익'은 §5 R-06·§6 표에서 한 묶음(③)이라 재원 노드 하나(fund.credit)로 합쳤다.",
+   "§2 클래스 계층에 없는 '알림'은 §3 '트리거한다'·§6 구조도의 도착점이라 노드 하나(alert.notice)로 더했다.",
+   "§4 속성에 없는 '납입액'·'ISA 만기 전환액'·'인출 사유'는 R-01·R-03·R-11 판정에 필요해 속성으로 더했다(added: true).",
+   "§3 '허용 사유다'의 요양·회생/파산·재난은 근퇴법상 중도인출 사유이면서 세법상 부득이한 사유라(doc20 표) 부득이한 사유 인출로만 잇는다. 연금외수령(16.5%)으로 잇는 것은 주택 구입·전월세뿐이다(doc20 표 'O | X | 16.5% 기타소득세'). 요양은 한도(200만 원 + 의료실비 + 휴직월수 × 150만 원)가 있다.",
+   "§5 '넣지 않은 규칙'의 '부득이한 사유 인출을 1,500만 원 계산에서 제외 — 문서 근거 없음'은 doc1·doc2·doc20·doc21 원문과 다르다(excluded_rules 의 evidence). 07 을 고쳐야 한다.",
+   "§9-2 '부득이한 사유 인출 시 이연퇴직소득의 과세 방식'은 doc21·doc5(연금소득세, 이연퇴직소득세 × 70%)와 doc20·doc22(해외이주는 퇴직금 입금 후 3년)에 근거 후보가 있다 — 표 칸은 07 대로 '문서 확인 필요'로 두고 evidence 로 붙였다."
+  ]
+ },
+
+ "principles": [
+  {"name": "1차 축 = 고객 생애주기", "text": "문서가 실제로 이 순서로 나뉜다. 고객 질문도 \"지금 어느 단계인가\"로 시작한다"},
+  {"name": "2차 축 = 제도·계좌", "text": "DB·DC·IRP·연금저축 등은 각 단계에 걸친다"},
+  {"name": "핵심 축 = 재원", "text": "같은 계좌라도 돈이 어디서 왔는지에 따라 세금이 완전히 달라진다 (doc39)"},
+  {"name": "규칙은 근거와 함께", "text": "모든 규칙 노드는 근거 문서·기준일과 연결된다. 근거 없는 규칙은 넣지 않는다"},
+  {"name": "문서도 노드", "text": "문서마다 독자·단계·기준일·상충 관계를 가진다. 검색 필터와 충돌 해결에 쓴다"}
+ ],
+
+ "classes": [
+  {"id": "Actor", "label": "주체", "type": "actor"},
+  {"id": "Plan", "label": "제도", "type": "plan"},
+  {"id": "Account", "label": "계좌", "type": "account"},
+  {"id": "FundSource", "label": "재원", "type": "fund", "note": "세금 판단의 핵심"},
+  {"id": "Stage", "label": "생애주기 단계", "type": "stage"},
+  {"id": "Withdrawal", "label": "인출 유형", "type": "withdrawal"},
+  {"id": "Event", "label": "사건", "type": "event"},
+  {"id": "Tax", "label": "세목", "type": "tax"},
+  {"id": "Product", "label": "상품", "type": "product"},
+  {"id": "Rule", "label": "규칙", "type": "rule", "note": "§5의 R-01 ~ R-15"},
+  {"id": "Document", "label": "문서", "type": "doc", "note": "doc1 ~ doc58"},
+  {"id": "Alert", "label": "알림", "type": "alert", "added": true, "note": "§3 '트리거한다'의 도착점(§2 계층에는 없음)"}
+ ],
+
+ "nodes": [
+  {"id": "actor.member", "label": "가입자", "class": "Actor", "kinds": ["근로자", "개인", "임원", "공무원/교사"], "graph": true},
+  {"id": "actor.employer", "label": "사용자(회사)", "class": "Actor", "graph": false},
+  {"id": "actor.hr", "label": "고객사 사무담당자", "class": "Actor", "note": "인사·총무", "graph": false},
+  {"id": "actor.staff", "label": "금융사 직원", "class": "Actor", "graph": false},
+
+  {"id": "plan.retirement", "label": "퇴직급여제도", "class": "Plan", "graph": false},
+  {"id": "plan.severance", "label": "퇴직금제도", "class": "Plan", "parent": "plan.retirement", "graph": false},
+  {"id": "plan.pension", "label": "퇴직연금제도", "class": "Plan", "parent": "plan.retirement", "kinds": ["DB", "DC", "기업형IRP"], "graph": false},
+  {"id": "plan.db", "label": "DB", "class": "Plan", "parent": "plan.pension", "graph": true},
+  {"id": "plan.dc", "label": "DC", "class": "Plan", "parent": "plan.pension", "graph": true},
+  {"id": "plan.irp_corp", "label": "기업형IRP", "class": "Plan", "parent": "plan.pension", "graph": false},
+  {"id": "plan.irp", "label": "개인형IRP", "class": "Plan", "graph": true},
+  {"id": "plan.personal", "label": "개인연금", "class": "Plan", "graph": false},
+  {"id": "plan.savings", "label": "연금저축", "class": "Plan", "parent": "plan.personal", "kinds": ["신탁", "펀드", "보험"], "graph": true},
+  {"id": "plan.old", "label": "(구)개인연금저축", "class": "Plan", "parent": "plan.personal", "graph": true},
+  {"id": "plan.linked", "label": "연계 제도", "class": "Plan", "graph": false},
+  {"id": "plan.isa", "label": "ISA", "class": "Plan", "parent": "plan.linked", "graph": true},
+  {"id": "plan.default", "label": "디폴트옵션(사전지정운용)", "class": "Plan", "parent": "plan.linked", "graph": false},
+  {"id": "plan.external", "label": "외부 기관 제도", "class": "Plan", "kinds": ["과학기술인공제회 퇴직연금"], "warn": true, "graph": false,
+   "note": "doc27·28. 일반 퇴직연금과 규칙이 달라 질문에 공제회가 나올 때만 쓴다(src/doc_policy.py SCOPE)"},
+
+  {"id": "account.pension", "label": "연금계좌", "class": "Account", "graph": false},
+  {"id": "account.savings", "label": "연금저축계좌", "class": "Account", "parent": "account.pension", "graph": true},
+  {"id": "account.irp", "label": "IRP계좌", "class": "Account", "parent": "account.pension", "graph": true},
+  {"id": "account.dc", "label": "DC계좌", "class": "Account", "parent": "account.pension", "graph": true},
+
+  {"id": "fund.free", "key": "free", "label": "① 과세제외금액", "class": "FundSource", "order": 1,
+   "includes": ["세액공제 받지 않은 납입금", "ISA 전환분 중 미공제액"], "graph": true},
+  {"id": "fund.retire", "key": "retire", "label": "② 이연퇴직소득", "class": "FundSource", "order": 2,
+   "includes": ["퇴직금", "명퇴수당", "임원 퇴직금"], "graph": true},
+  {"id": "fund.credit", "key": "credit", "label": "③ 세액공제 받은 납입금·운용수익", "class": "FundSource", "order": 3,
+   "includes": ["세액공제 받은 납입금", "운용수익"], "graph": true},
+
+  {"id": "wd.pension", "key": "연금수령", "label": "연금수령", "class": "Withdrawal", "note": "요건 충족 + 한도 이내", "graph": true},
+  {"id": "wd.unavoidable", "key": "부득이", "label": "부득이한 사유 인출", "class": "Withdrawal", "note": "연금수령과 같은 세율 적용", "graph": true},
+  {"id": "wd.other", "key": "연금외수령", "label": "연금외수령", "class": "Withdrawal", "note": "중도인출 · 해지 · 한도 초과분", "graph": true},
+
+  {"id": "event.retire", "label": "퇴직", "class": "Event", "graph": false},
+  {"id": "event.age55", "label": "만 55세 도래", "class": "Event", "graph": true},
+  {"id": "event.yearend", "label": "연말정산", "class": "Event", "graph": true},
+  {"id": "event.isa_maturity", "label": "ISA 만기", "class": "Event", "graph": true},
+  {"id": "event.plan_change", "label": "제도 변경", "class": "Event", "note": "임금피크제 등", "graph": true},
+  {"id": "event.unpaid", "label": "부담금 미납", "class": "Event", "graph": false},
+  {"id": "event.seizure", "label": "압류", "class": "Event", "graph": false},
+  {"id": "event.disaster", "label": "재난", "class": "Event", "graph": true},
+  {"id": "event.care", "label": "요양", "class": "Event", "graph": true},
+  {"id": "event.rehab", "label": "회생/파산", "class": "Event", "graph": true},
+  {"id": "event.house", "label": "주택 구입", "class": "Event", "graph": true},
+  {"id": "event.lease", "label": "전월세", "class": "Event", "graph": true},
+
+  {"id": "tax.pension", "label": "연금소득세", "class": "Tax", "graph": true},
+  {"id": "tax.other", "label": "기타소득세", "class": "Tax", "graph": true},
+  {"id": "tax.retire", "label": "퇴직소득세", "class": "Tax", "graph": true},
+  {"id": "tax.global", "label": "종합소득세", "class": "Tax", "graph": true},
+  {"id": "tax.none", "label": "비과세", "class": "Tax", "note": "세목은 아니다 — §6 표의 ① 칸(과세 없음)", "graph": true},
+
+  {"id": "product.guaranteed", "label": "원리금보장", "class": "Product", "kinds": ["예금", "GIC", "ELB/DLB", "발행어음", "국공채"], "graph": true},
+  {"id": "product.performance", "label": "실적배당", "class": "Product", "kinds": ["펀드", "ETF", "ETN", "리츠", "TDF", "채권", "디폴트옵션 상품"], "graph": true},
+
+  {"id": "alert.notice", "label": "알림(먼저 알려주기)", "class": "Alert", "graph": true}
+ ],
+
+ "relations": [
+  {"name": "가입한다", "domain": "가입자 → 제도", "example": "근로자 —가입한다→ DC"},
+  {"name": "개설한다", "domain": "가입자 → 계좌", "example": "개인 —개설한다→ 연금저축계좌"},
+  {"name": "속한다", "domain": "계좌 → 제도", "example": "IRP계좌 —속한다→ 개인형IRP"},
+  {"name": "담는다", "domain": "계좌 → 재원", "example": "IRP계좌 —담는다→ 이연퇴직소득"},
+  {"name": "인출된다", "domain": "재원 → 인출 유형", "example": "운용수익 —인출된다→ 연금수령"},
+  {"name": "과세된다", "domain": "(재원 × 인출 유형) → 세목", "example": "(이연퇴직소득 × 연금외수령) → 퇴직소득세"},
+  {"name": "적용된다", "domain": "규칙 → 계좌·재원·인출 유형", "example": "R-06 —적용된다→ (공제받은 납입금·운용수익 × 연금수령)",
+   "note": "§5 번호로는 R-07(연금소득세율)"},
+  {"name": "조건이다", "domain": "규칙 → 속성값", "example": "R-03 —조건이다→ 나이 ≥ 55", "note": "§5 번호로는 R-04(연금수령 요건)"},
+  {"name": "허용한다", "domain": "계좌 → 상품 (한도 포함)", "example": "DC계좌 —허용한다(70%)→ 실적배당"},
+  {"name": "이전된다", "domain": "계좌 → 계좌", "example": "연금저축계좌 —이전된다→ 연금저축계좌"},
+  {"name": "이전 불가", "domain": "계좌 → 계좌", "example": "(구)개인연금저축 —이전 불가→ 연금저축계좌 (doc22)"},
+  {"name": "허용 사유다", "domain": "사건 → 인출 유형", "example": "주택 구입 —허용 사유다→ 중도인출(DC·IRP)"},
+  {"name": "트리거한다", "domain": "사건 → 알림", "example": "만 55세 도래 —트리거한다→ 수령 설계 안내"},
+  {"name": "근거다", "domain": "문서 → 규칙", "example": "doc39 —근거다→ R-04"},
+  {"name": "다룬다", "domain": "문서 → 단계·제도", "example": "doc21 —다룬다→ (연금수령, IRP)"},
+  {"name": "독자다", "domain": "문서 → 독자 유형", "example": "doc55 —독자다→ 고객사 사무담당자"},
+  {"name": "상충한다", "domain": "문서 ↔ 문서", "example": "doc1 ↔ doc5 ((구)개인연금저축 가입 기한)"},
+  {"name": "개정한다", "domain": "제도 변경 → 규칙", "example": "2024 세법 변경 —개정한다→ R-07 (1,200만 → 1,500만)",
+   "note": "§5 번호로는 R-08(1,500만 원 분리과세 선택)"}
+ ],
+
+ "edges": [
+  {"from": "actor.member", "to": "plan.dc", "label": "가입한다"},
+  {"from": "actor.member", "to": "account.savings", "label": "개설한다"},
+  {"from": "actor.member", "to": "account.irp", "label": "개설한다"},
+  {"from": "account.savings", "to": "plan.savings", "label": "속한다"},
+  {"from": "account.irp", "to": "plan.irp", "label": "속한다"},
+  {"from": "account.dc", "to": "plan.dc", "label": "속한다"},
+  {"from": "account.irp", "to": "fund.free", "label": "담는다"},
+  {"from": "account.irp", "to": "fund.retire", "label": "담는다"},
+  {"from": "account.irp", "to": "fund.credit", "label": "담는다"},
+  {"from": "account.savings", "to": "fund.free", "label": "담는다"},
+  {"from": "account.savings", "to": "fund.retire", "label": "담는다",
+   "note": "07 §3 예시는 IRP계좌만 — 연금저축계좌도 퇴직금을 받을 수 있다는 문서 근거로 더함", "doc": "doc51",
+   "quote": "DB/퇴직금제도의 퇴직금은 IRP 뿐아니라 연금저축으로도 직접 수령이 가능하다."},
+  {"from": "account.savings", "to": "fund.credit", "label": "담는다"},
+  {"from": "account.dc", "to": "product.performance", "label": "허용한다(70%)", "rule": "R-14"},
+  {"from": "account.irp", "to": "product.performance", "label": "허용한다(70%)", "rule": "R-14"},
+  {"from": "account.savings", "to": "account.savings", "label": "이전된다"},
+  {"from": "plan.old", "to": "account.savings", "label": "이전 불가", "rule": "R-15", "doc": "doc22"},
+  {"from": "event.house", "to": "wd.other", "label": "허용 사유다", "note": "중도인출(DC·IRP) — 세법상 부득이한 사유는 아니라 16.5% 기타소득세", "rule": "R-13",
+   "doc": "doc20", "quote": "무주택자인 가입자가 본인 명의로 주택 구입 | O | X | 16.5%  기타소득세"},
+  {"from": "event.lease", "to": "wd.other", "label": "허용 사유다", "note": "중도인출(DC·IRP) — 세법상 부득이한 사유는 아니라 16.5% 기타소득세", "rule": "R-13",
+   "doc": "doc20", "quote": "무주택자인 가입자의 주거 목적 전세보증금 부담 | O | X | 16.5%  기타소득세"},
+  {"from": "event.care", "to": "wd.unavoidable", "label": "허용 사유다", "note": "중도인출(DC·IRP) 사유이면서 세법상 부득이한 사유 — 연금소득세(요양은 한도 있음)", "rule": "R-11", "rules": ["R-11", "R-13"],
+   "doc": "doc20", "quote": "가입자 또는 부양가족의 6개월 이상 요양 | O | O  *3개월 이상 요양 시 적용 (단, 200만원 + 의료실비 + 휴직월수 x 150만원 한도) | 5.5% ~ 3.3% 연금소득세"},
+  {"from": "event.rehab", "to": "wd.unavoidable", "label": "허용 사유다", "note": "중도인출(DC·IRP) 사유이면서 세법상 부득이한 사유 — 연금소득세", "rule": "R-11", "rules": ["R-11", "R-13"],
+   "doc": "doc20", "quote": "가입자의 파산 선고/개인회생절차 개시 | O | O | 5.5% ~ 3.3% 연금소득세"},
+  {"from": "event.disaster", "to": "wd.unavoidable", "label": "허용 사유다", "note": "중도인출(DC·IRP) 사유이면서 세법상 부득이한 사유 — 연금소득세", "rule": "R-11", "rules": ["R-11", "R-13"],
+   "doc": "doc20", "quote": "천재지변으로 고용노동부장관이 정한 사유에 해당 | O | O | 5.5% ~ 3.3% 연금소득세"},
+  {"from": "event.age55", "to": "alert.notice", "label": "트리거한다", "alert_kind": "age55", "note": "수령 설계 안내"},
+  {"from": "event.yearend", "to": "alert.notice", "label": "트리거한다", "alert_kind": "year_end_credit"},
+  {"from": "event.isa_maturity", "to": "alert.notice", "label": "트리거한다", "alert_kind": "isa_maturity"},
+  {"from": "event.plan_change", "to": "R-08", "label": "개정한다", "note": "2024 세법 변경: 1,200만 → 1,500만"}
+ ],
+
+ "attributes": [
+  {"id": "attr.age", "label": "나이", "of": "Actor", "parsed": ["age"], "ask": "만 나이"},
+  {"id": "attr.income", "label": "총급여·종합소득금액", "of": "Actor", "parsed": ["income"], "ask": "총급여(직장인) 또는 종합소득금액"},
+  {"id": "attr.tenure", "label": "근속연수", "of": "Actor", "parsed": []},
+  {"id": "attr.homeless", "label": "무주택 여부", "of": "Actor", "parsed": []},
+  {"id": "attr.executive", "label": "임원 여부", "of": "Actor", "parsed": []},
+  {"id": "attr.open_date", "label": "개설일", "of": "Account", "parsed": [], "assume": "2013년 3월 1일 이후 가입(연금수령연차 1년차부터)"},
+  {"id": "attr.period", "label": "가입기간", "of": "Account", "parsed": [], "assume": "가입 5년 이상"},
+  {"id": "attr.balance", "label": "평가액", "of": "Account", "parsed": ["balance"], "ask": "연금계좌 평가액(올해 1월 1일 또는 연금 개시일 기준)"},
+  {"id": "attr.year_n", "label": "연금수령연차", "of": "Account", "parsed": ["year_n"], "ask": "연금수령연차(연금을 받을 수 있게 된 해부터 몇 년째인지)"},
+  {"id": "attr.started", "label": "연금 개시 여부", "of": "Account", "parsed": []},
+  {"id": "attr.fund_amount", "label": "재원별 금액", "of": "FundSource", "parsed": ["fund"], "ask": "재원별 금액(퇴직금 · 세액공제 받은 돈과 수익 · 공제 안 받은 돈)"},
+  {"id": "attr.retire_tax", "label": "퇴직소득세액", "of": "FundSource", "parsed": ["retire_eff", "rtax"], "ask": "퇴직소득세(퇴직소득 원천징수영수증의 세액 또는 실효세율)"},
+  {"id": "attr.withdraw", "label": "인출 금액", "of": "Withdrawal", "parsed": ["withdraw", "payout"], "ask": "올해 빼려는 금액"},
+  {"id": "attr.withdraw_year", "label": "인출 연도", "of": "Withdrawal", "parsed": []},
+  {"id": "attr.actual_n", "label": "실제수령연차", "of": "Withdrawal", "parsed": ["actual_n"], "ask": "연금을 실제로 받은 지 몇 년째인지(퇴직소득세 감면율을 정함)"},
+  {"id": "attr.contrib", "label": "납입액", "of": "Account", "parsed": ["contrib"], "ask": "올해 연금저축·IRP 납입액", "added": true},
+  {"id": "attr.isa", "label": "ISA 만기 전환액", "of": "Account", "parsed": ["isa"], "ask": "ISA 만기 금액 중 연금계좌로 옮길 금액", "added": true},
+  {"id": "attr.reason", "label": "인출 사유", "of": "Withdrawal", "parsed": ["unavoidable"], "ask": "인출 사유(요양·재난·파산 등)", "added": true}
+ ],
+
+ "rules": [
+  {"id": "R-01", "name": "세액공제 한도", "condition": "연금저축 납입 ≤ 600만 원, 연금저축 + IRP 합산 ≤ 900만 원",
+   "docs": [27, 41, 55], "status": "✅",
+   "applies_to": ["account.savings", "account.irp"], "conditions": [{"attr": "attr.contrib"}]},
+  {"id": "R-02", "name": "세액공제율", "condition": "총급여 ≤ 5,500만 원 (또는 종합소득 ≤ 4,500만 원) → 16.5%, 초과 → 13.2%",
+   "docs": [1, 27, 41], "status": "✅",
+   "applies_to": ["account.savings", "account.irp"], "conditions": [{"attr": "attr.income", "test": "≤ 5,500만 원(총급여) / 4,500만 원(종합소득)"}]},
+  {"id": "R-03", "name": "ISA 만기 전환 추가 공제", "condition": "전환 금액의 10%, 최대 300만 원 추가 공제",
+   "docs": [23, 33], "status": "✅",
+   "applies_to": ["plan.isa", "account.savings", "account.irp", "fund.free"], "conditions": [{"attr": "attr.isa"}]},
+  {"id": "R-04", "name": "연금수령 요건", "condition": "만 55세 이상 ∧ 가입 5년 이상 ∧ 연금수령한도 이내. 이연퇴직소득이 있으면 5년 요건 면제",
+   "docs": [1, 2, 39], "status": "✅",
+   "applies_to": ["wd.pension", "fund.retire"],
+   "conditions": [{"attr": "attr.age", "test": "≥ 55"}, {"attr": "attr.period", "test": "≥ 5년", "waived_by": "retire"}]},
+  {"id": "R-05", "name": "연금수령한도", "condition": "평가액 ÷ (11 − 연금수령연차) × 120%. 2013.3.1 전 가입 계좌는 6년차부터 기산",
+   "docs": [1, 2, 21, 39], "status": "✅",
+   "applies_to": ["wd.pension", "wd.other", "account.savings", "account.irp"],
+   "conditions": [{"attr": "attr.balance"}, {"attr": "attr.year_n", "test": "11년차부터 한도 없음"}, {"attr": "attr.open_date", "test": "2013.3.1 전 가입이면 6년차부터"}]},
+  {"id": "R-06", "name": "인출 순서", "condition": "① 과세제외금액 → ② 이연퇴직소득 → ③ 세액공제 받은 납입금·운용수익",
+   "docs": [1, 4, 5, 6, 21, 22, 26, 39, 44], "status": "✅",
+   "applies_to": ["fund.free", "fund.retire", "fund.credit"], "conditions": [{"attr": "attr.fund_amount", "test": "재원이 둘 이상일 때"}]},
+  {"id": "R-07", "name": "연금소득세율", "condition": "(③ 재원 × 연금수령) 55~69세 5.5%, 70~79세 4.4%, 80세 이상 3.3%",
+   "docs": [1, 5, 20, 39], "status": "✅",
+   "applies_to": ["fund.credit", "wd.pension", "tax.pension"], "conditions": [{"attr": "attr.age", "test": "55~69 / 70~79 / 80~"}]},
+  {"id": "R-08", "name": "1,500만 원 분리과세 선택", "condition": "사적연금 연금소득 > 1,500만 원 → 16.5% 분리과세 또는 종합과세 선택. 이연퇴직소득·과세제외금액은 계산에서 제외",
+   "docs": [1, 2, 5, 21, 38, 51], "status": "✅",
+   "applies_to": ["fund.credit", "wd.pension", "tax.global"], "conditions": [{"attr": "attr.withdraw", "test": "③ 연금수령 합계 > 1,500만 원"}]},
+  {"id": "R-09", "name": "퇴직소득세 감면", "condition": "(② 재원 × 연금수령) 실제수령 1~10년차 30%, 11~20년차 40%, 21년차~ 50% 감면",
+   "docs": [1, 5, 21, 39, 40, 51], "status": "✅",
+   "applies_to": ["fund.retire", "wd.pension", "tax.retire"],
+   "conditions": [{"attr": "attr.actual_n", "test": "1~10 / 11~20 / 21~"}, {"attr": "attr.retire_tax"}]},
+  {"id": "R-10", "name": "연금외수령 세금", "condition": "③ 재원 → 기타소득세 16.5%. ② 재원 → 퇴직소득세 100% (감면 없음)",
+   "docs": [20, 21, 39, 51], "status": "✅",
+   "applies_to": ["fund.credit", "fund.retire", "wd.other", "tax.other", "tax.retire"],
+   "conditions": [{"attr": "attr.retire_tax", "test": "② 재원이 연금외수령될 때"}]},
+  {"id": "R-11", "name": "부득이한 사유 인출", "condition": "부득이한 사유면 중도 인출이어도 연금소득세 3.3~5.5%",
+   "docs": [20], "status": "✅",
+   "applies_to": ["wd.unavoidable", "fund.credit", "tax.pension"], "conditions": [{"attr": "attr.reason"}]},
+  {"id": "R-12", "name": "중도인출 가능 여부", "condition": "연금저축 → 사유 없이 가능. DC·IRP → 법정 사유 필요. DB → 불가",
+   "docs": [1, 5, 14, 20, 23, 46, 47, 48, 49, 50, 55], "status": "✅",
+   "applies_to": ["account.savings", "account.irp", "account.dc", "plan.db", "wd.other"], "conditions": []},
+  {"id": "R-13", "name": "법정 중도인출 사유", "condition": "무주택자 주택 구입 · 무주택자 전월세 보증금 · 6개월 이상 요양 · 회생·파산 · 재난",
+   "docs": [46, 47, 48, 49, 50, 14, 20, 55], "status": "✅", "note": "세부 조건은 제도·기관별로 다름",
+   "applies_to": ["wd.other", "event.house", "event.lease", "event.care", "event.rehab", "event.disaster"],
+   "conditions": [{"attr": "attr.homeless", "test": "주택 구입·전월세 사유일 때"}]},
+  {"id": "R-14", "name": "위험자산 한도", "condition": "DC·IRP 실적배당 70%, 적격 TDF 100%",
+   "docs": [14, 24, 54, 56, 58], "status": "✅",
+   "applies_to": ["account.dc", "account.irp", "product.performance"], "conditions": []},
+  {"id": "R-15", "name": "(구)개인연금저축", "condition": "2000.12.31까지 가입, 10년 이상 납입 후 연금 수령 시 이자 비과세. 연금저축계좌로 이체 불가",
+   "docs": [1, 22, 25], "status": "✅", "note": "doc5는 기한을 2000.01.01로 표기 ⚠",
+   "applies_to": ["plan.old", "account.savings"], "conditions": [{"attr": "attr.open_date", "test": "2000.12.31까지 가입"}]}
+ ],
+
+ "pending_rules": [
+  {"id": "R-07a", "name": "종신형 세율", "condition": "doc38은 종신연금을 55세부터 3.3%로 표기", "docs": [38], "status": "⚠",
+   "note": "문서 간 상충, 확정 보류 — 계산에 쓰지 않는다"},
+  {"id": "R-14a", "name": "집중투자한도", "condition": "지방채·특수채: DB 50%, DC·IRP 30% (doc56) / 구분 없이 50% (doc58)", "docs": [56, 58], "status": "⚠",
+   "note": "문서 간 상충, 확정 보류"}
+ ],
+
+ "excluded_rules": [
+  {"rule": "의료목적·부득이한 사유 인출을 1,500만 원 계산에서 제외", "why": "문서 근거 없음",
+   "doc_check": "07 은 '문서 근거 없음'으로 뺐지만 아래 문서에 부득이한 사유 인출을 1,500만 원 판단에서 뺀다는 문장이 있다 — 07 확인 필요(계산에는 아직 쓰지 않는다)",
+   "evidence": [
+    {"file": "doc20.txt", "text": "연금소득 인출액이 연간 1,500만원을 초과하더라도 다른 소득과 합산되지 않는다."},
+    {"file": "doc21.txt", "text": "(전 금융기관 합산 / 공적연금, 퇴직소득재원 및 부득이한 사유 제외)"},
+    {"file": "doc1.txt", "text": "연간 과세대상 연금소득(공적연금 제외, 퇴직소득재원 및 부득이한사유 제외) 1500만원 초과 시"},
+    {"file": "doc2.txt", "text": "연간 과세대상 연금소득(공적연금 제외, 퇴직소득재원 및 부득이한사유 제외) 1500만원 초과 시"}
+   ]},
+  {"rule": "종신형 4.4%", "why": "문서(doc38)와 상충"},
+  {"rule": "예금자보호 한도", "why": "doc27(5천만 원, 타 기관) ↔ doc30(1억 원) 상충"}
+ ],
+
+ "tax_matrix": {
+  "note": "07 §6 '재원 × 인출 유형 → 세금' 표. text 는 표 칸 원문 그대로, plain 은 고객용 쉬운 말. ① 비과세는 doc23(\"세액공제 받지 않은 납입액이라 인출할 때 세금이 없다\")에 근거한다. ① 칸의 R-06 은 taxcalc.RULEBOOK 에서 비과세 원문(doc39 'free')이 R-06 에 묶여 있어 붙였다.",
+  "sources": ["free", "retire", "credit"],
+  "modes": [
+   {"key": "연금수령", "node": "wd.pension"},
+   {"key": "부득이", "node": "wd.unavoidable", "label": "부득이한 사유"},
+   {"key": "연금외수령", "node": "wd.other"}
+  ],
+  "cells": [
+   {"source": "free", "mode": "연금수령", "tax": "비과세", "tax_node": "tax.none", "rule_ids": ["R-06"], "docs": [23, 39],
+    "text": "비과세", "plain": "세금 없음(세액공제를 받지 않은 돈이라 꺼낼 때 과세하지 않음)"},
+   {"source": "free", "mode": "부득이", "tax": "비과세", "tax_node": "tax.none", "rule_ids": ["R-06"], "docs": [23, 39],
+    "text": "비과세", "plain": "세금 없음"},
+   {"source": "free", "mode": "연금외수령", "tax": "비과세", "tax_node": "tax.none", "rule_ids": ["R-06", "R-10"], "docs": [23, 39],
+    "text": "비과세", "plain": "세금 없음(연금수령한도를 넘거나 해지해도 과세하지 않음)"},
+   {"source": "retire", "mode": "연금수령", "tax": "퇴직소득세", "tax_node": "tax.retire", "rule_ids": ["R-09"], "docs": [],
+    "text": "퇴직소득세 30~50% 감면 (R-09)", "plain": "원래 퇴직소득세의 70%(실제수령 1~10년차)·60%(11~20년차)·50%(21년차~)만 냄"},
+   {"source": "retire", "mode": "부득이", "tax": "문서 확인 필요", "tax_node": null, "rule_ids": [], "docs": [],
+    "text": "(문서 확인 필요)", "plain": "받은 문서마다 조건이 달라 금액을 정하지 않음 — 상담에서 확인 필요(07 §9-2)",
+    "evidence": [
+     {"file": "doc21.txt", "text": "퇴직소득세 (부득이한 사유 : 연금소득세(이연퇴직소득세x70%)"},
+     {"file": "doc5.txt", "text": "이연퇴직소득세 (부득이한 사유 : 연금소득세)"},
+     {"file": "doc20.txt", "text": "퇴직금 입금일로부터 3년이 경과한 경우에 퇴직금에 한해 연금수령으로 보아 퇴직소득세의 30% 감면이 가능하다."},
+     {"file": "doc22.txt", "text": "▷퇴직금재원의경우IRP계좌입금일로부터3년이후해외이주하는경우연금소득세율적용"}
+    ],
+    "evidence_note": "07 §9-2 를 풀 문서 근거 후보 — doc21·doc5 는 부득이한 사유면 연금소득세(이연퇴직소득세 × 70%), doc20·doc22 는 해외이주일 때 퇴직금 입금 후 3년이 지나야 같은 대우라고 적는다. 조건(사유·3년)이 갈려 07 확정 전까지 세목을 정하지 않는다."},
+   {"source": "retire", "mode": "연금외수령", "tax": "퇴직소득세", "tax_node": "tax.retire", "rule_ids": ["R-10"], "docs": [],
+    "text": "퇴직소득세 100% (R-10)", "plain": "원래 퇴직소득세를 감면 없이 그대로 냄"},
+   {"source": "credit", "mode": "연금수령", "tax": "연금소득세", "tax_node": "tax.pension", "rule_ids": ["R-07", "R-08"], "docs": [],
+    "text": "연금소득세 3.3~5.5% (R-07), 1,500만 원 초과 시 선택 (R-08)",
+    "plain": "나이에 따라 5.5%(55~69세)·4.4%(70~79세)·3.3%(80세~). 한 해 1,500만 원을 넘으면 전액 16.5% 분리과세 또는 종합과세 중 고름"},
+   {"source": "credit", "mode": "부득이", "tax": "연금소득세", "tax_node": "tax.pension", "rule_ids": ["R-11"], "docs": [],
+    "text": "연금소득세 3.3~5.5% (R-11)", "plain": "중도 인출이어도 연금수령처럼 5.5~3.3%"},
+   {"source": "credit", "mode": "연금외수령", "tax": "기타소득세", "tax_node": "tax.other", "rule_ids": ["R-10"], "docs": [],
+    "text": "기타소득세 16.5% (R-10)", "plain": "16.5% 기타소득세"}
+  ]
+ },
+
+ "stages": [
+  {"id": "stage.join", "label": "가입", "group": "제도 이해·가입", "docs": [10, 12, 13, 14, 15, 18, 11, 27]},
+  {"id": "stage.pay", "label": "납입", "group": "납입·세액공제", "docs": [23, 25, 41, 44, 4, 6, 33]},
+  {"id": "stage.invest", "label": "운용", "group": "운용·상품", "docs": [7, 24, 30, 31, 32, 54, 3, 8, 9, 28, 29, 53, 56, 58]},
+  {"id": "stage.transfer", "label": "이전", "group": "이전", "docs": [34, 35, 22]},
+  {"id": "stage.early", "label": "중도인출·해지", "group": "중도인출·해지", "docs": [20, 46, 47, 48, 49, 50, 5, 22]},
+  {"id": "stage.payout", "label": "연금수령", "group": "연금 수령", "docs": [21, 37, 39, 40, 1, 2]},
+  {"id": "stage.tax", "label": "세금정산", "group": "세금(수령·퇴직소득)", "docs": [26, 36, 38, 42, 43, 45, 51, 52, 19]},
+  {"id": "stage.protect", "label": "권리 보호", "group": "권리 보호", "docs": [16, 17], "extra": true,
+   "note": "06 §2에만 있는 묶음(07 단계 목록에는 없음)"},
+  {"id": "stage.employer", "label": "퇴직급여 지급", "group": "퇴직급여 지급", "docs": [55, 57], "extra": true,
+   "note": "06 §2에만 있는 묶음 — 회사 업무"}
+ ],
+
+ "documents": {
+  "audience_examples": [
+   {"doc": 55, "audience": "고객사 사무담당자", "note": "07 §3 '독자다' 예시"}
+  ],
+  "conflicts": [
+   {"docs": [1, 5], "topic": "(구)개인연금저축 가입 기한", "detail": "doc1 \"2000.12.31 이전\" ↔ doc5 \"2000.01.01 이전\". doc1 상품 설명과 맞는 쪽은 doc1", "rule": "R-15"},
+   {"docs": [38], "topic": "종신형 연금 세율", "detail": "doc38 표는 종신연금을 55세부터 3.3%로 적음", "rule": "R-07a"},
+   {"docs": [56, 58], "topic": "집중투자한도(지방채·특수채)", "detail": "doc56 DB 50%, DC·IRP 30% ↔ doc58 제도 구분 없이 50%", "rule": "R-14a"},
+   {"docs": [27, 30], "topic": "예금자보호 한도", "detail": "doc27 5천만 원 ↔ doc30 1억 원 (doc27이 구 기준·타 기관)"},
+   {"docs": [22], "topic": "사적연금 분리과세 기준", "detail": "doc22 \"연 1,200만 원 초과 전액 종합과세\" — 2024년 1,500만 원으로 바뀜(같은 줄에 병기)", "rule": "R-08"},
+   {"docs": [50, 55], "topic": "재난 중도인출 신청 기한", "detail": "doc50과 doc55, doc55 내부에서도 서로 다름", "rule": "R-13"},
+   {"docs": [26, 38], "topic": "퇴직소득세 감면 구간 표기", "detail": "doc26 \"10년 이상 30%\", doc38 \"11년 초과 20년 이하\" 표기가 다른 문서와 다름", "rule": "R-09"},
+   {"docs": [54], "topic": "MP 구독 매도 종목 제한", "detail": "doc54 안에서 20종목과 40종목 혼재"},
+   {"docs": [29], "topic": "디폴트옵션 FAQ", "detail": "doc29 Q53 ↔ Q68 반대, Q38 답변 ↔ 분기 포인트 반대"}
+  ],
+  "policy": [
+   {"use": "독자 필터", "rule": "고객 질문이면 독자 ∈ {금융사 직원, 고객사 사무담당자}인 문서 17건 제외"},
+   {"use": "기관 필터", "rule": "제도 = 과학기술인공제회인 doc27·28은 사용자가 과기공을 말할 때만 사용"},
+   {"use": "충돌 해결", "rule": "같은 규칙에 근거가 여럿이면 ① 기준일이 명시된 최신 문서 ② 고객용 공식 안내 ③ 다수 문서 일치 순으로 채택"},
+   {"use": "최신성", "rule": "제도 변경 노드가 생기면 연결된 규칙과 문서에 \"개정 대기\" 표시"}
+  ]
+ },
+
+ "open_questions": [
+  "종신형 연금 세율 (doc38 3.3% vs 일반 지식 4.4%)",
+  "부득이한 사유 인출 시 이연퇴직소득의 과세 방식",
+  "집중투자한도 doc56과 doc58의 차이 (제도별 구분 여부)",
+  "재난 중도인출 신청 기한 (doc50 vs doc55)",
+  "2026년 이후 세법 개정 반영 여부 (기준일 없는 칼럼 문서들)"
+ ]
+}
