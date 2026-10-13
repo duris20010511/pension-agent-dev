@@ -23,3 +23,6 @@ __pycache__/
 
 # 운영 로그(질의 기록). 개인정보 꼴 숫자는 가리지만 저장소에는 넣지 않는다.
 logs/
+
+# 배포 묶음(deploy/deploy.sh pack)
+deploy/*.tar.gz

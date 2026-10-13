@@ -600,10 +600,48 @@ def test_no_rule_constants():
     check('ontology.py 에 세법 숫자 상수 없음(taxcalc 공용 함수로만)', not bad, str(bad))
 
 
+def test_overview():
+    """시연 화면 '세금 지도'(10-13) — 9칸은 tax_matrix 그대로, 원문은 RULES 글자 그대로, 문서는 제목으로."""
+    o = ontology.load()
+    ov = ontology.overview()
+    cells = {(c['source'], c['mode']): c for c in ov['cells']}
+    check('세금 지도 9칸 = 재원 3 × 인출 방식 3', len(cells) == 9 and {s['key'] for s in ov['sources']} == {'free', 'retire', 'credit'}
+          and [m['key'] for m in ov['modes']] == ['연금수령', '부득이', '연금외수령'], str(sorted(cells)))
+    for c in o['tax_matrix']['cells']:
+        v = cells.get((c['source'], c['mode'])) or {}
+        check(f"세금 지도 {c['source']}×{c['mode']} 세목·규칙 = tax_matrix", v.get('tax') == c['tax'] and v.get('rule_ids') == c['rule_ids'],
+              f"{v.get('tax')} {v.get('rule_ids')}")
+        check(f"세금 지도 {c['source']}×{c['mode']} 원문 있음", bool(v.get('quotes')), '')
+        for q in v.get('quotes', []):
+            with open(os.path.join(ontology.DOCS_DIR, q['file']), encoding='utf-8') as fh:
+                body = re.sub(r'\s+', '', fh.read())
+            check(f"세금 지도 원문 글자 그대로 {q['file']}", re.sub(r'\s+', '', q['text']) in body, q['text'][:40])
+        check(f"세금 지도 {c['source']}×{c['mode']} 문서는 제목으로", all(d['title'] and not re.fullmatch(r'doc\d+', d['title'])
+                                                                      for d in v.get('docs', [])), str(v.get('docs'))[:120])
+    check('세금 지도 머리: 퇴직금 연금외수령 = 100%', cells[('retire', '연금외수령')]['short'] == '퇴직소득세 100%')
+    check('세금 지도 머리: ③ 연금외수령 = 기타소득세 16.5%', cells[('credit', '연금외수령')]['short'] == '기타소득세 16.5%')
+    check("세금 지도 '문서 확인 필요' 칸은 근거 후보로 표시", all(q.get('candidate') for q in cells[('retire', '부득이')]['quotes']))
+    rids = {r[0] for r in taxcalc.RULEBOOK}
+    check('단계별 규칙은 RULEBOOK 번호', all(set(s['rule_ids']) <= rids for s in ov['stages']) and len(ov['stages']) == len(o['stages']))
+    check('문서 제목 표 58건', len(ov['docs']) == len(o['docs']) and ov['docs']['doc41.txt']['title'] == '연금저축계좌, IRP 세액공제 안내')
+    # 질문이 지나는 칸 — 답변의 온톨로지 경로(path_for)와 같은 함수
+    qc = ontology.question_cells
+    r = qc('55세 전에 연금저축 빼면 전부 16.5%예요? 2,000만 원 해지하면 330만 원 내는 거죠?')
+    check('지나간 칸: 해지 = ①·③ × 연금외수령', r['cells'] == [['free', '연금외수령'], ['credit', '연금외수령']] and r['stage'] == 'stage.early', str(r['cells']))
+    r = qc('66세인데 연금저축에서 연 1,200만 원 받으면 세금은?')
+    check('지나간 칸: 수령 = ③ × 연금수령', r['cells'] == [['credit', '연금수령']] and r['stage'] == 'stage.payout', str(r['cells']))
+    r = qc('만 62세, IRP 평가액 1억, 퇴직금 6,000만 원, 나머지는 공제받은 돈이에요. 퇴직소득세 실효세율 4%, 올해 1,800만 원 빼면 세금은?')
+    check('지나간 칸: 퇴직금 섞인 IRP = ②·③ × 연금수령·연금외수령',
+          sorted(map(tuple, r['cells'])) == [('credit', '연금수령'), ('credit', '연금외수령'), ('retire', '연금수령'), ('retire', '연금외수령')], str(r['cells']))
+    r = qc('총급여 5,000만 원이고 연금저축 600 넣었어요. 12월에 IRP 더 넣으면 얼마나 돌려받아요?')
+    check('지나간 칸: 연말 공제 = 칸 없이 납입 단계', r['cells'] == [] and r['stage'] == 'stage.pay', str(r))
+    check('지나간 칸: 빈 질문·상품 질문은 표시 없음', qc('')['cells'] == [] and qc('제일 좋은 연금 상품이 뭐예요?')['cells'] == [])
+
+
 def main():
     for t in (test_rulebook, test_tax_route, test_md07, test_json, test_graph, test_rule_docs,
               test_path_scene2, test_path_full, test_path_other, test_doc_meta,
-              test_consistency, test_edges, test_mutation, test_text, test_no_rule_constants):
+              test_consistency, test_edges, test_mutation, test_text, test_no_rule_constants, test_overview):
         try:
             t()
         except Exception as e:                  # 한 묶음이 죽어도 나머지는 돈다

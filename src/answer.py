@@ -70,28 +70,14 @@ EX = os.path.join(ROOT, 'extracted')
 CACHE = os.path.join(ROOT, '.cache')
 os.makedirs(CACHE, exist_ok=True)
 
-SYSTEM = """당신은 미래에셋증권의 연금 상담 AI입니다. 퇴직연금(DB·DC·IRP)과 개인연금(연금저축), 연금 세제, 연금 상품에 대해 답합니다.
-
-# 반드시 지킬 것
-1. 제공된 [근거 문서]에 있는 내용만으로 답하십시오. 문서에 없는 수치·조건·사실을 지어내지 마십시오.
-2. 고객이 잘못된 전제를 깔고 물으면, 답변 첫머리에서 그 전제를 바로잡으십시오.
-3. 근거가 부족해 확정 답변이 불가능하면, 억지로 답하지 말고 무엇을 더 알아야 하는지 되물으십시오.
-4. 특정 상품을 단정적으로 추천하지 마십시오. 확인이 필요한 조건을 제시하고 상황별 결론을 주십시오.
-5. 답변 끝에 반드시 [근거] 절을 두고 사용한 문서를 표기하십시오.
-6. 수치(한도액·세율·기간·연령)는 문서에 적힌 그대로 정확히 옮기십시오.
-
-# 답변 형식
-- 핵심 결론을 먼저, 그다음 근거와 조건을 설명합니다.
-- 표로 비교하면 이해가 쉬운 내용은 표를 쓰십시오.
-- 고객이 이해할 수 있는 쉬운 말로 쓰되, 법령·제도 명칭은 정확히 씁니다.
-- 마지막 줄: [근거] 파일명 p페이지, ..."""
+SYSTEM = BASE_SYSTEM      # 예전에 여기 따로 두던 사본 — 정책이 두 곳에서 갈리지 않게 prompts.BASE_SYSTEM 하나만 쓴다
 
 CLARIFY_SYSTEM = """당신은 미래에셋증권의 연금 상담 AI입니다.
 고객의 질문은 지금 정보만으로는 확정 답변을 드릴 수 없습니다.
 
 무엇을 더 알아야 하는지 2~4가지를 구체적으로 되물으십시오.
 - 왜 그 정보가 필요한지 한 줄로 덧붙이십시오.
-- 아는 범위에서 일반적인 기준은 함께 알려주되, 단정적으로 결론내지 마십시오.
+- [근거 문서]에 있는 기준은 함께 알려주되, 단정적으로 결론내지 마십시오. 문서에 없는 기준·일반론은 쓰지 마십시오.
 - 특정 펀드·ETF·보험 상품의 이름을 예로 들지 마십시오. '권장·유리·최적' 같은 판단 표현도 쓰지 마십시오.
 - 한도·세율 같은 숫자는 [근거 문서]에 있는 것만 쓰십시오.
 - 참고한 문서가 있으면 마지막에 [근거] 로 표기하십시오."""
@@ -307,7 +293,8 @@ MERGE_SYSTEM = """당신은 연금 상담 답변을 보강하는 편집자입니
 3. 덧붙이는 내용은 **[근거 문서]에서 확인되는 것만**입니다.
    초안에만 있고 문서에 없으면 넣지 마십시오. 새로 지어내지 마십시오.
 4. 기준 답변이 고객의 전제를 바로잡았거나, 조건이 부족해 되물었거나,
-   상품 지목을 피했다면 — **그 태도를 그대로 유지하십시오.**
+   상품 지목을 피했거나, 문서에서 확인할 수 없다고 답했다면 — **그 태도를 그대로 유지하십시오.**
+   초안이 문서에 없는 일반론(금융 관행·일반적으로 …)으로 채웠으면 그 내용은 넣지 마십시오.
    다른 초안이 단정적으로 추천했더라도 따라가지 마십시오.
    "이걸 사세요" 같은 단정 추천은 어떤 경우에도 쓰지 않습니다.
 
@@ -398,6 +385,9 @@ _LATEX_CMD = [(r'\\times', '×'), (r'\\div', '÷'), (r'\\cdot', '·'), (r'\\le(?
 
 
 _FORMULA_PAREN = re.compile(r'(\S+)\s*÷\s*11\s*[-−–]\s*(\d{1,2}|연금\s*수령\s*연차)\s*×\s*120\s*%')
+# '1억 ÷ ((11 − 1) × 120%)' — 120%까지 나누는 식이 돼 버린다(값은 833만 원). 결과(1,200만 원)는 맞게 쓰면서 식만 이렇게 묶었다(10-12 시연 점검)
+# '÷ ((11 − 연금수령연차(1)) × 120%)'처럼 안에 괄호가 하나 더 있어도 바깥 괄호만 걷는다(10-13 실측)
+_FORMULA_WRAP = re.compile(r'÷\s*\(\s*\(\s*(11\s*[-−–]\s*[^()]*(?:\([^()]*\)[^()]*)?)\)\s*×\s*120\s*%\s*\)')
 # '(R-14)' · '(규칙 R-06·R-10)' · '([1] R-06, R-10)' · '([문서1] R-04 규칙)' — 근거 번호는 남기고 규칙 번호만 뺀다
 _RID_PAREN = re.compile(r'[ \t]*\((?P<cite>[ \t]*\[(?:문서[ \t]*)?\d+\][ \t]*,?)?[ \t]*(?:규칙[ \t]*)?'
                         r'R-\d{2}(?:[ \t]*[·,/][ \t]*R-\d{2})*[ \t]*(?:규칙)?[ \t]*\)')
@@ -418,9 +408,11 @@ def latex_to_text(t):
         return t
     t = re.sub(r'\\text\{([^{}]*)\}', r'\1', t)
     t = re.sub(r'\\(?:mathrm|textbf|mathbf|boxed)\{([^{}]*)\}', r'\1', t)    # '\boxed{144만 원}' (시연 실측)
+    t = re.sub(r'\\(?:left|right|bigl|bigr|Bigl|Bigr|big|Big)(?![A-Za-z])\s*', '', t)   # '\left( … \right)' (10-13 시연)
     # 분모에 +·− 가 있으면 괄호로 묶는다 — '\frac{1억}{11 - 1}' 이 '1억 ÷ 11 - 1' 이 되면 식이 틀려 보인다
     t = re.sub(r'\\frac\{([^{}]*)\}\{([^{}]*)\}',
-               lambda m: f"{m.group(1)} ÷ " + (f"({m.group(2).strip()})" if re.search(r'[+\-−–]', m.group(2)) else m.group(2)), t)
+               lambda m: f"{m.group(1)} ÷ " + (f"({m.group(2).strip()})" if re.search(r'[+\-−–]', m.group(2))
+                                               and not re.fullmatch(r'\s*\(.*\)\s*', m.group(2)) else m.group(2)), t)
     for rx, rep in _LATEX_CMD:
         t = re.sub(rx + r'(?![A-Za-z])', rep, t)
     t = re.sub(r'\\[\(\)\[\]]', '', t)          # \( \) \[ \] 수식 경계
@@ -428,6 +420,24 @@ def latex_to_text(t):
     t = re.sub(r'(?<=\d)\s+(?=만\s*원)', '', t)      # '1,800 만 원' → '1,800만 원'
     t = re.sub(r'[ \t]{2,}', ' ', t)
     return t
+
+
+# 원 단위로 쓴 큰 금액('576,000원', '1,326,000 원') — 계산 블록·슬라이드는 '57만 6천 원'으로 쓴다(10-12 시연 점검: 같은 값이
+# 두 표기로 나왔다). 앞에 '만'·'억'이 붙은 끝자리('1,173만 3,333원')와 1만 원 미만은 그대로 둔다.
+_WON_DIGITS = re.compile(r'(?<![\d.,만억])(?<!만 )(?<!억 )(\d{1,3}(?:,\d{3}){1,3})\s*원')
+
+
+def _won_digits(m):
+    w = int(m.group(1).replace(',', ''))
+    if w < 10000:
+        return m.group(0)
+    from taxcalc import won
+    return won(w / 10000)
+
+
+# 퇴직소득세 감면율(1~10년차 30%·11~20년차 40%·21년차~ 50%)은 연금'실제'수령연차로 정한다(doc39·doc40, 실제로 받은 해만 센다).
+# 모델이 '연금수령연차 1~10년차이므로 30% 감면'처럼 한도용 연차와 섞어 쓴다(10-13 설명 문장 검토) — 감면을 말하는 구절에서만 바로잡는다
+_REDUCTION_YEAR = re.compile(r'(?<!실제)연금\s*수령\s*연차(\s*(?:가|는|이)?\s*\d{1,2}\s*~\s*\d{1,2}\s*년\s*차[^.\n]{0,14}?감면)')
 
 
 def sanitize_answer(t):
@@ -452,7 +462,12 @@ def sanitize_answer(t):
     t = _MODEL_CITE_LINE.sub('', t)    # 모델이 쓴 '[근거] [1] 「…」 p.1' 줄 — 근거 목록은 다시 만든다
     t = latex_to_text(t)               # '\\( 1,800 \\text{만 원} \\times 16.5\\% \\)' → '1,800만 원 × 16.5%'
     t = _FORMULA_PAREN.sub(r'\1 ÷ (11 − \2) × 120%', t)   # LaTeX 를 걷어낸 뒤 드러난 식도 한 번 더
+    t = _FORMULA_WRAP.sub(lambda m: '÷ (' + re.sub(r'^11\s*[-−–]\s*', '11 − ', m.group(1).strip()) + ') × 120%', t)
     t = _RID_PAREN.sub(_rid_sub, t)    # '(R-14)' — 규칙 번호는 근거 칸에 따로 나온다(고객 글에는 빼기)
+    t = re.sub(r'\(\((\s*11\s*[-−–][^()]*)\)\)', r'(\1)', t)      # '((11 − 1))' 겹괄호
+    t = re.sub(r'(?<![\d.,])([1-9]\d{0,3})\.([1-9])\s*만\s*원', r'\1만 \2천 원', t)   # '57.6만 원' → '57만 6천 원'
+    t = _WON_DIGITS.sub(_won_digits, t)   # '576,000원' → '57만 6천 원'
+    t = _REDUCTION_YEAR.sub(r'연금실제수령연차\1', t)   # 감면율의 연차는 연금실제수령연차
     # 병합기가 줄 앞에 붙이는 편집 표지("추가 답변:", "최종 답변:"). 답변 중간에 나오면
     # 고객에게는 답이 두 번 이어 붙은 것처럼 보인다(규칙 전후 비교 72답변 중 2건).
     t = _MID_META.sub('', t)
@@ -817,6 +832,8 @@ def retrieve(eq, question, want, use_dense=True, qvec=None):
 TAXCALC = os.environ.get('AGENT_TAXCALC', '1') != '0'
 # 계산 질문(규칙 계산이 숫자를 다 낸 질문)은 초안 1개로 — AGENT_CALC_FAST=0 이면 다른 질문과 같게
 CALC_FAST = os.environ.get('AGENT_CALC_FAST', '1') != '0'
+# 시연 채널(/chat)에서 '계산 + 되묻기'도 정해진 문장으로(모델 없이) — 0이면 예전처럼 모델이 설명한다(10-13)
+CHAT_CALC_ASK_TEMPLATE = os.environ.get('AGENT_CHAT_CALC_ASK_TEMPLATE', '1') != '0'
 
 def _refs(ks):
     if len(ks) > 1 and ks == list(range(ks[0], ks[-1] + 1)):
@@ -845,9 +862,11 @@ def calc_policy(calc):
     # 규칙만 블록에도 R 번호를 금지한다 — 답에 '([1] R-06, R-10)'이 남았다(계산 질문 3회 반복 실측)
     parts.append('규칙 번호(R-xx)와 수식 기호(LaTeX)는 쓰지 마라. 질문·근거에 없는 연도(예: "2023년")는 붙이지 마라.')
     out = ' '.join(parts)
-    if any(b['topic'].endswith('(조합 비교)') or '비교(나눠 받기)' in b['text']
-           or (b['topic'].startswith('ISA') and '연금저축계좌로 옮기면' in b['text'] and 'IRP로 옮기면' in b['text'])
-           for b in calc['blocks']):
+    # 고객이 어느 쪽이 나은지 물었으면(calc['compare']) 블록 종류와 상관없이 — '어떻게 나눠 넣는 게 좋아요?'에 '최적입니다'라고 권했다
+    if calc.get('compare') or any(b['topic'].endswith('비교)') or '비교(나눠 받기)' in b['text']
+                                  or (b['topic'].startswith('ISA') and '연금저축계좌로 옮기면' in b['text']
+                                      and 'IRP로 옮기면' in b['text'])
+                                  for b in calc['blocks']):
         out += ('\n조합·방식을 나란히 비교만 하라. 어느 쪽이 낫다고 권하지 말고 "추천·최적·유리·효과가 크다" 같은 판단 표현을 쓰지 마라. '
                 '고르는 기준(세액공제 금액, 중도인출 필요성 등)만 알려라.')
     needs = calc.get('needs') or []
@@ -873,6 +892,98 @@ def _cite_for_tax(hits):
         if c['file'] == 'doc38.txt':
             return k
     return None
+
+
+# 문서 근거 원칙 — 모든 답은 [근거 문서]로만, 문서에 없으면 '답할 수 없다'(사용자 지시 2026-10-10).
+# 프롬프트만으로는 부족했다(점검 4문항 중 3개): '문서에서 확인할 수 없습니다. 다만 일반적으로 … 금융 관행이 있으나'처럼
+# 없다고 밝힌 뒤 일반론을 덧붙였다. 그래서 출력단에서도 정리한다(계산 블록이 없는 답에만 — 계산 블록은 문서 규칙이다).
+# '문서에 없다'는 말 — 문서에 그 정보가 없다는 말만 잡는다. '문서에 따르면 전환 수수료는 없습니다'(문서가 '없다'고 적은 것)는 아니다.
+# 예전 판은 '문서 … 없습니다'를 다 잡아, 문서 근거로 '수수료 없음'을 답한 경우까지 거절로 바꿀 위험이 있었다(검토).
+_NO_DOC = re.compile(r'문서(?:들)?(?:에서는|에서|에는|에|들은|는|상|로는|로)?[^.\n]{0,80}?'
+                     r'(?:확인할\s*수\s*없|확인되지\s*않|찾을\s*수\s*없|포함되어\s*있지\s*않|포함돼\s*있지\s*않|명시되(?:어\s*있)?지\s*않|'
+                     r'나와\s*있지\s*않|언급되(?:어\s*있)?지\s*않|다루지\s*않|'
+                     r'(?:내용|정보|자료|근거|언급|설명|기준|수치|금액)(?:은|는|이|가)?\s*(?:따로\s*)?없|'
+                     r'(?:단정|판단|권고|추천)(?:할|하기|을\s*할)?\s*수\s*(?:는\s*)?없)')
+_GENERAL = re.compile(r'일반적으로|일반적인\s*(?:경우|관행|금융)|금융\s*관행|관행상|통상(?:적으로)?\s|참고용으로|보통은')
+_CONTRAST = re.compile(r'(?:지만|으나|이나|다만|그러나|하지만)\s*,?')
+# 근거 인용 — 출력 정리 전이라 [문서1]·[1]·[문서1, 문서3] 꼴이 섞여 있다
+_CITE = re.compile(r'\[(?:문서)?\s*\d+(?:\s*[,·]\s*(?:문서)?\s*\d+)*\]')
+NO_DOC_ANSWER = '제공된 문서에서는 이 질문에 대한 내용을 확인할 수 없어 답변드릴 수 없습니다.'
+NO_DOC_TAIL = '정확한 내용은 상담 연결로 확인해 주세요.'
+
+
+def _sents(text):
+    return [s for s in re.split(r'(?<=[.!?])\s+|\n+', text) if s.strip()]
+
+
+def _refusal(hit=''):
+    keep = ' '.join(hit.split()) if hit and hit.lstrip().startswith(('제공된', '현재 제공된', '근거', '주어진', '참고한')) \
+        and not _GENERAL.search(hit) and not _CONTRAST.search(hit[:_NO_DOC.search(hit).start()]) else NO_DOC_ANSWER
+    if '답변' not in keep and '답할' not in keep:
+        keep = keep.rstrip('.') + '. 그래서 답변드릴 수 없습니다.'
+    return f'{keep}\n\n{NO_DOC_TAIL}', '답할 수 없음'
+
+
+def enforce_grounding(ans):
+    """(정리한 답, 방식). 방식 '' | '답할 수 없음' | '일반론 n문장 뺌'.
+    사용자 원칙: 모든 답은 근거 문서로만, 문서에 없으면 '답할 수 없다'. 프롬프트의 '일부만 있으면 있는 부분만 답한다'도 지킨다.
+    - 첫 내용 문장에서 문서에 없다고 밝혔고 그 뒤에 근거를 인용한 내용이 없으면 질문의 핵심이 문서에 없는 것 —
+      '답변드릴 수 없습니다 + 상담 연결'로 정리한다.
+    - 그 뒤에 인용한 내용이 있으면(일부는 문서에 있는 답 — 'IRP 고정 수수료는 문서에 없지만 펀드 보수는 [1]…') 거절하지 않는다.
+      예전 판은 이 경우도 통째로 지워, 같은 날 100문항 비교에서 Q-095·096 두 문항이 5·6/7 → 1·2/7로 떨어졌다.
+    - 일반론 문장('일반적으로…')은 근거 인용이 없을 때만 뺀다(문서에도 '일반적으로'가 쓰인다). 다 빼고 내용이 거의 안 남으면 거절 꼴로 낸다."""
+    if not ans or not ans.strip():
+        return ans, ''
+    body = re.split(r'\n\s*(?:\*\*)?\[?(?:근거|참고 자료)\]?(?:\*\*)?\s*[:：]?\s*\n', ans)[0]
+    plain = re.sub(r'[#*|>`]+', ' ', body)
+    sents = _sents(plain)
+    # 첫 번째 내용 문장 — '핵심 결론' 같은 머리말만 있는 줄은 건너뛴다
+    first = next((s2 for s2 in (re.sub(r'^\s*(?:핵심\s*결론|결론|답변)\s*[:：]?\s*', '', s) for s in sents)
+                  if len(re.sub(r'\W', '', s2)) >= 6), '')
+    hit = first if _NO_DOC.search(first) else None
+    if hit and not _CONTRAST.search(hit[_NO_DOC.search(hit).end():]):
+        rest = plain[plain.find(hit.strip()[:20]) + len(hit.strip()):] if hit.strip()[:20] in plain else plain
+        if not _CITE.search(rest):
+            return _refusal(hit)
+    if not any(_NO_DOC.search(s) for s in sents):
+        return ans, ''
+    lines, n = [], 0
+    for line in ans.split('\n'):
+        parts = re.split(r'(?<=[.!?])\s+', line)
+        kept = [p for p in parts if not _GENERAL.search(p) or _CITE.search(p)]   # 인용이 붙은 '일반적으로'는 문서 내용이다
+        n += len(parts) - len(kept)
+        if parts and not kept and line.strip():
+            continue
+        lines.append(' '.join(kept) if len(kept) != len(parts) else line)
+    if not n:
+        return ans, ''
+    out = '\n'.join(lines)
+    left = re.split(r'\n\s*(?:\*\*)?\[?(?:근거|참고 자료)\]?(?:\*\*)?\s*[:：]?\s*\n', out)[0]
+    if len(re.sub(r'\W', '', re.sub(r'(?m)^\s*#.*$', '', left))) < 40:
+        return _refusal()                  # '…없으나, 일반적으로 …' 한 문장 답 — 지우면 근거 목록만 남는다
+    return out, f'일반론 {n}문장 뺌'
+
+
+# 비교 질문 답의 소제목 — '권하지 마라' 지시에도 '### 추천 전략'·'분할 납입 권장 이유' 같은 소제목이 남았다(대화 C18·G08 실측).
+# 본문 문장은 건드리지 않고 소제목(# 줄·굵은 글씨 줄머리)만 바꾼다.
+_REC_HEAD = re.compile(r'(?m)^([ \t]*(?:#{1,4}[ \t]*|[-*][ \t]*)?\**[^\n*]{0,20}?)(?:추천|권장|최적)[ \t]*(포인트|전략|조합|방안|안|이유|선택)?'
+                       r'(?=[ \t]*(?:\*\*|:|：|$))')
+
+
+def neutral_headings(ans):
+    """(고친 답, 고친 곳 수)."""
+    n = 0
+
+    def sub(m):
+        nonlocal n
+        n += 1
+        return m.group(1) + ('고려할 점' if m.group(2) == '이유' else '고르는 기준')
+    lines = []
+    for line in (ans or '').split('\n'):
+        if re.match(r'[ \t]*(?:#{1,4}|[-*][ \t]*\*\*|\*\*)', line):
+            line = _REC_HEAD.sub(sub, line, count=1)
+        lines.append(line)
+    return '\n'.join(lines), n
 
 
 def screen_drafts(drafts, calc, cite=None):
@@ -1203,7 +1314,7 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
            samples=None,
            use_thinking=None, use_rerank=False, pool=20, use_dense=True,
            prompt_mode=None, draft_effort=None, draft_maxtok=None, merge_effort=None, use_taxcalc=None,
-           history=None, clarify_template=False):
+           history=None, clarify_template=False, calc_effort=None):
     """질의 → 응답 dict. oracle_context 를 주면 검색을 건너뛴다(⑤ 단독 측정용).
 
     draft_effort·draft_maxtok·merge_effort 는 생성 설정을 호출마다 정한다(비우면 AGENT_MODE 값).
@@ -1248,20 +1359,44 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                 'plan': [{'step': '안전 관문', 'detail': '차단'}, {'step': '다음 행동', 'detail': '거절'}],
                 'sections': {'result': REFUSE, 'evidence': [], 'assumptions': [], 'needs': [], 'next_actions': []},
                 'calc': None, 'verify': None}
-    if clarify_template and P.get('action') == '되묻기' and (P.get('calc') or {}).get('needs'):
-        # 고객 채널(/chat): 계산에 빠진 값을 묻는 답은 규칙 문장 + 빠진 정보 목록으로 바로 낸다(모델 호출 없음)
+    if clarify_template and (P.get('calc') or {}).get('ambiguous'):
+        # 고객 채널(/chat): 단위가 없어 결과가 크게 갈리는 금액은 계산 전에 묻는다(사용자 결정 10-10, 모델 호출 없음).
+        # 대회 규격(/answer)은 이 길을 타지 않고, 계산 블록의 '금액 읽기' 가정을 밝히고 답한다.
         calc = P['calc']
-        ans = orchestrator.clarify_answer(calc, 1)          # 계산 블록이 근거 맨 앞([문서1])에 있다
-        trace.append('응답: 되묻기(계산 블록의 규칙과 빠진 정보 목록으로 작성, 모델 호출 없음)')
-        ans = finalize(ans, cite_hits, trace)
+        ans = orchestrator.amount_clarify_answer(calc)
+        trace.append('응답: 금액 확인 되묻기(단위가 없어 결과가 크게 갈리는 금액, 모델 호출 없음)')
         acts = orchestrator.next_actions('되묻기', raw, calc, None, P.get('category', ''))
+        asks = [a['ask'] for a in calc['ambiguous']]
         return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
                 'think_trace': '\n'.join(trace), 'answer': ans,
                 'standalone': raw if mem and mem.get('how') == '대체' else question,
                 'injection': bool(P.get('injection')), 'action': '되묻기',
-                'plan': orchestrator.plan_steps(trace, '되묻기', P.get('why', ''), P.get('state', ''), calc),
-                'sections': dict(sections(ans, cite_hits, calc, acts), needs=[],
-                                 assumptions=['아직 계산하지 않았어요 — 위 정보를 알려 주시면 문서 규칙으로 계산합니다']),
+                'plan': orchestrator.plan_steps(trace, '되묻기', '단위가 없는 금액 확인', P.get('state', ''), calc),
+                'sections': {'result': ans, 'evidence': [], 'assumptions': calc.get('assume', []), 'needs': asks,
+                             'next_actions': acts},
+                'calc': {'rule_ids': calc.get('rids', []), 'figures': calc.get('figures', []),
+                         'needs': asks, 'assume': calc.get('assume', [])},
+                'verify': None, 'needs': asks}
+    ask_acts = ('되묻기', '계산 + 되묻기') if CHAT_CALC_ASK_TEMPLATE else ('되묻기',)
+    if clarify_template and P.get('action') in ask_acts and (P.get('calc') or {}).get('needs'):
+        # 고객 채널(/chat): 계산에 빠진 값을 묻는 답은 규칙 문장 + 빠진 정보 목록으로 바로 낸다(모델 호출 없음).
+        # '계산 + 되묻기'(계산값이 있고 빠진 값도 있음)도 같다 — 10-13 설명 문장 검토(이름 가린 비교, 검토자 + 반박 검증)에서
+        # 해지 장면 모델 답은 생각 high·none 모두 규칙을 틀리게 옮겼다('일부에만 16.5%', 문서에 없는 해지 절차). 블록 문장은 원문 그대로다.
+        act = P.get('action')
+        calc = P['calc']
+        ans = orchestrator.clarify_answer(calc, 1)          # 계산 블록이 근거 맨 앞([문서1])에 있다
+        trace.append(f'응답: {act}(계산 블록의 규칙·계산값과 빠진 정보 목록으로 작성, 모델 호출 없음)')
+        ans = finalize(ans, cite_hits, trace)
+        acts = orchestrator.next_actions(act, raw, calc, None, P.get('category', ''))
+        sec = dict(sections(ans, cite_hits, calc, acts), needs=[])
+        if act == '되묻기':
+            sec['assumptions'] = ['아직 계산하지 않았어요 — 위 정보를 알려 주시면 문서 규칙으로 계산합니다']
+        return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
+                'think_trace': '\n'.join(trace), 'answer': ans,
+                'standalone': raw if mem and mem.get('how') == '대체' else question,
+                'injection': bool(P.get('injection')), 'action': act,
+                'plan': orchestrator.plan_steps(trace, act, P.get('why', ''), P.get('state', ''), calc),
+                'sections': sec,
                 'calc': {'rule_ids': calc.get('rids', []), 'figures': calc.get('figures', []),
                          'needs': calc.get('needs', []), 'assume': calc.get('assume', [])},
                 'verify': None, 'needs': calc.get('needs', [])}
@@ -1277,12 +1412,9 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                 'sections': {'result': ans, 'evidence': [], 'assumptions': [], 'needs': [], 'next_actions': acts},
                 'calc': None, 'verify': None, 'needs': []}
     if P.get('action') == '상담 연결':
-        # 고객이 사람 상담을 원한다 — 생성 없이 바로 넘긴다(지금까지의 조건을 상담사에게 함께 넘긴다고 알린다)
+        # 고객이 사람 상담을 원한다 — 생성 없이 상담 창구(번호·운영시간)를 안내한다. 이관 연동은 없어 '넘겨 드린다'고 하지 않는다
         prof = (mem or {}).get('profile') or P.get('state') or ''
-        ans = ('상담사 연결을 요청하셨어요. 지금까지 말씀하신 조건'
-               + (f'({prof})' if prof and prof != '조건 없음' else '')
-               + '을 상담사에게 함께 넘겨, 처음부터 다시 설명하지 않으셔도 되게 하겠습니다.\n\n'
-               '연금 상담은 미래에셋증권 연금자산관리센터(1588-5577)에서도 받으실 수 있습니다.')
+        ans = orchestrator.handoff_reply(prof, ui=clarify_template)
         trace.append('응답: 상담 연결 안내(생성 없음)')
         return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
                 'think_trace': '\n'.join(trace), 'answer': ans,
@@ -1311,6 +1443,13 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
         draft_effort = draft_effort or 'high'
         maxtok = max(maxtok, 4096)
         trace.append('오케스트레이터: 숫자는 규칙 계산이 냈으므로 초안 1개로 설명만 생성')
+    # calc_effort: 숫자를 규칙 계산이 낸 답(계산 → 설명·계산 + 되묻기)의 생각 강도. 시연 채널(/chat)이 정한다.
+    # 10-13 실측(시연 장면 4개): 시간은 출력 토큰(생각 포함)에 비례해 초당 약 60토큰 — 생각을 끄면 34.8→10.1초,
+    # 24.2→7.0초, 29.5→14.7초, 36.7→11.7초. 비우면 예전 그대로(대회 규격 /answer 는 넘기지 않는다).
+    if calc_effort and P.get('action') in ('계산 → 설명', '계산 + 되묻기') and \
+            any(b.get('numbers') for b in (P.get('calc') or {}).get('blocks', [])):
+        draft_effort = calc_effort
+        trace.append(f'오케스트레이터: 숫자는 규칙 계산이 냈으므로 설명만 생성(생각 {calc_effort})')
 
     def _gen():
         return generate(msgs, maxtok=maxtok, effort=draft_effort, thinking=thinking)
@@ -1403,8 +1542,13 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     if nfix:
         ans = fixed
         trace.append(f'세금 계산 검증: 분할 과세 서술 {nfix}곳을 문서 규칙대로 고침')
-    # 답 속 숫자 대조 — 질문·앞 대화·규칙 계산·근거 문서에 있는 값(또는 그 곱·합)인지 하나씩 확인한다
+    # 문서 근거 원칙 — 문서에 없다고 밝힌 답은 '답할 수 없음'으로, 일부만 있으면 일반론 문장을 뺀다(계산 블록이 없을 때만)
     calc = P.get('calc')
+    if not calc:
+        ans, how_g = enforce_grounding(ans)
+        if how_g:
+            trace.append(f'문서 근거: {how_g}' + (' — 문서에 없는 질문이라 상담 연결로 안내' if how_g == '답할 수 없음' else ''))
+    # 답 속 숫자 대조 — 질문·앞 대화·규칙 계산·근거 문서에 있는 값(또는 그 곱·합)인지 하나씩 확인한다
     if not (ans or '').strip() and calc and any(b.get('numbers') for b in calc['blocks']):
         # 생성이 끝내 비었다 — 일반 안내문 대신 규칙 계산값과 상담 연결을 내보낸다
         ans = verify.handoff_answer(calc, _cite_for_tax(cite_hits) or 1)
@@ -1412,7 +1556,10 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     vr = None
     if verify.MODE != 'off':
         extra = [mem['history'], mem.get('profile') or ''] if mem else []
-        vr = verify.check(ans, question + '\n' + raw, calc if a1_on else None, ctx, extra)
+        # 시연 채널(/chat)은 결론 자리에 규칙 계산과 다른 세금 금액이 있으면 덧붙임 대신 상담 연결로 넘긴다(10-12 시연 점검:
+        # 3턴 결론에 '한꺼번에 받으면 132만 6천 원'을 쓰고 바른 값 57만 6천 원은 맨 끝 '계산 확인'에만 있었다).
+        # 대회 규격(/answer)은 측정 전이라 그대로 둔다.
+        vr = verify.check(ans, question + '\n' + raw, calc if a1_on else None, ctx, extra, lead_strict=clarify_template)
         trace.append(verify.summary_line(vr))
         if vr['contradiction'] and verify.MODE == 'handoff':
             ans = verify.handoff_answer(calc, _cite_for_tax(cite_hits) or 1)
@@ -1426,6 +1573,10 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     ans, nyr = verify.strip_unsupported_years(ans, '\n'.join([question, raw, ctx] + ([mem['history']] if mem else [])))
     if nyr:
         trace.append(f'숫자 대조: 근거에 없는 연도 기준 {nyr}곳을 뺌(예: "2023년 기준")')
+    if calc and calc.get('compare'):
+        ans, nrec = neutral_headings(ans)
+        if nrec:
+            trace.append(f'비교 질문: 소제목의 추천·권장 표현 {nrec}곳을 "고르는 기준"으로 바꿈')
     ans = finalize(ans, cite_hits, trace)
     reasoning_line(trace, reasoning, P.get('injection'))
     action = '상담 연결' if vr and vr['contradiction'] and verify.MODE == 'handoff' else P.get('action', '')

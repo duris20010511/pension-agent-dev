@@ -950,3 +950,105 @@ def path_for(parsed, q=None):
             det += '(올해 한도까지 + 내년 나머지로 나눠 받는 경우와 비교)'
     steps.append({'step': STEPS[6], 'detail': det, 'nodes': []})
     return steps
+
+
+# ---------------------------------------------------------------------------
+# 시연 화면 '세금 지도' — 그래프(노드 60개) 대신 사람이 읽는 층 (10-13)
+#   재원 3 × 인출 방식 3 = 9칸(07 §6 표, 계산 엔진이 쓰는 tax_matrix 그대로) + 생애주기 단계별 규칙 + 문서 제목.
+#   문서 번호(doc39) 대신 제목·독자·기준일을 보인다. 숫자·세목은 여기서 새로 정하지 않는다.
+# ---------------------------------------------------------------------------
+MODE_INFO = {'연금수령': ('연금수령', '55세 이후 · 한도 안'), '부득이': ('부득이한 사유', '요양·파산 등'),
+             '연금외수령': ('연금외수령', '55세 전 해지 · 한도 초과')}
+# 단계 → 그 단계 질문에 쓰이는 규칙(RULEBOOK 번호). 단계와 규칙을 잇는 관계는 07 에 없어 화면용으로만 정한다
+STAGE_RULES = {
+    'stage.join': [], 'stage.pay': ['R-01', 'R-02', 'R-03'], 'stage.invest': ['R-14'], 'stage.transfer': ['R-15'],
+    'stage.early': ['R-04', 'R-06', 'R-10', 'R-11', 'R-12', 'R-13'],
+    'stage.payout': ['R-04', 'R-05', 'R-06', 'R-07', 'R-08', 'R-09'], 'stage.tax': ['R-07', 'R-08', 'R-09', 'R-10'],
+    'stage.protect': [], 'stage.employer': [],
+}
+# 단계 → 세금 지도에서 함께 밝힐 인출 방식 열
+STAGE_MODES = {'stage.early': ['부득이', '연금외수령'], 'stage.payout': ['연금수령'],
+               'stage.tax': ['연금수령', '부득이', '연금외수령']}
+# 칸마다 그 칸의 세금을 말하는 원문만 고르는 낱말 — 규칙 원문(taxcalc.RULES)에서 고른다
+_CELL_WORDS = {('free', None): ('비과세', '과세되지'), ('retire', '연금수령'): ('70%', '감면'),
+               ('retire', '연금외수령'): ('그대로', '100%'), ('credit', '연금수령'): ('5.5%', '1,500'),
+               ('credit', '부득이'): ('5.5%', '저율'), ('credit', '연금외수령'): ('16.5%',)}
+# 칸 머리 한 줄 — 각 칸의 plain(07 §6) 을 줄인 것. 새 세율을 만들지 않는다
+_CELL_SHORT = {('retire', '연금수령'): '퇴직소득세 30~50% 감면', ('retire', '연금외수령'): '퇴직소득세 100%',
+               ('credit', '연금수령'): '연금소득세 5.5~3.3%', ('credit', '부득이'): '연금소득세 5.5~3.3%',
+               ('credit', '연금외수령'): '기타소득세 16.5%'}
+
+
+def _brief(o, f):
+    d = o['docs'].get(f) or {}
+    return {'file': f, 'id': _doc_id(f), 'title': d.get('title') or _fallback_title(f) or _doc_id(f),
+            'audience': d.get('audience', ''), 'as_of': d.get('as_of', ''), 'label': d.get('label', '')}
+
+
+def overview():
+    """{'sources','modes','cells','stages','docs'} — 시연 화면 '세금 지도'와 문서 제목 표."""
+    o = load()
+    tm = o['tax_matrix']
+    cells = []
+    for c in tm['cells']:
+        words = _CELL_WORDS.get((c['source'], c['mode'])) or _CELL_WORDS.get((c['source'], None)) or ()
+        quotes = []
+        for rid in c['rule_ids']:
+            for k in (o['rule_index'].get(rid) or {}).get('quote_keys', []):
+                f, text = taxcalc.RULES[k]
+                if any(w in text for w in words) and all(q['text'] != text for q in quotes):
+                    quotes.append({'file': f, 'text': text, 'title': _brief(o, f)['title']})
+        if not quotes:              # '문서 확인 필요' 칸 — 근거 후보(evidence)를 후보라고 밝혀 보인다
+            quotes = [{'file': e['file'], 'text': e['text'], 'title': _brief(o, e['file'])['title'], 'candidate': True}
+                      for e in c.get('evidence', [])]
+        files = list(dict.fromkeys([q['file'] for q in quotes] + list(c['docs'])))
+        short = '비과세' if c['tax'] == '비과세' else _CELL_SHORT.get((c['source'], c['mode']), c['tax'])
+        cells.append({'source': c['source'], 'mode': c['mode'], 'tax': c['tax'], 'short': short, 'plain': c['plain'],
+                      'rule_ids': list(c['rule_ids']), 'quotes': quotes[:3], 'docs': [_brief(o, f) for f in files][:4]})
+    stages = [{'id': s['id'], 'label': s['label'], 'group': s.get('group', ''),
+               'rule_ids': STAGE_RULES.get(s['id'], []), 'modes': STAGE_MODES.get(s['id'], []),
+               'docs': [_brief(o, f) for f in s['docs']]} for s in o['stages']]
+    return {'sources': [{'key': k, 'label': taxcalc.FUND_NAME[k]} for k in tm['sources']],
+            'modes': [{'key': m['key'], 'label': MODE_INFO[m['key']][0], 'hint': MODE_INFO[m['key']][1]}
+                      for m in tm['modes']],
+            'cells': cells, 'stages': stages,
+            'docs': {f: _brief(o, f) for f in sorted(o['docs'], key=lambda x: int(re.sub(r'\D', '', x) or 0))}}
+
+
+_NODE_SRC = {v: k for k, v in SRC_NODE.items()}
+_NODE_MODE = {v: k for k, v in MODE_NODE.items()}
+_INTENT_STAGE = {'early': 'stage.early', 'withdraw': 'stage.payout', 'payout': 'stage.payout',
+                 'deduction': 'stage.pay', 'isa': 'stage.pay', 'unavoidable': 'stage.early', 'invest': 'stage.invest'}
+
+
+def question_cells(q):
+    """질문이 세금 지도에서 지나는 칸 → {'cells': [[재원, 인출 방식], ...], 'stage', 'rule_ids', 'intent', 'steps'}.
+    답변의 '온톨로지 경로'와 같은 path_for 의 단계 노드에서 읽는다. 모델을 부르지 않는다."""
+    steps = path_for(None, q or '')
+    nodes = list(dict.fromkeys(n for s in steps for n in s.get('nodes', [])))
+    # '세금 계산' 단계의 노드는 [재원, (인출 유형), 세목, …, 재원, 세목 …] 순서다 — 재원마다 뒤따르는 세목과
+    # 단계 안의 인출 유형으로 칸을 고른다(세목이 맞는 칸만: 07 §6 표의 tax_node)
+    tax_step = next((s for s in steps if s['step'] == STEPS[4]), {'nodes': []})
+    tnodes = tax_step.get('nodes', [])
+    modes_all = [_NODE_MODE[n] for n in tnodes if n in _NODE_MODE]
+    tax_of = {(c['source'], c['mode']): c['tax_node'] for c in load()['tax_matrix']['cells']}
+    cells, cur, seg = [], None, []
+
+    def flush():
+        if cur:
+            ms = [_NODE_MODE[n] for n in seg if n in _NODE_MODE] or modes_all
+            taxes = {n for n in seg if str(n).startswith('tax.')}
+            for m in dict.fromkeys(ms):
+                if not taxes or tax_of.get((cur, m)) in taxes:
+                    cells.append([cur, m])
+    for n in tnodes:
+        if n in _NODE_SRC:
+            flush()
+            cur, seg = _NODE_SRC[n], []
+        else:
+            seg.append(n)
+    flush()
+    intent = next((s.get('intent') for s in steps if s.get('intent')), '') or ''
+    return {'cells': cells, 'stage': _INTENT_STAGE.get(intent, ''),
+            'rule_ids': [n for n in nodes if re.match(r'^R-\d\d$', str(n))], 'intent': intent,
+            'steps': [{'step': s['step'], 'detail': s['detail']} for s in steps]}

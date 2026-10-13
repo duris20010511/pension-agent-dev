@@ -47,6 +47,9 @@ CONFIGS = {
     'q3none':   {'samples': 3, 'draft_effort': 'none', 'merge_effort': 'none', 'draft_maxtok': 1600},
     'one_med':  {'samples': 1, 'draft_effort': 'medium', 'draft_maxtok': DEEP_MAXTOK},
     'one_high': {'samples': 1, 'draft_effort': 'high', 'draft_maxtok': DEEP_MAXTOK},
+    # 시연 채널(/chat 빠른 모드)과 같게: 초안 1개(생각 high), 계산 답만 생각 강도를 바꾼다(10-13)
+    'chat_calc_none': {'samples': 1, 'draft_effort': 'high', 'draft_maxtok': DEEP_MAXTOK, 'calc_effort': 'none'},
+    'chat_calc_low': {'samples': 1, 'draft_effort': 'high', 'draft_maxtok': DEEP_MAXTOK, 'calc_effort': 'low'},
     # 지금 기본값 그대로(인자 없음) — 계산 질문은 초안 1개, 나머지는 AGENT_MODE 프리셋. 본선 기능을 다 붙인 뒤의 회귀 확인용
     'cur':      {},
     # 계산 질문 하위셋 요인 실험(A1 세금 계산 블록 켬·끔 × 초안 1개 high·초안 3개 low+병합) — --ids 로 문항을 고른다
@@ -125,7 +128,8 @@ def run(tag, names, limit, workers, stop_after=0, ids=None):
         try:
             r = A.answer(it['question'], it['id'], samples=cfg.get('samples'),
                          draft_effort=cfg.get('draft_effort'), draft_maxtok=cfg.get('draft_maxtok'),
-                         merge_effort=cfg.get('merge_effort'), use_taxcalc=cfg.get('use_taxcalc'))
+                         merge_effort=cfg.get('merge_effort'), use_taxcalc=cfg.get('use_taxcalc'),
+                         calc_effort=cfg.get('calc_effort'))
         finally:
             clova.TAG.reset(tok)
         wall = time.time() - t0

@@ -25,7 +25,11 @@
 
 이 모듈은 clova·answer 를 부르지 않는다 — test_rules.py 에서 API 없이 검사한다.
 """
+import json
+import os
 import re
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # ---------------------------------------------------------------------------
 # 근거 원문. 계산 블록에 그대로 실린다. test_rules.py 가 파일 안에 글자 그대로 있는지 검사한다.
@@ -100,6 +104,12 @@ RULES = {
     'house_not_unavoidable': ('doc20.txt', '주택 구입과 전세보증금은 IRP 중요 인출 사유에 해당하지만, 소득세법상 부득이한 사유는 아니다. '
                                            '따라서 이 경우에는 기타소득세 16.5%가 부과된다.'),
     'irp_reason_req': ('doc20.txt', '중도인출 사유를 법으로 열거하고 있어서, 사유에 해당하지 않으면 만 55세 이전에는 중도인출 자체가 불가능하다.'),
+    # 해지 신청 전 확인 — 연금저축은 해지 신청 때 과세재원이 확정된다(doc5 업무 문서), IRP 는 재원확정(doc19)
+    'cancel_fix': ('doc5.txt', '해지신청 시 과세재원 확정, 국세청 통보(해지신청 후 과세재원 변경 및 그에 따른 환급 불가)'),
+    'cancel_fix_exc': ('doc5.txt', '단, 해지 이후 전년도 납입금액에 대해 소득공제를 받지 않음을 증빙 시 과세재원 변경 및 환급가능'),
+    'irp_fix': ('doc19.txt', '금융기관의 연금계좌 과세대상금액과 국세청 소득·세액공제합계액을 확인하여 국세청 합계액을 '
+                             '초과하는 과세대상금액을 과세제외함으로써 과세대상금액을 일치시켜주는 업무입니다.'),
+    'irp_fix_doc': ('doc19.txt', '재원확정 필요서류 -연금보험료등 소득·세액공제확인서(국세청자료)'),
 
     # 중도인출·운용 규칙(R-12~R-15) — 금액 계산은 없고 규칙만
     'savings_withdraw': ('doc1.txt', '중도인출 | 일부 or 전액 인출 가능'),
@@ -135,7 +145,8 @@ RULEBOOK = [
      '③ 재원 연금이 연 1,500만 원을 넘으면 전액 16.5% 분리과세 또는 종합과세', '계산'),
     ('R-09', '퇴직소득세 감면', ['retire_rate', 'retire_in', 'retire_years', 'actual_year'],
      '퇴직금을 한도 안에서 연금으로 받으면 실제수령 1~10년차 30%, 11~20년차 40%, 21년차~ 50% 감면', '계산'),
-    ('R-10', '연금외수령 세금', ['over_limit', 'early_out', 'retire_over', 'early_retire', 'early_credit'],
+    ('R-10', '연금외수령 세금', ['over_limit', 'early_out', 'retire_over', 'early_retire', 'early_credit',
+                                'cancel_fix', 'cancel_fix_exc', 'irp_fix', 'irp_fix_doc'],
      '③ 재원 16.5% 기타소득세, ② 퇴직금 퇴직소득세 100%, ① 비과세', '계산'),
     ('R-11', '부득이한 사유 인출', ['unavoidable', 'unavoidable_care', 'unavoidable_sep', 'unavoidable_doc',
                                    'unavoidable_emigrate', 'emigrate_proof', 'emigrate_retire', 'house_not_unavoidable'],
@@ -162,11 +173,11 @@ _NUM = r'\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?'
 # 1억 2천만 원 · 1억2천5백만 · 3억 · 1,800만 원 · 2천만원 · 1천8백만 · 18,000,000원
 _MONEY = re.compile(
     rf'(?P<eok>{_NUM})\s*억(?:\s*(?P<eok_cheon>\d)\s*천)?(?:\s*(?P<eok_baek>\d)\s*백)?(?:\s*(?P<eok_man>{_NUM}))?\s*만?\s*원?'
-    rf'|(?P<cheon>\d)\s*천(?:\s*(?P<baek>\d)\s*백)?(?:\s*(?P<cman>{_NUM}))?\s*만\s*원?'
+    rf'|(?<![\d.])(?P<cheon>\d(?:\.\d)?)\s*천(?:\s*(?P<baek>\d)\s*백)?(?:\s*(?P<cman>{_NUM}))?\s*만\s*원?'
     # '천만원이면요?' — 숫자 없는 천만(1,000만). '추천만'처럼 낱말 안의 천은 아니다(C10 대화: 재작성이 '천만 원'을 남기면 금액을 못 읽었다)
     rf'|(?<![\d가-힣])(?P<bcheon>천)(?:\s*(?P<bbaek>\d)\s*백)?\s*만\s*원?'
     # won() 이 쓰는 '33만 6천 원', '1,173만 3,333원' — 만 뒤의 천·원 단위까지 한 금액으로 읽는다
-    rf'|(?P<mc>{_NUM})\s*만\s*(?P<mc_cheon>\d)\s*천\s*원'
+    rf'|(?P<mc>{_NUM})\s*만\s*(?P<mc_cheon>\d)\s*천(?!\s*만)(?:\s*원)?'
     rf'|(?P<mw>{_NUM})\s*만\s*(?P<mw_won>\d{{1,3}}(?:,\d{{3}})?)\s*원'
     rf'|(?P<man>{_NUM})\s*만\s*원?'
     rf'|(?P<won>\d{{1,3}}(?:,\d{{3}})+)\s*원')
@@ -236,6 +247,14 @@ _AGE = re.compile(r'(?:만\s*)?(?<![\d,.])(\d{2})\s*(?:살|세(?![금액율제�
 _DECADE = re.compile(r'([5-9])0\s*대')
 
 
+_FUTURE_AGE = re.compile(r'(?<![\d,.])(\d{2})\s*(?:살|세)\s*(?:부터|이\s*되면|가\s*되면|되면|되어서|넘어서|넘으면|이후에)')
+
+
+def rate_age(p):
+    """세율을 정할 나이 — 받는 나이를 따로 말했으면 그 나이, 아니면 고객 나이."""
+    return p.get('rate_age') or p.get('age')
+
+
 def customer_age(q):
     """질문에 나이가 하나로 분명하면 그 나이, 아니면 None. 60대처럼 연대면 ('대', 60)."""
     ages = {int(a) for a in _AGE.findall(q) if 19 <= int(a) <= 99}
@@ -270,7 +289,7 @@ def rate_for_age(age):
 
 
 _YEARLY = re.compile(r'(?:1년|일년|연간?|매년|한\s*해|해마다)\s*(?:에|에만|동안)?\s*(?:약|대략|한)?\s*$')
-_MONTHLY = re.compile(r'(?:월|매달|매월|한\s*달(?:에)?|달마다)\s*(?:에|에만)?\s*(?:약|대략|한)?\s*$')
+_MONTHLY = re.compile(r'(?:(?<![\d개])월|매달|매월|한\s*달(?:에)?|달마다)\s*(?:에|에만)?\s*(?:약|대략|한)?\s*$')
 _INCOME_PRE = re.compile(r'(총\s*급여|연봉|급여|근로소득|종합소득(?:금액)?|사업소득|소득)\s*(?:이|가|은|는|이요|가요)?\s*(?:약|대략|한)?\s*$')
 _OTHER_PERSON = re.compile(r'남편|아내|배우자|와이프|부인|부모|아버지|어머니|자녀|아들|딸')
 _THRESHOLD_POST = re.compile(r'\s*(?:이하|이상|초과|미만|넘|기준|까지|한도|을\s*넘|를\s*넘)')
@@ -309,7 +328,7 @@ def _income_kind(word):
 
 
 # 금액과 동사 사이에 끼는 부사 — 'IRP에 300만원 이미 넣었어요'를 납입으로 못 읽었다
-_ADV = r'(?:(?:이미|벌써|미리|다|모두|전부|꽉|각각)\s*){0,2}'
+_ADV = r'(?:(?:이미|벌써|미리|다|모두|전부|꽉|각각|같이|함께|동시에|둘\s*다)\s*){0,2}'
 # '중도인출하면'·'중도 해지하면' — 인출 동사 앞의 '중도'(C10 대화: 금액이 있는데 '인출하려는 금액'을 되물었다)
 _OUT_VERB = r'(?:중도\s*)?(?:빼|인출|찾|꺼내|출금|해지)'
 
@@ -332,7 +351,10 @@ def _role(q, s, e, no_isa=False):
     sent_b = min([i for i in (q.find(c, e) for c in '.?!\n') if i >= 0] or [len(q)])
     sent = q[sent_a:sent_b]
     around = q[max(sent_a, s - 25):min(sent_b, e + 45)]
-    if not no_isa and re.search(r'ISA', sent, re.I) and re.search(r'만기|해지|전환|옮|이체|넣|입금|납입', around):
+    after_move = re.search(r'(?:옮기|옮겨|이체하|전환하)\w{0,2}(?:고|서|뒤|후|면서)\s', q[sent_a:s]) and \
+        re.match(r'\s*(?:을|를|씩)?\s*(?:씩)?\s*' + _ADV + r'(?:더\s*)?(?:넣|납입|입금|불입)', post)
+    if not no_isa and not after_move and re.search(r'ISA', sent, re.I) and \
+            re.search(r'만기|해지|전환|옮|이체|넣|입금|납입', around):
         if re.match(r'\s*(?:의|이|가)?\s*(?:수익|이익|이자|한도|비과세|추가)', post) or \
                 re.search(r'(?:매년|연간|매달|매월)\s*$', pre):
             return 'skip', None, None   # ISA 수익·비과세 한도·연간 납입은 전환액이 아니다
@@ -355,7 +377,7 @@ def _role(q, s, e, no_isa=False):
         return 'withdraw', None, None
     # '내'는 납입('매달 30만 원씩 내고 있어요')일 때만 — '330만 원 내는 거죠'는 세금을 내는 말이다
     if re.match(r'\s*(?:을|를|씩|정도|쯤|으로|로)?\s*(?:씩)?\s*' + _ADV
-                + r'(?:더\s*)?(?:넣|납입|입금|저축|불입|내(?:고|요|서|며|왔|온|는\s*중))', post):
+                + r'(?:더\s*)?(?:넣|납입|입금|저축|불입|채우|채워|채운|채웠|내(?:고|요|서|며|왔|온|는\s*중))', post):
         return 'contrib', period, None
     # '연금저축에 600만원, IRP에 300만원 넣어서' · '연금저축에서 연 1,000만원, IRP에서 연 800만원 받으면'
     # — 나열 뒤에 동사가 온다. 나열을 끝내는 동사가 쓰임을 정한다.
@@ -367,7 +389,7 @@ def _role(q, s, e, no_isa=False):
                 return 'contrib', period, None
             if verb and verb.group(2):
                 return 'payout', period, None
-    if re.match(r'\s*(?:을|를|씩|정도|쯤|이|가)?\s*(?:씩)?\s*(?:받|수령|나오|나와|나올|나온|나옵|연금으로\s*받)', post):
+    if re.match(r'\s*(?:을|를|씩|정도|쯤|이|가)?\s*(?:씩)?\s*' + _ADV + r'(?:받|수령|나오|나와|나올|나온|나옵|연금으로\s*받)', post):
         return 'payout', period, None
     return None, None, None
 
@@ -401,27 +423,126 @@ def _early(q):
     return False
 
 
+# 단위 없는 금액 — 연금 질문에서는 만 원으로 읽는다. 대화 21개를 끝까지 돌려 보니 '1년에 2,000 받으려는데'·'연 1,800 받을 건데'를
+# 못 읽어 계산 블록이 없었고, 모델이 67·68세에 4.4%를 적용했다(C02·C13). '어디에 600 넣는'·'연봉 4,500'도 같은 빈틈.
+_BARE_N = r'(\d{1,3}(?:,\d{3})+|\d{2,5})'
+_BARE_STOP = r'(?![\d,.]|\s*(?:만|원|%|세|살|년|개|억|천|백|대|호|좌|주|배|건|명|회|차|월|일|시|분|등급|기|위|번|p|P))'
+_BARE_PERIOD = re.compile(r'(?:1년에|일년에|한\s*해에?|연간?|매년|매달|매월|한\s*달에?|(?<![\d개])월)\s*(?:약\s*|대략\s*)?' + _BARE_N + _BARE_STOP)
+_BARE_VERB = re.compile(r'(?<![\w.,])' + _BARE_N + r'(?=\s*(?:을|를|씩|정도|쯤|이|가)?\s*(?:씩)?\s*' + _ADV
+                        + r'(?:넣|납입|입금|불입|채우|채워|채운|채웠|받|수령|빼|인출|찾|꺼내|해지|옮기|옮겨|넘기|넘겨))')
+_BARE_INCOME = re.compile(r'(?:연봉|총\s*급여|급여)\s*(?:(?:이|가|은|는)\s*)?(?:(?:약|대략)\s*)?(\d{1,2},\d{3}|\d{4})(?![\d,]|\s*(?:만|원|억|천|년))')
+# '매년 2천씩'·'만기금 2천 연금계좌로' — 만 없는 N천(연봉 N천은 _INCOME_BARE 가 소득으로 읽는다)
+_BARE_CHEON = re.compile(r'(?<![\d가-힣.])(\d(?:\.\d)?)\s*천(?:\s*(\d)\s*백)?(?!\s*(?:만|원|억|\d|백))'
+                         r'(?=\s*(?:을|를|이|가|은|는|씩|정도|쯤)?\s*(?:씩)?\s*(?:연금|IRP|넘기|넘겨|옮기|옮겨|넣|받|빼|인출))')
+_BARE_CTX = re.compile(r'연금|IRP|ISA|공제|세금|세율|떼|납입|수령', re.I)
+
+
+def _product_words():
+    """상품 이름에서 숫자 바로 앞에 오는 말 — '라이프사이클 7090'·'거북이 90'·'코스닥 150'."""
+    words = {'라이프사이클', '거북이', '롱숏', 'KRX', 'KOSPI', '코스피', '코스닥', 'KOSDAQ', '나스닥', 'NASDAQ', 'S&P', '다우',
+             '인덱스', '밸류', '국채', 'TDF', 'KODEX', 'TIGER', 'ACE', 'KBSTAR', 'SOL', 'ARIRANG', 'HANARO', 'KOSEF', '빈티지',
+             '타겟데이트', '타깃데이트'}
+    try:
+        cards = json.load(open(os.path.join(ROOT, 'data', 'fund_cards.json'), encoding='utf-8'))
+        for f in cards:
+            for m in re.finditer(r'([가-힣A-Za-z&]{2,})\s*\d{2,4}', f.get('fund_name') or ''):
+                w = m.group(1)
+                words.add(w[-4:] if re.match(r'[가-힣]', w[-1]) else w[-5:])
+    except Exception:
+        pass
+    return words
+
+
+_PRODUCT_NUM = re.compile(r'(?:' + '|'.join(sorted((re.escape(w) for w in _product_words()), key=len, reverse=True))
+                          + r')\s*\d{2,4}', re.I)
+
+
+def product_spans(q):
+    """상품 이름 속 숫자 자리 [(시작, 끝)] — 이 자리의 숫자는 금액이 아니다."""
+    return [(m.start(), m.end()) for m in _PRODUCT_NUM.finditer(q or '')]
+
+
+# 금액이 아니라 확인하려는 결과(세후 실수령·공제 결과)나 빼는 몫 — '세금 떼고 1,503 받는 거죠', '퇴직금 500 빼고 받으면',
+# '세액공제 300 받을 수 있나요', '공제 한도 300 넘기나요'(검토: 이런 숫자를 입력으로 읽어 계산 블록을 깎거나 바꿨다)
+_NOT_INPUT_PRE = re.compile(r'(?:떼고|세후|실수령(?:액)?|빼고|공제|한도)\s*(?:은|는|이|가|로|으로)?\s*(?:약|대략)?\s*$')
+_NOT_INPUT_POST = re.compile(r'\s*(?:을|를|만)?\s*(?:빼고|제외하고)\s*(?:받|나머지|남은)')
+
+
+def _bare_amounts(q, taken, notes=None):
+    """단위 없는 금액 → [(만원 값, 시작, 끝)]. 이미 읽은 금액과 겹치면 뺀다. 펀드 이름의 숫자(TDF 2045)·연도는 금액이 아니다.
+    notes 를 주면 어떻게 읽었는지 적는다 — 답의 '가정'에 밝히고, 결과가 크게 갈리는 것은 시연 채널에서 되묻는다(사용자 결정 10-10)."""
+    if not _BARE_CTX.search(q):
+        return []
+    out = []
+    prod = product_spans(q)
+    for rx in (_BARE_PERIOD, _BARE_VERB, _BARE_INCOME):
+        for m in rx.finditer(q):
+            raw = m.group(1)
+            v = float(raw.replace(',', ''))
+            s, e = m.start(1), m.end(1)
+            if not 10 <= v <= 99999 or any(a <= s < b or s <= a < e for a, b in taken + prod):
+                continue
+            # 'TDF 2045'·'TDF2040'처럼 이름 바로 뒤 숫자만 막는다('IRP에서 연 1,800'의 IRP 는 이름이 아니다)
+            if ',' not in raw and 2020 <= v <= 2079 or re.search(r'(?:[A-Za-z]|펀드|빈티지)\s*$', q[max(0, s - 8):s]):
+                continue
+            if _NOT_INPUT_PRE.search(q[max(0, s - 10):s]) or _NOT_INPUT_POST.match(q, e):
+                continue
+            if v >= 10000:
+                # '월 50,000'·'80,000' — 다섯 자리는 원 단위로 쓴 금액이다(만 원으로 읽으면 5억·8억이 된다)
+                if notes is not None:
+                    notes.append({'raw': raw, 'text': f"'{raw}'을 {won(v / 10000)}(원 단위)으로 봄",
+                                  'ask': f"말씀하신 '{raw}'은 {won(v / 10000)}인가요, {won(v)}인가요?"})
+                v = v / 10000
+            elif notes is not None:
+                notes.append({'raw': raw, 'text': f"'{raw}'을 {won(v)}으로 봄", 'ask': ''})
+            out.append((v, s, e))
+            taken.append((s, e))
+    for m in _BARE_CHEON.finditer(q):
+        s, e = m.start(), m.end()
+        if any(a <= s < b or s <= a < e for a, b in taken + prod) or re.search(r'연봉|급여|소득', q[max(0, s - 8):s]):
+            continue
+        v = float(m.group(1)) * 1000 + (int(m.group(2)) * 100 if m.group(2) else 0)
+        if notes is not None:
+            notes.append({'raw': m.group(0).strip(), 'text': f"'{m.group(0).strip()}'을 {won(v)}으로 봄", 'ask': ''})
+        out.append((v, s, e))
+        taken.append((s, e))
+    return out
+
+
 # 금액이 그 계좌의 금액임을 보이는 앞말 — '연금저축 600', 'IRP에 300'. '연금저축으로'·'IRP에서'는 옮기는 쪽·나오는 쪽이라 뺀다
 _ACCT_OWN = re.compile(r'(?:연금저축(?:펀드|계좌)?|IRP|개인형\s*IRP|연금\s*계좌)\s*(?:에|에는|은|는|이|가|도|만)?\s*(?:약|대략)?\s*$',
                        re.I)
 
 
+def norm_ws(q):
+    """공백 덩어리를 하나로 — 줄바꿈 덩어리는 줄바꿈 하나, 나머지 공백(NBSP·EM SPACE 포함)은 띄어쓰기 하나.
+    정규식들이 \\s* 를 겹쳐 쓰므로 뜻은 같고, 긴 공백에서 역추적이 폭주하는 일을 막는다
+    (검토: 줄바꿈 1,985개짜리 질문에 66초 — 정규식이 GIL 을 놓지 않아 그동안 서버 전체가 멈춘다)."""
+    q = re.sub(r'[^\S\n]+', ' ', (q or '')[:2000])
+    return re.sub(r'\s*\n\s*', '\n', q)
+
+
 def parse(q):
     """질문에서 계산에 쓸 입력을 뽑는다. 금액마다 쓰임·기간·출처를 단다."""
-    # 공백 덩어리를 하나로 — 정규식들이 \s* 를 쓰므로 뜻은 같고, 긴 공백으로 느려지는 일을 막는다
-    q = re.sub(r'[ \t　]{2,}', ' ', (q or '')[:2000])
+    q = norm_ws(q)
     spans = []
     found = money_spans(q)
+    taken = [(s, e) for _, s, e in found]
     if re.search(r'넣|납입|입금|불입|공제|환급|돌려\s*받', q):
-        taken = [(s, e) for _, s, e in found]
         for m in _BARE_ACCT.finditer(q):
             v = float(m.group(1))
             if 10 <= v <= 1800 and not any(s <= m.start(1) < e for s, e in taken):
                 found.append((v, m.start(1), m.end(1)))
-        found.sort(key=lambda x: x[1])
+                taken.append((m.start(1), m.end(1)))
+    notes = []
+    found += _bare_amounts(q, taken, notes)
+    found.sort(key=lambda x: x[1])
     for v, s, e in found:
         role, period, kind = _role(q, s, e)
         spans.append({'v': v, 's': s, 'e': e, 'role': role, 'period': period, 'kind': kind, 'src': _source(q, s)})
+        mm = re.search(r'(\d{1,2})\s*월\s*(?:에|에만)?\s*$', q[max(0, s - 7):s])
+        if mm and role in ('contrib', 'payout', 'withdraw'):
+            notes.append({'raw': q[s:e], 'text': f'{mm.group(1)}월에 {won(v)}은 그 달 한 번의 금액으로 봄(매달 아님)', 'ask': ''})
     # ISA 가 든 문장의 금액은 모두 ISA 전환액으로 읽힌다 — '연금저축 600, IRP 300 넣었고 ISA 만기 2천만원 옮기면'의
     # 600·300은 계좌별 납입이다. 전환액 후보가 둘 이상일 때만, 계좌 이름에 바로 붙은 금액(옮기는 말이 뒤따르지 않는)을 다시 읽는다
     isa_sp = [x for x in spans if x['role'] == 'isa']
@@ -429,7 +550,8 @@ def parse(q):
         for x in isa_sp:
             sent_a = max(q.rfind(c, 0, x['s']) for c in '.?!\n') + 1
             ahead = re.split(r'[.?!\n,]', q[x['e']:x['e'] + 20])[0]
-            if _ACCT_OWN.search(q[sent_a:x['s']]) and not re.search(r'옮|이체|전환', ahead):
+            own_verb = re.match(r'\s*(?:을|를|씩|은|는|도)?\s*' + _ADV + r'(?:더\s*)?(?:넣|납입|입금|불입|채웠|채우)', ahead)
+            if _ACCT_OWN.search(q[sent_a:x['s']]) and (own_verb or not re.search(r'옮|이체|전환', ahead)):
                 role, period, kind = _role(q, x['s'], x['e'], no_isa=True)
                 if role:                    # 다시 읽어도 쓰임을 모르면('1,500만 원씩 나눠 넣으면') 그대로 둔다
                     x['role'], x['period'], x['kind'] = role, period, kind
@@ -439,13 +561,24 @@ def parse(q):
         if not _OTHER_PERSON.search(q[max(0, m.start() - 10):m.start()]):
             spans.append({'v': v, 's': m.start(), 'e': m.end(), 'role': 'income', 'period': None,
                           'kind': kind, 'src': 'earned'})
-    p = {'spans': spans, 'age': customer_age(q)}
+    p = {'spans': spans, 'age': customer_age(q), 'amount_notes': notes}
+    # 55세는 보통 규칙 나이('55세부터 받을 수 있죠?')다. 지금 나이 이하도 받는 나이가 아니다
+    fut = {int(a) for a in _FUTURE_AGE.findall(q)
+           if 56 <= int(a) <= 99 and (not isinstance(p['age'], int) or int(a) > p['age'])}
+    p['rate_age'] = fut.pop() if len(fut) == 1 and fut != {p['age']} else None
     p['payout'] = [x for x in spans if x['role'] == 'payout']
     incomes = [x for x in spans if x['role'] == 'income']
     p['income'] = (incomes[0]['kind'], incomes[0]['v']) if len(incomes) == 1 and incomes[0]['kind'] else None
     p['income_unknown_kind'] = len(incomes) == 1 and not incomes[0]['kind']
     isas = [x for x in spans if x['role'] == 'isa']
     p['isa'] = isas[0]['v'] if len(isas) == 1 else None
+    # 'ISA 3천만 원을 연금저축과 IRP에 반반(1,500만 원씩) 나눠 넣으면' — 나눠 옮기는 경우도 계산한다(C07 대화: 블록이 IRP 경우만 보여
+    # 모델이 '연금저축 750 + IRP 1,050 → 296.99만 원'을 지어냈다)
+    p['isa_split'] = bool(re.search(r'반반|반씩|절반|나눠|나누어', q) and '연금저축' in q and re.search(r'IRP|개인형', q, re.I))
+    if p['isa'] is None and p['isa_split'] and len(isas) == 2:
+        big, small = sorted((x['v'] for x in isas), reverse=True)
+        if abs(big - 2 * small) < 1:
+            p['isa'] = big                  # '3,000만 원을 1,500만 원씩' — 큰 쪽이 전환액
     bals = [x for x in spans if x['role'] == 'balance']
     p['balance'] = bals[0]['v'] if len(bals) == 1 else None
     wds = [x for x in spans if x['role'] == 'withdraw']
@@ -472,6 +605,15 @@ def parse(q):
         if len(vs) == 1:
             p['fund'][kind] = vs[0]
     p['fund_mentioned'] = {k for k, rx in _MENTION if re.search(rx, q)} | set(p['fund'])
+    if 'retire' not in p['fund'] and _RETIRE_NONE.search(q):
+        p['fund_mentioned'].discard('retire')
+    # 평가액과 재원 구성을 밝힌 계좌에서 기간 없이 '1,800만 원을 수령한다면'은 올해 꺼내는 금액이다(해마다 받는 연금액이 아니다).
+    # 대화 기억이 '올해 1,800만 원 빼면'을 이렇게 바꿔 쓰면 재원별 인출(57만 6천 원) 대신 규칙과 되묻기로 빠졌다(10-12 시연 점검)
+    if p['withdraw'] is None and p['balance'] is not None and p['fund'] and len(p['payout']) == 1:
+        x = p['payout'][0]
+        if x['period'] is None and x['v'] <= p['balance'] and not re.match(r'\s*씩', q[x['e']:]):
+            x['role'] = 'withdraw'
+            p['withdraw'], p['payout'] = x['v'], []
     rt = [x['v'] for x in spans if x['role'] == 'rtax']
     p['rtax'] = rt[0] if len(rt) == 1 else None
     m = _EFF.search(q)
@@ -627,6 +769,49 @@ def _payout_retire(p, q):
 
 
 _BANDS = [(5.5, '55세 이상 70세 미만'), (4.4, '70세 이상 80세 미만'), (3.3, '80세 이상')]
+# 수령액 여럿이 합산이 아니라 고를 방식들이라는 말
+_ALT_Q = re.compile(r'거랑|것과|이랑\s*.{0,12}(?:중|차이|비교)|아니면|vs|VS|비교|차이|중\s*(?:뭐|어느|어떤)|어느\s*(?:쪽|게|것)')
+# 1,500만 원 판단은 전 금융기관 연금계좌 합산이다(doc38) — '합쳐서'·'같이 받으면'은 비교가 아니라 합산
+_SUM_Q = re.compile(r'합쳐|합치|합산|같이|함께|둘\s*다|동시에|더하면|각각\s*받')
+# 계좌가 둘(연금저축·IRP)이면 둘 다 받는 게 보통이다 — '거랑'·'차이'만으로는 비교로 보지 않는다
+_ALT_STRONG = re.compile(r'아니면|vs|VS|중\s*(?:에\s*)?(?:뭐|어느|어떤)|어느\s*(?:쪽|게|것)|비교')
+
+
+def _yearly(x):
+    return x['v'] * 12 if x['period'] == 'monthly' else x['v']
+
+
+def _payout_alternatives(p, q, mine):
+    """고를 수령액 여럿을 각각 계산 — 합산하지 않는다. 연 표시는 하나만 있어도 모두 연으로 본다('연 1,500씩 … 2,000씩')."""
+    band = rate_for_age(rate_age(p))
+    lines, figs, keys = [], [], ['rate_table', 'over_1500', 'whole_amount', 'progressive', 'excluded', 'all_accounts']
+    if band:
+        age_txt = f'{p["age"][1]}대' if isinstance(p['age'], tuple) else f'{p["age"]}세'
+        lines.append(f'나이 {age_txt} → 연금소득세율 {pct(band[0])} ({band[1]}, 지방소득세 포함)')
+    else:
+        lines.append('나이가 질문에 분명하지 않아 세율 구간을 정하지 않음 (55~69세 5.5%, 70~79세 4.4%, 80세 이상 3.3%)')
+    for x, lab in dict.fromkeys((_yearly(x), (f'월 {won(x["v"])}(연 {won(_yearly(x))})' if x['period'] == 'monthly'
+                                             else f'연 {won(x["v"])}')) for x in mine):
+        if x > 1500:
+            t = won(x * 0.165)
+            figs.append(t)
+            lines.append(f'{lab} 받으면: 1,500만 원 초과 → 초과분이 아니라 전액({won(x)})이 대상 — 16.5% 분리과세를 고르면 '
+                         f'{won(x)} × 16.5% = {t}, 종합과세를 고르면 다른 소득과 합산해 6.6~49.5%')
+        elif band:
+            t = won(x * band[0] / 100)
+            figs.append(t)
+            lines.append(f'{lab} 받으면: 1,500만 원 이하 → 전액 {pct(band[0])} 분리과세 {won(x)} × {pct(band[0])} = {t}')
+        else:
+            alt = [won(x * r / 100) for r, _ in _BANDS]
+            figs += alt
+            lines.append(f'{lab} 받으면: 1,500만 원 이하 → 나이별 분리과세 '
+                         + ' · '.join(f'{name} {pct(r)} → {a}' for (r, name), a in zip(_BANDS, alt)))
+    if any(_yearly(x) > 1500 for x in mine):
+        lines.append(_NOT_ALWAYS)
+        keys.append('not_always')
+    lines.append('비교만 보여 준다 — 1,500만 원 판단은 전 금융기관 연금계좌 합산이고, 세액공제 안 받은 돈과 퇴직금은 들어가지 않는다. '
+                 '전제: 세액공제 받은 납입금·운용수익 재원을 55세 이후 연금수령한도 안에서 받는 경우')
+    return _block('doc38.txt', '연금 수령 세금(방식 비교)', lines, keys, figures=list(dict.fromkeys(figs)))
 
 
 def payout(p, q):
@@ -661,6 +846,14 @@ def payout(p, q):
     if others or person or p['public']:
         return _payout_rule_only(p, '질문에 연금저축·IRP 외의 연금이나 소득이 함께 있어 금액을 계산하지 않음 '
                                     '(공적연금은 1,500만 원 판단에서 빠진다)', q=q)
+    periods = [x['period'] for x in mine]
+    two_accts = bool(re.search(r'연금저축', q)) and bool(re.search(r'IRP|개인형', q, re.I))
+    alt = False if _SUM_Q.search(q) else bool(_ALT_STRONG.search(q)) if two_accts else bool(_ALT_Q.search(q))
+    if len(mine) >= 2 and alt and any(periods) and not ('monthly' in periods and None in periods):
+        if None in periods:              # '연 1,500씩 … 2,000씩' — 연 표시가 하나만 있어도 모두 연으로 본다
+            mine = [dict(x, period=x['period'] or 'yearly') for x in mine]
+        # '연 1,500씩 받는 거랑 2,000씩 받는 거' — 합산이 아니라 두 방식의 비교다(C16 대화). 각각 따로 계산한다
+        return _payout_alternatives(p, q, mine)
     if any(x['period'] is None for x in mine):
         return _payout_rule_only(p, '질문에 연/월 표시가 없어 연간 수령액인지 알 수 없음 — 한 번에 인출하는 경우라면 '
                                     '연금수령한도를 넘는 부분은 연금외수령(16.5% 기타소득세)', q=q)
@@ -675,14 +868,18 @@ def payout(p, q):
         lines.append(f'입력: 월 {won(mine[0]["v"])} × 12 = 연 {won(yearly)}')
     else:
         lines.append(f'입력: 연금 수령액 연 {won(yearly)}')
-    band = rate_for_age(p['age'])
+    band = rate_for_age(rate_age(p))
     r = band[0] if band else None
     others_b = [(x, name) for x, name in _BANDS if not band or name != band[1]]
     if band:
-        age_txt = f'{p["age"][1]}대' if isinstance(p['age'], tuple) else f'{p["age"]}세'
-        lines.append(f'나이 {age_txt} → 연금소득세율 {pct(r)} ({band[1]}, 지방소득세 포함)')
+        ra = rate_age(p)
+        age_txt = f'{ra[1]}대' if isinstance(ra, tuple) else f'{ra}세'
+        lines.append(f'나이 {age_txt} → 연금소득세율 {pct(r)} ({band[1]}, 지방소득세 포함)'
+                     + (f' — 지금 {p["age"]}세지만 받는 나이({ra}세) 기준(연금소득세율은 연금수령일 현재 나이로 정함)'
+                        if p.get('rate_age') and p.get('age') and p['age'] != ra else ''))
         # 고객 구간 하나만 보이면 답이 좁아진다 — 다른 나이 구간도 싣는다(세율은 연금수령일 현재 나이 기준)
-        lines.append('다른 나이 구간: ' + ' · '.join(f'{name} {pct(x)}' for x, name in others_b)
+        # '고객은 해당 없음'을 밝힌다 — 67세 질문에 답이 '70세 이상 80세 미만(고객 해당) 4.4%'로 옮겨 적은 일이 있다(C02 대화)
+        lines.append(f'다른 나이 구간(고객 {age_txt}는 해당 없음): ' + ' · '.join(f'{name} {pct(x)}' for x, name in others_b)
                      + ' (연금수령일 현재 나이 기준 — 나이가 들수록 세율이 낮아진다)')
     elif yearly > 1500:
         lines.append('나이가 질문에 분명하지 않아 세율 구간을 정하지 않음 (55~69세 5.5%, 70~79세 4.4%, 80세 이상 3.3%)')
@@ -729,6 +926,16 @@ def payout(p, q):
     return _block('doc38.txt', '연금 수령 세금', lines, keys, key_figure=key, yearly=yearly, figures=figs, alts=alts)
 
 
+# 어느 쪽이 나은지 묻는 말 — 이때는 계산 블록이 어느 쪽이든 '비교만 하고 권하지 마라'를 붙인다(calc_policy)
+_COMPARE_Q = re.compile(r'나아|나을|낫|좋아요|좋을까|좋은가|좋은지|유리|불리|어디에|어디로|어느\s*(?:쪽|게|것|계좌)|뭐가\s*좋|최적|추천')
+
+
+def _acct_choice(p, q):
+    """한 금액을 연금저축과 IRP 중 어디에 넣을지 묻는 질문인가."""
+    return (len(p['contrib']) == 1 and '연금저축' in q and bool(re.search(r'IRP|개인형', q, re.I))
+            and bool(re.search(r'어디에|어느\s*(?:쪽|계좌|게)|중에?\s*(?:뭐|어디|어느)|나아|나을|좋아|유리', q)))
+
+
 def _combos(contrib):
     """납입 나열을 조합으로 나눈다 — 같은 계좌가 다시 나오면 새 조합. → [(연금저축 합, IRP 합)]"""
     out, cur = [], {'savings': 0.0, 'irp': 0.0}
@@ -762,6 +969,10 @@ def deduction(p, q):
     has_s = any(c['acct'] == 'savings' for c in p['contrib'])
     has_i = any(c['acct'] == 'irp' for c in p['contrib'])
     combos = _combos(p['contrib']) if re.search(r'비교|vs|VS|아니면|각각|이랑\s*.{0,20}(?:중|어느)|중\s*(?:뭐|어느|어떤)|것과|거랑', q) else []
+    if not combos and _acct_choice(p, q):
+        # '연금저축이랑 IRP 중에 어디에 600 넣는 게 나아요?' — 한 금액을 두 계좌에 넣는 경우를 나란히(C18 대화: 블록 없이 '연금저축이 유리'라고 권했다)
+        v = p['contrib'][0]['v']
+        combos = [(v, 0.0), (0.0, v)]
     if len(combos) >= 2:
         # '연금저축 600 + IRP 300이랑 연금저축 900 비교' — 같은 계좌가 다시 나오면 다른 조합이다(DIY 설계 7쪽)
         figs = []
@@ -846,19 +1057,21 @@ def isa_block(p, rate, s, i):
              + (f', IRP 납입 {won(i)}' if i else '')]
 
     def total(dest):
-        gs = min(s + (isa if dest == 'savings' else 0), 600)
-        g = min(gs + i + (isa if dest == 'irp' else 0), 900)
+        to_s = isa if dest == 'savings' else isa / 2 if dest == 'split' else 0
+        gs = min(s + to_s, 600)
+        g = min(gs + i + (isa - to_s), 900)
         return g, min(g + extra, isa + s + i)
 
     # 60일은 계산의 전제다(doc4: 만기일부터 60일이 지나면 전환 불가) — 블록 끝 줄에 두었더니 총 공제액 줄을 더한 뒤 답에서 빠졌다
     lines.append(f'추가 공제 대상 = min(전환액 × 10%, 300만 원) = {won(extra)} (전제: ISA 만기일부터 60일 안에 연금계좌로 옮긴 경우 — '
                  '60일이 지나면 전환 불가. 전환액은 연 1,800만 원 납입한도와 별도)')
-    dests = [p['isa_dest']] if p['isa_dest'] else ['savings', 'irp']
+    dests = ['savings', 'irp', 'split'] if p.get('isa_split') else [p['isa_dest']] if p['isa_dest'] else ['savings', 'irp']
     figs = [won(extra)] + ([won(extra * rate / 100)] if rate else [])
     totals = {}
     for d in dests:
         g, t = total(d)
-        name = '연금저축계좌로 옮기면' if d == 'savings' else 'IRP로 옮기면'
+        name = ('연금저축계좌로 옮기면' if d == 'savings' else 'IRP로 옮기면' if d == 'irp'
+                else f'나눠 옮기면(연금저축 {won(isa / 2)} + IRP {won(isa / 2)})')
         totals[name] = t
         line = f'{name}: 일반 한도분 {won(g)} + 추가분 {won(extra)}'
         line += f' = 공제 대상 {won(t)}' if t == g + extra else f' → 실제 납입액 상한으로 공제 대상 {won(t)}'
@@ -875,7 +1088,7 @@ def isa_block(p, rate, s, i):
         # 추가분만 보이면 답이 좁아진다 — 옮긴 해의 총 공제액도 싣는다
         for t in dict.fromkeys(totals.values()):
             who = [n for n, v in totals.items() if v == t]
-            head = '' if len(set(totals.values())) == 1 else who[0] + ' '
+            head = '' if len(set(totals.values())) == 1 else ' / '.join(who) + ' — '
             lines.append(f'{head}옮긴 해 공제 대상 {won(t)} 전체의 세액공제액: 공제율 16.5%면 {won(t * 0.165)}, '
                          f'13.2%면 {won(t * 0.132)}')
             figs += [won(t * 0.165), won(t * 0.132)]
@@ -907,7 +1120,7 @@ def withdraw_limit(p, q):
     w = p['withdraw']
     inside = w if lim is None else min(w, lim)
     over = 0 if lim is None else max(0.0, w - lim)
-    band = rate_for_age(p['age'])
+    band = rate_for_age(rate_age(p))
     figs = [won(lim)] if lim is not None else []
     t_over = over * 0.165
     if over:
@@ -960,10 +1173,10 @@ FUND_NAME = {'free': '① 세액공제 안 받은 돈', 'retire': '② 퇴직금
 def _reduction(m):
     """연금실제수령연차 → (퇴직소득세에 곱할 비율, 설명). doc39 표."""
     if m <= 10:
-        return 0.7, '30% 감면(실제수령 1~10년차)'
+        return 0.7, '30% 감면 — 연금실제수령연차 1~10년차'
     if m <= 20:
-        return 0.6, '40% 감면(실제수령 11~20년차)'
-    return 0.5, '50% 감면(실제수령 21년차~)'
+        return 0.6, '40% 감면 — 연금실제수령연차 11~20년차'
+    return 0.5, '50% 감면 — 연금실제수령연차 21년차~'
 
 
 def _alloc(sources, w, lim):
@@ -992,7 +1205,8 @@ def _row_tax(kind, inside, over, eff, red, rate, lines, early):
         if inside:
             if eff is not None:
                 t = inside * eff / 100 * red[0]
-                parts.append(f'한도 안 {won(inside)} = 연금수령 → 퇴직소득세의 {round(red[0] * 100)}%({red[1]}): '
+                # '퇴직소득세의 70%(30% 감면(…))'를 '70% 감면'으로 옮겨 쓴 답이 있었다 — '…%만 냄'으로 분명히
+                parts.append(f'한도 안 {won(inside)} = 연금수령 → 퇴직소득세의 {round(red[0] * 100)}%만 냄({red[1]}): '
                              f'{won(inside)} × {eff:g}% × {round(red[0] * 100)}% = {won(t)}')
                 tax += t
             else:
@@ -1067,6 +1281,26 @@ def _irp_early(q, acct):
     return lines, keys
 
 
+_CANCEL = re.compile(r'해지|해약|깨(?!끗)')
+
+
+def _cancel_check(q, acct):
+    """해지 질문이면 '해지 신청 전 확인' 줄 → (줄들, 원문 키들).
+    연금저축은 해지를 신청할 때 과세재원이 확정되고 신청 뒤에는 바꿀 수 없다(doc5) — 공제 안 받은 돈은 신청 전에 확인해야 한다.
+    IRP 는 재원확정(doc19)으로 공제 안 받은 돈을 과세제외한다. doc19 의 '재원확정: 내점만 가능'은 MAPS 개시/해지 화면의
+    공제확인서 발급번호 입력칸·FAQ 와 어긋날 수 있어 싣지 않는다(본선_작업정리/12 D-4)."""
+    if not _CANCEL.search(q or ''):
+        return [], []
+    if acct == 'IRP':
+        return (['해지 신청 전 확인: IRP는 재원확정으로 금융회사의 과세대상금액을 국세청 소득·세액공제합계액과 맞춰 '
+                 '세액공제 안 받은 돈을 과세에서 뺀다 — 필요 서류는 연금보험료등 소득·세액공제확인서(국세청 자료)'],
+                ['irp_fix', 'irp_fix_doc'])
+    return (['해지 신청 전 확인: 연금저축은 해지를 신청할 때 과세재원이 확정돼 국세청에 통보되고, 신청 뒤에는 과세재원을 '
+             '바꾸거나 그에 따라 환급받을 수 없다(해지 뒤 전년도 납입금을 공제받지 않았음을 증빙하면 예외) — '
+             '세액공제 안 받은 납입금이 있으면 해지 신청 전에 확인해 둔다'],
+            ['cancel_fix', 'cancel_fix_exc'])
+
+
 def by_source(p, q):
     """재원별 인출 세금. 퇴직금이 섞였거나(재원 언급), 55세 전·해지 인출일 때.
     필요한 값이 빠지면 금액 대신 규칙과 '빠진 정보'(되묻기용)를 담은 블록을 낸다."""
@@ -1121,11 +1355,13 @@ def by_source(p, q):
         f['credit'] = 0.0                 # 인출이 퇴직금 안에서 끝나면 ③ 금액은 몰라도 된다
     if early and not free_known and not f.get('retire') and not f.get('credit'):
         irp_l, irp_k = _irp_early(q, acct)
+        cl, ck = _cancel_check(q, acct)
+        irp_l, irp_k = irp_l + cl, irp_k + ck
         if 'retire' in mentioned:
             # 퇴직금이 섞였으면 퇴직소득세가 개인마다 달라 '최대'도 말할 수 없다
             lines = [f'입력: {acct} {won(w)} 해지·인출' + (f', 나이 {age}세' if age else ''),
                      '55세 전 인출·해지는 연금외수령(R-04) — ① 세액공제 안 받은 돈 비과세, ② 퇴직금 퇴직소득세 100%, '
-                     '③ 세액공제 받은 돈·수익 기타소득세 16.5% (R-06 순서로 빠짐)'] + irp_l
+                     '③ 세액공제 받은 돈·수익 기타소득세 16.5% (인출 순서대로 빠짐)'] + irp_l
             return _block('doc39.txt', '55세 전·해지 인출 세금(규칙)', lines,
                           ['pension_req', 'order', 'free', 'early_credit', 'early_retire'] + irp_k, numbers=False,
                           needs=['재원별 금액(세액공제 안 받은 돈·퇴직금·세액공제 받은 돈과 수익)',
@@ -1133,9 +1369,11 @@ def by_source(p, q):
         # '연금저축 2,000만 원 해지' — 재원 구성을 모르면 전부 ③으로 본 값이 최대 세금이다
         upper = w * 0.165
         lines = [f'입력: {acct} {won(w)} 해지·인출' + (f', 나이 {age}세' if age else ''),
-                 '55세 전 인출·해지는 연금수령이 아니라 연금외수령이다(R-04). 넣은 돈 전부가 아니라 재원별로 과세된다(R-06·R-10)',
+                 # '넣은 돈 전부가 아니라'를 '일부에만 16.5%'로 옮겨 쓴 답이 3회 모두였다 — 모두 공제받았으면 전부 과세된다
+                 '55세 전 인출·해지는 연금수령이 아니라 연금외수령이다(R-04). 세금은 재원별로 정해진다(R-06·R-10) — '
+                 '비과세는 세액공제 안 받은 원금뿐이고, 운용수익은 세액공제를 받았는지와 상관없이 기타소득세 16.5%',
                  f'{FUND_NAME["free"]}: 비과세 / {FUND_NAME["credit"]}: 기타소득세 16.5% / {FUND_NAME["retire"]}: 퇴직소득세 100%',
-                 f'전부 세액공제 받은 돈·수익이라면(최대) {won(w)} × 16.5% = {won(upper)}',
+                 f'넣은 돈을 모두 세액공제 받았다면 {won(w)} 전부가 16.5% 대상(최대): {won(w)} × 16.5% = {won(upper)}',
                  f'세액공제 안 받은 돈이 X원 있으면 세금 = ({won(w)} − X) × 16.5% — 예: 500만 원이면 '
                  f'{won(w - 500)} × 16.5% = {won((w - 500) * 0.165)}' if w > 500 else
                  '세액공제 안 받은 돈이 있으면 그만큼은 세금이 없다'] + irp_l
@@ -1210,6 +1448,9 @@ def by_source(p, q):
                         '한도를 넘긴 퇴직금은 퇴직소득세 100%, 한도를 넘긴 ③ 재원은 기타소득세 16.5%(R-09·R-10)']
         if f.get('retire') is None and 'retire' in mentioned:
             lines.append(f'인출 {won(w)}이 퇴직금보다 적으면 전부 퇴직금에서 나간다(공제 안 받은 돈이 없을 때)')
+        if early:
+            cl, ck = _cancel_check(q, acct)
+            lines, keys = lines + cl, keys + ck
         return _block('doc39.txt', '재원별 인출 세금(규칙)', lines,
                       list(dict.fromkeys(keys + ['retire_in', 'retire_over', 'over_limit'])), numbers=False,
                       needs=needs, assume=assume)
@@ -1237,7 +1478,9 @@ def by_source(p, q):
         l2, t2, _, _ = _year_tax(left, rest, lim2, eff, (m or 1) + 1, age + 1 if age else None, False)
         if t1 is not None and t2 is not None:
             lines.append(f'비교(나눠 받기): 올해 한도까지 {won(lim)} → {won(t1)} + 내년 나머지 {won(rest)}'
-                         + (f'(내년 한도 {won(lim2)} 안)' if lim2 is not None and rest <= lim2 else '')
+                         # 내년 한도 값만 적자 '1억 ÷ (11 − 2) × 120%'처럼 맞지 않는 식을 지어낸 답이 있었다 — 식을 함께
+                         + (f'(내년 한도 = ({won(B)} − {won(lim)}) ÷ (11 − {n2}) × 120% = {won(lim2)} 안, '
+                            f'내년 평가액은 올해 인출만 뺀 값)' if lim2 is not None and rest <= lim2 else '')
                          + f' → {won(t2)} = 합계 {won(t1 + t2)}  ·  올해 한꺼번에 {won(w)} → {key}')
             figures += [won(t1), won(t2), won(t1 + t2)]
             assume.append('내년 평가액은 수익률 0%로 봄(올해 인출만 뺌)')
@@ -1249,6 +1492,9 @@ def by_source(p, q):
     if lim is not None:
         figures.append(won(lim))
     keys += ['retire_in'] if f.get('retire') else []
+    if early:
+        cl, ck = _cancel_check(q, acct)
+        lines, keys = lines + cl, keys + ck
     return _block('doc39.txt', '재원별 인출 세금', lines, list(dict.fromkeys(keys)), numbers=True,
                   key_figure=key, needs=needs, assume=assume, figures=figures)
 
@@ -1344,8 +1590,9 @@ def unavoidable_rule(p, q, early=None):
         lines.append('퇴직금 재원의 부득이한 사유 인출 과세는 문서마다 조건이 달라(입금 후 3년 등) 금액을 계산하지 않음')
     if early:
         # 사유로 인정받지 못하면 — '그냥 깨면 16.5% 다 떼이죠?'에 답하려면 이 규칙도 있어야 한다
-        lines.append('부득이한 사유로 인정받지 못하면 55세 전 인출·해지는 연금외수령 — 넣은 돈 전부가 아니라 인출 순서대로 '
-                     '① 세액공제 안 받은 돈은 비과세, ② 퇴직금은 퇴직소득세 100%, ③ 세액공제 받은 돈과 운용수익만 기타소득세 16.5%')
+        lines.append('부득이한 사유로 인정받지 못하면 55세 전 인출·해지는 연금외수령 — 세금은 인출 순서대로 재원별: '
+                     '① 세액공제 안 받은 원금은 비과세, ② 퇴직금은 퇴직소득세 100%, ③ 세액공제 받은 돈과 운용수익(공제 여부와 '
+                     '상관없이)은 기타소득세 16.5% — 넣은 돈을 모두 세액공제 받았다면 전부 16.5%')
         keys += ['order', 'free', 'early_credit', 'early_retire']
     else:
         keys.append('order')
@@ -1355,19 +1602,21 @@ def unavoidable_rule(p, q, early=None):
 def early_rule(p, q):
     """금액 없이 55세 전·해지 인출 과세를 묻는 질문 — 넣은 돈 전부가 아니라 재원별로 과세된다는 규칙."""
     lines = ['55세 전 인출·해지는 연금수령이 아니라 연금외수령이다(R-04)',
-             '넣은 돈 전부에 16.5%가 붙는 것이 아니다 — 인출 순서(R-06)대로 ① 세액공제 안 받은 돈은 비과세, '
-             '② 퇴직금은 퇴직소득세 100%, ③ 세액공제 받은 돈과 운용수익만 기타소득세 16.5%(R-10)',
+             '세금은 재원별로 정해진다 — 인출 순서(R-06)대로 ① 세액공제 안 받은 원금은 비과세, '
+             '② 퇴직금은 퇴직소득세 100%, ③ 세액공제 받은 돈과 운용수익(공제 여부와 상관없이)은 기타소득세 16.5%(R-10). '
+             '넣은 돈을 모두 세액공제 받았다면 전부 16.5%',
              '예: 2,000만 원 해지, 그중 공제 안 받은 돈 500만 원 → 1,500만 원 × 16.5% = 247만 5천 원 (전부 공제받은 돈이면 330만 원)',
              '부득이한 사유(사망·해외이주·3개월 이상 요양 등)면 연금소득세 5.5~3.3%(R-11)']
-    return _block('doc39.txt', '55세 전·해지 인출 세금(규칙)', lines,
-                  ['pension_req', 'order', 'free', 'early_credit', 'early_retire', 'unavoidable'], numbers=False,
+    cl, ck = _cancel_check(q, 'IRP' if re.search(r'IRP|개인형', q, re.I) else '연금저축')
+    return _block('doc39.txt', '55세 전·해지 인출 세금(규칙)', lines + cl,
+                  ['pension_req', 'order', 'free', 'early_credit', 'early_retire', 'unavoidable'] + ck, numbers=False,
                   needs=['해지·인출하려는 금액', '그중 세액공제 안 받은 납입금(비과세 원금)'])
 
 
 def compute(q):
     """질문 → {'blocks': [...], 'summary': str, 'parsed': dict} 또는 None(넣을 게 없음)."""
     try:
-        return _compute(re.sub(r'[ \t　]{2,}', ' ', (q or '')[:2000]))
+        return _compute(norm_ws(q))
     except Exception:
         return None                       # 계산기 오류로 답변이 깨지면 안 된다
 
@@ -1402,18 +1651,29 @@ def _compute(q):
         blocks.append(src_b)
     elif lim:
         blocks.append(lim)
-    elif _TAX_Q.search(q) and not p['unavoidable']:
+    elif (_TAX_Q.search(q) or len(p['payout']) >= 2 and _ALT_Q.search(q)) and not p['unavoidable']:
+        # '연 1,500만 원씩 받는 것과 연 2,000만 원씩 받는 것 중 어느 쪽이 나은가요?' — 세금 말이 없어도 수령 방식 비교는 세금 비교다
         b = payout(p, q)
         if b:
             blocks.append(b)
     ded_intent = _DED_Q.search(q) or (p['isa'] and re.search(r'세금|절세|아끼|아낄|이득|공제|나아|나을|유리|어디로', q)) \
-        or (p['income'] and len(p['contrib']) >= 2 and re.search(r'비교|어느\s*쪽|뭐가\s*나아|차이|각각', q))
+        or (p['income'] and len(p['contrib']) >= 2 and re.search(r'비교|어느\s*쪽|뭐가\s*나아|차이|각각', q)) \
+        or (p['income'] and _acct_choice(p, q))
     if ded_intent and (p['income'] or p['contrib'] or p['isa'] or p['income_unknown_kind']) and not blocks:
         blocks.extend(deduction(p, q))
     if not blocks:
         return None
+    amount_assume = [n['text'] for n in p.get('amount_notes', [])]
+    if amount_assume:
+        for b in blocks:
+            if b.get('numbers'):
+                b['assume'] = list(dict.fromkeys(b['assume'] + amount_assume))
+                b['text'] = b['text'].replace('\n[원문]\n', '\n- 금액 읽기(질문에 단위가 없어 이렇게 봄): '
+                                              + ' · '.join(amount_assume) + '\n[원문]\n', 1)
+                break
     rids = list(dict.fromkeys(r for b in blocks for r in b.get('rids', [])))
-    return {'blocks': blocks, 'parsed': p, 'rids': rids,
+    return {'blocks': blocks, 'parsed': p, 'rids': rids, 'compare': bool(_COMPARE_Q.search(q)),
+            'ambiguous': [n for n in p.get('amount_notes', []) if n.get('ask')],
             'needs': list(dict.fromkeys(x for b in blocks for x in b.get('needs', []))),
             'assume': list(dict.fromkeys(x for b in blocks for x in b.get('assume', []))),
             'figures': [x for b in blocks for x in b.get('figures', [])],
@@ -1474,7 +1734,7 @@ def misread_spans(text, calc=None):
             x = blk.get('yearly')
             if not x or x <= 1500 or blk['topic'] != '연금 수령 세금':
                 continue
-            band = rate_for_age(calc['parsed']['age'])
+            band = rate_for_age(rate_age(calc['parsed']))
             wrong = [won((x - 1500) * 0.165)]
             if band:
                 wrong.append(won(1500 * band[0] / 100 + (x - 1500) * 0.165))
@@ -1508,17 +1768,96 @@ def correction(calc, cite=None):
             f'종합과세 또는 16.5% 분리과세 대상입니다{ref}. ')
 
 
+def _split_pieces(calc):
+    """분할 과세로 나눠 계산하면 나오는 금액들 — '1,500만 원까지 r%' 몫, '초과분 16.5%' 몫, 그 합.
+    계산 블록에 정답으로도 나오는 금액은 뺀다."""
+    out = set()
+    for blk in (calc or {}).get('blocks', []):
+        x = blk.get('yearly')
+        if not x or x <= 1500 or blk['topic'] != '연금 수령 세금':
+            continue
+        over = (x - 1500) * 0.165
+        band = rate_for_age(rate_age(calc['parsed']))
+        rates = [band[0]] if band else [r for r, _ in _BANDS]
+        low = {won(1500 * r / 100) for r in rates}
+        out |= {won(over)} | {won(1500 * r / 100 + over) for r in rates}
+        out -= {w for w in list(out) if w in blk['text']}
+        # '1,500만 원까지 5.5% → 82만 5천 원'은 블록에도(1,500만 원 이하로 받을 때의 비교값) 나올 수 있다 —
+        # 오독과 함께 '1,500만 원까지·이하' 구간 몫으로 쓰였을 때만 분할 조각이다
+        out |= {'LOW:' + w for w in low}
+    return out
+
+
+_LOW_CTX = re.compile(r'1[,.]?500\s*만\s*원?\s*(?:까지|이하|이내)')
+
+
+def _is_piece(seg, pieces):
+    if any(w in seg for w in pieces if not w.startswith('LOW:')):
+        return True
+    return bool(_LOW_CTX.search(seg)) and any(w[4:] in seg for w in pieces if w.startswith('LOW:'))
+
+
+_SPLIT_CTX = re.compile(r'1[,.]?500\s*만\s*원?\s*(?:까지|이하|이내)|초과|합계|따라서|총|더하면|\+')
+
+
 def repair(text, calc=None, cite=None):
-    """(고친 글, 고친 문장 수). 오독 문장 첫 개를 바른 문장으로 바꾸고 나머지 오독 문장은 지운다."""
-    spans = misread_spans(text, calc)
-    if not spans:
+    """(고친 글, 고친 곳 수). 오독 문장 첫 개를 바른 문장으로 바꾸고 나머지 오독 문장은 지운다.
+    분할 계산의 나머지 조각(1,500만 원까지 몫·초과분 몫·합계 줄)도 지운다 — 검토: 오독 문장만 바꾸면
+    '따라서 세금은 82만 5천 + 49만 5천 = 132만 원'이 남았고, 표 안에서 고치면 표가 깨졌다."""
+    if not misread_spans(text, calc):
         return text, 0
+    pieces = _split_pieces(calc)
+    n = 0
+    # 1) 표 — 오독이나 분할 조각이 든 행을 지우고, 바른 문장은 표 뒤에 둔다. 머리줄만 남은 표는 통째로 지운다
+    lines = text.split('\n')
+    out_lines, table, put_after = [], [], False
+
+    def flush():
+        nonlocal table, put_after
+        body = [t for t in table if not re.match(r'\s*\|?\s*:?-{2,}', t)]
+        if len(body) > 1:
+            out_lines.extend(table)
+        if put_after:
+            out_lines.append('')
+            out_lines.append(correction(calc, cite).rstrip())
+        table, put_after = [], False
+
+    for ln in lines:
+        if ln.lstrip().startswith('|'):
+            bad = misread_spans(ln, calc) or _is_piece(ln, pieces)
+            if bad:
+                n += 1
+                put_after = put_after or bool(misread_spans(ln, calc)) or bool(_SPLIT_CTX.search(ln))
+                continue
+            table.append(ln)
+            continue
+        if table or put_after:
+            flush()
+        out_lines.append(ln)
+    if table or put_after:
+        flush()
+    text2 = '\n'.join(out_lines)
+    corrected = n > 0 and correction(calc, cite).rstrip() in text2
+    # 2) 문장 — 첫 오독 문장은 바른 문장으로(표에서 이미 넣었으면 지우기만), 나머지 오독·분할 조각 문장은 지운다
+    spans = misread_spans(text2, calc)
+    drop = [(a, b) for a, b in _sentences(text2)
+            if not any(a <= x < b for x, _, _ in spans) and _is_piece(text2[a:b], pieces)
+            and _SPLIT_CTX.search(text2[a:b])]
+    marks = sorted([(a, b, 'fix') for a, b, _ in spans] + [(a, b, 'drop') for a, b in drop])
     out, last = [], 0
-    for k, (a, b, _) in enumerate(spans):
-        out.append(text[last:a])
-        if k == 0:
-            tail = '\n' if text[a:b].endswith('\n') else ''
+    for a, b, kind in marks:
+        if a < last:
+            continue
+        out.append(text2[last:a])
+        if kind == 'fix' and not corrected:
+            tail = '\n' if text2[a:b].endswith('\n') else ''
             out.append(correction(calc, cite).rstrip() + (tail or ' '))
+            corrected = True
+        elif text2[a:b].endswith('\n'):
+            out.append('\n')
         last = b
-    out.append(text[last:])
-    return ''.join(out), len(spans)
+        n += 1
+    out.append(text2[last:])
+    fixed = re.sub(r'\n{3,}', '\n\n', ''.join(out))
+    fixed = '\n'.join(ln for ln in fixed.split('\n') if not re.fullmatch(r'\s*[-*]\s*', ln))
+    return fixed, n

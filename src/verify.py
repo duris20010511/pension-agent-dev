@@ -21,7 +21,7 @@ import taxcalc
 
 MODE = os.environ.get('AGENT_VERIFY', 'handoff')        # handoff | note | off
 _PCT = re.compile(r'(\d+(?:\.\d+)?)\s*%')
-_TAXY = re.compile(r'세금|세액|환급|돌려\s*받|공제액|합계|총\s*\S{0,4}세|납부|내야|낼\s|떼')
+_TAXY = re.compile(r'세금|세액|환급|돌려\s*받|공제액|합계|총\s*\S{0,4}세|납부|내야|낼\s|떼|소득세|과세|냅니다|내요|내게|부과')
 _HYPO = re.compile(r'예를\s*들어|예컨대|예시|예:|이라면|라면|가정하면|경우에는|만약')
 _TOL_ABS = 0.5          # 만 원 — 5천 원 안쪽 반올림 차이는 같은 값
 _TOL_REL = 0.006
@@ -43,10 +43,14 @@ def pct_values(text):
     return [(float(m.group(1)), m.start(), m.end(), m.group(0)) for m in _PCT.finditer(text or '')]
 
 
+_SENT_END = re.compile(r'[\n!?]|(?<!\d)\.|\.(?!\d)')
+
+
 def _sentence(text, i):
-    a = max(text.rfind(c, 0, i) for c in '.\n!?') + 1
-    bs = [j for j in (text.find(c, i) for c in '.\n!?') if j >= 0]
-    return text[a:min(bs) if bs else len(text)].strip()
+    ends = [m.start() for m in _SENT_END.finditer(text or '')]
+    a = max([e for e in ends if e < i], default=-1) + 1
+    b = min([e for e in ends if e >= i], default=len(text or ''))
+    return (text or '')[a:b].strip()
 
 
 def _support_sets(sources):
@@ -86,7 +90,22 @@ def _hit(v, derived):
     return lo < len(derived) and derived[lo] <= v + max(_TOL_ABS, _TOL_REL * abs(v))
 
 
-def check(answer, question='', calc=None, context='', extra=()):
+_BREAK = re.compile(r'\n[ \t]*(?:-{3,}|#{1,4}[ \t])')
+# '결론' 소제목만 — '요약 표'는 예시 금액(IRP 100만 원 넣으면 …)을 늘어놓는 자리라 넣지 않는다(10-12 실측 답에서 오판)
+_LEAD_HEAD = re.compile(r'^[ \t]*(?:#{1,4}[ \t]*|\*\*)[ \t]*(?:핵심[ \t]*)?결론[^\n]{0,8}$', re.M)
+
+
+def _lead_ranges(body):
+    """결론 자리 — 답 첫머리(첫 구분선·소제목 전, 최대 400자)와 '결론·요약' 소제목 아래 단락."""
+    m = _BREAK.search(body)
+    out = [(0, min(m.start() if m else len(body), 400))]
+    for h in _LEAD_HEAD.finditer(body):
+        nxt = _BREAK.search(body, h.end())
+        out.append((h.start(), nxt.start() if nxt else len(body)))
+    return out
+
+
+def check(answer, question='', calc=None, context='', extra=(), lead_strict=False):
     """→ {'checked','matched','unmatched':[{'text','value','kind','sentence'}],'contradiction':bool,'action','key_figures'}"""
     calc_text = '\n'.join(b['text'] for b in (calc or {}).get('blocks', []))
     money, pcts = _support_sets([question or '', calc_text, context or ''] + list(extra))
@@ -142,9 +161,29 @@ def check(answer, question='', calc=None, context='', extra=()):
     contradiction = bool(key_vals) and not has_key and bool(taxy_bad)
     # 핵심 금액은 맞게 썼지만 세금 문장에 계산에 없는 금액이 따로 있다 — 모델이 블록을 무시하고 다시 계산한 값
     # (시연: 나눠 받기를 '내년 600만 × 4% × 60% = 14.4만, 합계 48만'으로 다시 계산). 답은 두고 끝에 계산값을 밝힌다.
-    conflict = bool(key_vals) and has_key and bool(taxy_bad)
+    # 다만 질문·블록·앞 대화의 금액에 세율(16.5·13.2·5.5·4.4·3.3%)을 곱한 값은 쪼개 보인 계산이다 — 계좌별 공제액
+    # (연금저축 400만 × 16.5% = 66만 + IRP 500만 × 16.5% = 82.5만)에 '계산 확인'이 붙었다(대화 C05·C18 실측).
+    # 이 허용은 핵심 금액이 답에 있을 때(충돌)만 — 핵심 금액이 없으면(어긋남) 예전처럼 엄격하다(잘못된 세율 적용을 잡아야 한다)
+    base = stated + [v for t in extra for v, *_ in money_values(t)]
+    rates = {p for p, *_ in pct_values(calc_text)} & {16.5, 13.2, 5.5, 4.4, 3.3} or {16.5, 13.2, 5.5, 4.4, 3.3}
+    split_ok = {round(m * r / 100, 4) for m in base for r in rates}
+    taxy_new = [raw for raw in taxy_bad
+                if not any(_same(v, x) for v, *_ in money_values(raw) for x in split_ok)]
+    conflict = bool(key_vals) and has_key and bool(taxy_new)
+    if conflict and lead_strict:
+        # 결론에 쓴 금액이 다르면 답의 주장 자체가 틀린 것이다 — 끝에 덧붙이는 것으로는 부족하다
+        ranges = _lead_ranges(body)
+        if any(raw in taxy_new and any(a <= s < b for a, b in ranges) for kind, v, s, raw in items):
+            contradiction, conflict, taxy_bad = True, False, taxy_new
+    # 블록이 '질문한 방식'(나눠 받기 등)의 값을 따로 밝혔는데 답에 그 값이 없다 — 다른 방식의 합계를 질문한 방식의 답으로 쓴
+    # 것이다(10-13 시연 3턴: '한꺼번에든 나눠서든 모두 57만 6천 원'). 쓴 숫자는 모두 블록에 있어 위 판정은 '통과'였다. 시연 채널만.
+    asked = [v for b in (calc or {}).get('blocks', []) if b.get('numbers') and b.get('key_figure')
+             and '질문한 방식' in b.get('text', '') for v, *_ in money_values(b['key_figure'])]
+    if lead_strict and asked and not contradiction and not any(_same(a, k) for a in ans_vals for k in asked):
+        contradiction, conflict, taxy_bad = True, False, []
+        unmatched.append({'text': taxcalc.won(asked[0]), 'value': None, 'kind': '금액', 'sentence': '질문한 방식의 계산값이 답에 없음'})
     if contradiction or conflict:
-        for raw in taxy_bad:
+        for raw in (taxy_bad if contradiction else taxy_new):
             if not any(u['text'] == raw for u in unmatched):
                 unmatched.append({'text': raw, 'value': None, 'kind': '금액', 'sentence': '규칙 계산에 없는 세금 금액'})
     if contradiction:
@@ -217,8 +256,12 @@ def summary_line(res):
     return s
 
 
-def handoff_answer(calc, cite=None):
-    """계산과 어긋난 답 대신 내보낼 글 — 규칙 계산 요약 + 상담 연결."""
+_HANDOFF_WHY = '설명 문장을 만드는 과정에서 위 계산과 다른 금액이 나와, 혼동을 막기 위해 계산 결과만 먼저 보여드립니다. '
+
+
+def handoff_answer(calc, cite=None, why=_HANDOFF_WHY):
+    """계산과 어긋난 답 대신 내보낼 글 — 규칙 계산 요약 + 상담 연결.
+    why: 계산 결과만 보이는 까닭(마감 초과·연결 끊김 때는 위에 따로 밝히므로 빈 문자열)."""
     ref = f'[문서{cite}]' if cite else ''
     lines = ['**결과(규칙 계산)**']
     for b in (calc or {}).get('blocks', []):
@@ -231,10 +274,12 @@ def handoff_answer(calc, cite=None):
             if ln.startswith('- '):
                 lines.append(ln + (f' {ref}' if ref and ('합계' in ln or '세액공제액' in ln) else ''))
     lines += ['',
-              '설명 문장을 만드는 과정에서 위 계산과 다른 금액이 나와, 혼동을 막기 위해 계산 결과만 먼저 보여드립니다. '
+              (why or '') +
               '위 금액은 문서 규칙으로 계산한 값이며, 실제 세금은 원천징수영수증·계좌 재원 내역에 따라 달라질 수 있습니다.',
               '',
-              '**다음 행동**: 연금 상담으로 연결해 드릴까요? 상담사가 계좌의 실제 재원과 퇴직소득세를 확인해 드립니다.']
+              # 운영시간은 doc54 원문. 이관 연동은 없어 '넘겨 드린다'고 하지 않는다(본선_작업정리/12 부록 F)
+              '**다음 행동**: 계좌의 실제 재원과 퇴직소득세는 연금 상담(연금자산관리센터 ☎ 1588-5577, 평일 08시~17시, '
+              '주말·공휴일 제외)에서 확인할 수 있어요.']
     return '\n'.join(lines)
 
 

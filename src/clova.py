@@ -228,6 +228,46 @@ def _note_usage(model, payload, out, sec, wait=0.0, t_send=None):
 KEY_VIA_PROXY = os.environ.get('CLOVA_KEY_VIA_PROXY') == '1'
 
 
+# 네트워크 상태 — 시연 채널(/chat)이 연결이 끊긴 것을 빨리 알아채게 실제 호출의 성공·네트워크 실패 시각만 적어 둔다.
+# 재시도 횟수·대기는 바꾸지 않는다(대회 규격 경로는 그대로). 10-13 시연 실측: 인터넷이 끊기자 질문마다
+# 재시도 대기(1+2+4+8+16+32초)로 70~90초 멈춘 뒤 사과문만 나왔다 — 원래 1초 안에 나오는 되묻기까지.
+_NET = {'ok': 0.0, 'fail': 0.0, 'err': ''}
+
+
+def _net_ok():
+    _NET['ok'] = time.time()
+
+
+def _net_fail(e):
+    _NET['fail'] = time.time()
+    _NET['err'] = f'{type(e).__name__}: {e}'[:200]
+
+
+def net_failed_since(t):
+    """t 이후에 네트워크 실패가 있었고, 그 뒤로 성공한 호출이 없다."""
+    return _NET['fail'] >= t and _NET['fail'] > _NET['ok']
+
+
+def net_down(window=120.0):
+    """최근 window초 안에 네트워크 실패가 있었고, 그 뒤로 성공한 호출이 없다."""
+    return _NET['fail'] > _NET['ok'] and time.time() - _NET['fail'] < window
+
+
+def probe(timeout=3.0):
+    """CLOVA 주소에 닿는지 짧게 확인한다. 같은 urllib(프록시 설정 포함)로 부르고, HTTP 응답이 오면(401·404여도) 닿는 것이다.
+    키를 보내지 않는다."""
+    try:
+        with urllib.request.urlopen(urllib.request.Request(BASE + '/', method='GET'), timeout=timeout):
+            pass
+    except urllib.error.HTTPError:
+        pass
+    except Exception as e:
+        _net_fail(e)
+        return False
+    _net_ok()
+    return True
+
+
 def _post(url, payload, timeout=120, retries=6, kind='chat'):
     if not API_KEY and not KEY_VIA_PROXY:
         raise ClovaError('CLOVA_API_KEY 가 없습니다. .env 를 확인하세요.')
@@ -251,6 +291,7 @@ def _post(url, payload, timeout=120, retries=6, kind='chat'):
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 raw = r.read()
                 t_end = time.time()          # 시계는 잠금·기록 전에 멈춘다
+                _net_ok()
                 _note_headers(key, r.headers)
                 out = json.loads(raw.decode('utf-8'))
                 if kind != 'embed':
@@ -258,6 +299,7 @@ def _post(url, payload, timeout=120, retries=6, kind='chat'):
                     _note_usage(key, payload, out, t_end - t0, t0 - t_first, t0)
                 return out
         except urllib.error.HTTPError as e:
+            _net_ok()                                   # 서버까지는 닿았다(429·5xx 는 네트워크 끊김이 아니다)
             detail = e.read().decode('utf-8', 'ignore')[:400]
             last = ClovaError(f'HTTP {e.code} {url}\n{detail}')
             if e.code == 429:
@@ -269,6 +311,7 @@ def _post(url, payload, timeout=120, retries=6, kind='chat'):
             raise last
         except Exception as e:                      # 타임아웃·네트워크
             last = ClovaError(f'{type(e).__name__}: {e}')
+            _net_fail(e)
             time.sleep(2 ** attempt)
     raise last
 

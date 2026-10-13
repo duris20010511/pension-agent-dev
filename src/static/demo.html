@@ -183,7 +183,19 @@ section.tab.on { display: flex; }
 .act.k-diy .kd { background: var(--orange); }
 .act.k-handoff { border-color: var(--ok); color: var(--ok); }
 .act.k-handoff .kd { background: var(--ok); }
+.act.k-guide { border-style: dashed; }
+.act.k-guide .kd { background: var(--muted); }
 .act.done { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+/* MAPS 경로 안내 — 연동이 아니라 경로만 알려 준다는 걸 점선·회색으로 */
+.guidenote { margin: 4px auto 16px; max-width: 640px; border: 1.5px dashed var(--muted); border-radius: 12px; background: #fff; padding: 10px 14px; font-size: 14px; color: var(--ink); }
+.guidenote b { color: var(--navy); }
+/* 상담 요약 — 상담 때 보여 줄 한 장(전송 연동 아님) */
+.handoff-card { margin: 4px auto 16px; max-width: 640px; border: 1.5px solid var(--ok); border-radius: 12px; background: #fff; overflow: hidden; }
+.handoff-card .hc-head { background: var(--ok-soft); color: var(--ok); font-weight: 800; padding: 8px 14px; font-size: 15px; }
+.handoff-card dl { display: grid; grid-template-columns: 7.5em 1fr; gap: 4px 10px; margin: 0; padding: 10px 14px; font-size: 14px; }
+.handoff-card dt { color: var(--muted); font-weight: 700; }
+.handoff-card dd { margin: 0; overflow-wrap: anywhere; }
+.handoff-card .hc-foot { border-top: 1px solid var(--line); padding: 8px 14px; font-size: 13px; color: var(--muted); }
 .acts .act { padding: 4px 10px; font-size: 14px; }
 details.full { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
 details.full summary { cursor: pointer; color: var(--navy); font-weight: 700; font-size: 14px; }
@@ -362,6 +374,48 @@ table.rules td.nm { font-weight: 800; white-space: nowrap; }
 .quote { border-left: 3px solid var(--line); padding: 2px 0 2px 10px; margin: 0 0 6px; font-size: 14px; color: #34404f; white-space: pre-line; overflow-wrap: anywhere; }
 .quote .src { display: block; font-size: 12px; color: var(--muted); font-weight: 700; }
 details.more summary { cursor: pointer; font-size: 13px; color: var(--navy); font-weight: 700; }
+.quote .src .aud { font-weight: 800; }
+.quote .src .did { font-weight: 500; margin-left: 4px; }
+/* 세금 지도 — 재원 × 인출 방식 9칸(계산 엔진이 쓰는 표) + 생애주기 단계 줄 + 오른쪽 설명 */
+.map-wrap { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; padding: 14px 24px 20px; }
+.map-main, .map-side { min-height: 0; overflow-y: auto; }
+.map-cap { font-size: 13px; font-weight: 800; color: var(--muted); margin: 0 0 6px; }
+.stages { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
+.stage { border: 1.5px solid var(--line); background: #fff; border-radius: 10px; padding: 6px 12px; font-size: 14px; font-weight: 700; color: var(--ink); }
+.stage .n { color: var(--muted); font-weight: 600; font-size: 12px; margin-left: 6px; }
+.stage.on { border-color: var(--navy); background: var(--navy-soft); color: var(--navy); }
+.stage.hit { border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft); }
+.tmap { display: grid; grid-template-columns: 170px repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tmap .colh { font-size: 15px; font-weight: 800; color: var(--navy); padding: 2px 4px; }
+.tmap .colh small { display: block; font-weight: 600; color: var(--muted); font-size: 12px; }
+.tmap .rowh { font-size: 14px; font-weight: 800; color: var(--ink); padding: 8px 4px; display: flex; align-items: center; }
+.tcell { text-align: left; border: 2px solid transparent; border-radius: 12px; padding: 10px 12px; min-height: 92px; font: inherit; transition: opacity .15s, box-shadow .15s; }
+.tcell .tax { display: block; font-weight: 800; font-size: 16px; }
+.tcell .pl { display: block; font-size: 13px; margin-top: 4px; line-height: 1.45; }
+.tcell .rids { display: block; font-size: 12px; margin-top: 6px; font-weight: 700; opacity: .8; }
+.tcell.t-none { background: var(--ok-soft); color: var(--ok); }
+.tcell.t-pension { background: var(--navy-soft); color: var(--navy); }
+.tcell.t-retire { background: #edf2ff; color: #364fc7; }
+.tcell.t-other { background: var(--bad-soft); color: var(--bad); }
+.tcell.t-unknown { background: #fff; color: var(--muted); border: 2px dashed var(--line); }
+.tcell.sel { border-color: var(--ink); }
+.tcell.hit { box-shadow: 0 0 0 3px var(--orange); }
+.tcell.dim { opacity: .3; }
+.map-note { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+.hitbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--orange-soft); border-radius: 10px; padding: 8px 12px; margin: 0 0 14px; font-size: 14px; }
+.hitbar b { color: var(--orange-d); }
+.hitbar .q { flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
+.hitbar button { border: 1px solid var(--orange); background: #fff; color: var(--orange-d); border-radius: 8px; padding: 2px 10px; font-weight: 700; font-size: 13px; }
+.mside { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; font-size: 14px; }
+.mside h4 { margin: 0 0 2px; font-size: 16px; color: var(--navy); }
+.mside .big { font-size: 20px; font-weight: 800; margin: 6px 0 4px; }
+.mside .sub { font-size: 13px; font-weight: 800; color: var(--muted); margin: 14px 0 6px; }
+.mside .cand { font-size: 12px; color: var(--warn); font-weight: 700; }
+.doclist { list-style: none; margin: 0; padding: 0; }
+.doclist li { padding: 5px 0; border-top: 1px solid var(--line); }
+.doclist li:first-child { border-top: 0; }
+.doclist .t { font-weight: 700; }
+.doclist .m { display: block; font-size: 12px; color: var(--muted); }
 .graph-wrap { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 260px; gap: 16px; padding: 14px 24px 20px; }
 .graph-box { position: relative; min-height: 0; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .graph-box svg { width: 100%; height: 100%; display: block; }
@@ -408,6 +462,12 @@ svg .node.pick circle { stroke: var(--orange); stroke-width: 4; }
   .alerts-body > div { overflow: visible; }
   .toolbar, .rules-wrap, .diy-out { padding-left: 16px; padding-right: 16px; }
   .graph-wrap { grid-template-columns: 1fr; padding: 14px 16px; }
+  .map-wrap { grid-template-columns: 1fr; padding: 14px 16px; }
+  .map-main, .map-side { overflow: visible; }
+  .tmap { grid-template-columns: 92px repeat(3, minmax(0, 1fr)); gap: 5px; }
+  .tmap .rowh, .tcell .pl { font-size: 12px; }
+  .tcell { padding: 8px; min-height: 0; }
+  .tcell .tax { font-size: 13px; }
   .graph-box { height: 70vh; }
   .boxes { grid-template-columns: 1fr; }
 }
@@ -503,11 +563,17 @@ svg .node.pick circle { stroke: var(--orange); stroke-width: 4; }
   <!-- 4. 규칙·온톨로지 -->
   <section class="tab" id="tab-rules" role="tabpanel">
     <div class="toolbar">
-      <div class="seg" id="rseg"><button data-v="rules" class="on">규칙표 R-01~R-15</button><button data-v="graph">온톨로지 그래프</button></div>
+      <div class="seg" id="rseg"><button data-v="map" class="on">세금 지도</button><button data-v="rules">규칙표 R-01~R-15</button><button data-v="graph">전체 관계도</button></div>
       <div class="seg" id="lseg" hidden><button data-v="circle" class="on">원형</button><button data-v="layers">계층</button></div>
       <div class="psum" id="rsum"></div>
     </div>
-    <div class="rview on" id="rv-rules"><div class="rules-wrap" id="rules-wrap"><p class="empty">불러오는 중…</p></div></div>
+    <div class="rview on" id="rv-map">
+      <div class="map-wrap">
+        <div class="map-main" id="map-main"><p class="empty">불러오는 중…</p></div>
+        <aside class="map-side" id="map-side"></aside>
+      </div>
+    </div>
+    <div class="rview" id="rv-rules"><div class="rules-wrap" id="rules-wrap"><p class="empty">불러오는 중…</p></div></div>
     <div class="rview" id="rv-graph">
       <div class="graph-wrap">
         <div class="graph-box" id="graph-box"><div class="msg empty">불러오는 중…</div></div>
@@ -588,6 +654,16 @@ function won(man) {
 }
 function pct(x) { return (Math.round(Number(x) * 100) / 100) + '%'; }
 function docName(file) { return String(file || '').replace(/\.txt$/i, ''); }
+/* 문서 제목 — GET /ontology/overview 의 docs 로 채운다. 아직 없으면 번호(doc39)로 보이고, 받은 뒤 칩을 고친다 */
+const DOCS = {};
+function docKey(file) { const f = String(file || ''); return /\.txt$/i.test(f) ? f : f + '.txt'; }
+function docLabel(file) { const d = DOCS[docKey(file)]; return (d && d.title) || docName(file); }
+function docChip(file) {
+  return h('span', { class: 'dchip', 'data-file': docKey(file), title: docName(file) }, docLabel(file));
+}
+function refreshDocChips() {
+  for (const el of $$('.dchip[data-file]')) { const d = DOCS[el.dataset.file]; if (d && d.title) el.textContent = d.title; }
+}
 function audLabel(a) {
   if (!a) return '';
   return a === '고객' ? '고객용' : a === '직원' ? '직원용' : a;
@@ -821,15 +897,18 @@ function switchTab(name) {
   if (!TAB_INIT[name]) {
     TAB_INIT[name] = true;
     if (name === 'alerts') loadProfiles();
-    if (name === 'rules') loadRulesView();
+    if (name === 'rules') { ensureRules().catch(() => {}); setRView(RVIEW); }
   }
   if (name === 'chat') $('#q').focus();
+  else if (name === 'rules' && RVIEW === 'map' && MAP.data) refreshHits();   // 상담 탭에서 새로 물었으면 지나간 칸을 다시
 }
 
 /* =========================================================================
    1. 상담
    ========================================================================= */
 const SCENES = [
+  // 발표 대본 10장의 주 장면 — 무대에서 55자를 직접 치지 않게 버튼으로(10-13). 알림 고객(연금저축 300)과 금액을 맞출지는 팀 결정
+  { tag: '주 장면', label: '연말 공제', q: '총급여 5,000만 원이고 연금저축 600 넣었어요. 12월에 IRP 더 넣으면 얼마나 돌려받아요?' },
   { tag: '장면 1', label: '55세 전 해지', q: '55세 전에 연금저축 빼면 전부 16.5%예요? 2,000만 원 해지하면 330만 원 내는 거죠?' },
   { tag: '장면 2', label: '퇴직금 섞인 IRP', q: '만 62세예요. IRP에 퇴직금이랑 공제받은 돈이 섞였는데, 올해 1,800만 원 빼면 세금이 어떻게 돼요?' },
   { tag: '장면 2 이어서', label: '정보 보충', q: '평가액은 1억이고 퇴직금이 6,000만 원, 나머지는 공제받은 돈이에요. 퇴직소득세 실효세율은 4%, 올해 퇴직해서 처음 받아요.' },
@@ -912,7 +991,32 @@ function selectBot(node) {
   $('#side').replaceChildren(renderSideNode(node._resp));
 }
 
-const KIND_TAG = { chat: '질문', diy: 'DIY', handoff: '상담' };
+const KIND_TAG = { chat: '질문', diy: 'DIY', handoff: '상담', guide: 'MAPS' };
+const CENTER_TXT = '연금자산관리센터 ☎ 1588-5577 · 평일 08시~17시(주말·공휴일 제외)';
+/** 상담 요약 — 이 답의 응답 데이터(고객 상태·계산값·규칙·빠진 값·숫자 대조·근거)로 만든다. 모델을 부르지 않고, 어디로 보내지도 않는다 */
+function handoffCard(r) {
+  r = r || {};
+  const sec = r.sections || {};
+  const calc = r.calc || {};
+  const state = (asList(r.plan).find(p => p && p.step === '고객 상태') || {}).detail || '';
+  const v = r.verify;
+  const uniq = (x, i, a) => a.indexOf(x) === i;
+  const rows = [
+    ['질문', r.question || ''],
+    ['고객 상태', state && state !== '조건 없음' ? state : ''],
+    ['판단', r.action || ''],
+    ['계산 결과', asList(calc.figures).join(' · ')],
+    ['적용 규칙', asList(calc.rule_ids).join(' · ')],
+    ['빠진 정보', asList(calc.needs).concat(asList(sec.needs)).filter(uniq).join(' · ')],
+    ['가정', asList(sec.assumptions).join(' · ')],
+    ['숫자 대조', v && typeof v.checked === 'number' ? `${v.matched ?? 0}/${v.checked} 확인 · ${v.action || ''}` : ''],
+    ['근거 문서', asList(sec.evidence).slice(0, 4).map(e => (e && typeof e === 'object') ? (e.title || docName(e.file)) : String(e)).join(' · ')],
+  ].filter(x => x[1]);
+  return h('div', { class: 'handoff-card' },
+    h('div', { class: 'hc-head' }, '상담 요약 — 상담하실 때 이 화면을 보여 주세요'),
+    rows.length ? h('dl', null, rows.flatMap(([k, val]) => [h('dt', null, k), h('dd', null, String(val))])) : null,
+    h('div', { class: 'hc-foot' }, CENTER_TXT + ' · 요약은 이 화면에만 보이고 상담사에게 자동으로 전달되지 않아요'));
+}
 function actButton(a) {
   if (!a || typeof a !== 'object') a = { label: String(a), kind: 'chat', payload: String(a) };
   const kind = a.kind || 'chat';
@@ -920,20 +1024,39 @@ function actButton(a) {
     onclick: e => doAction(a, e.currentTarget) },
     h('span', { class: 'kd' }, KIND_TAG[kind] || kind), a.label || (typeof a.payload === 'string' ? a.payload : '실행'));
 }
-/** 다음 행동 — chat: 그 문장으로 다시 질문 / diy: DIY 탭 열기(설계값이 오면 채워서 바로 비교) / handoff: 상담 연결 표시 */
+/** 다음 행동 — chat: 그 문장으로 다시 질문 / diy: DIY 탭 열기(설계값이 오면 채워서 바로 비교) /
+ *  guide: MAPS 화면 경로 안내(연동 아님) / handoff: 상담 연결 표시 + 이 답으로 만든 상담 요약 */
 function doAction(a, btn) {
   const kind = a.kind || 'chat';
+  const inChat = $('#tab-chat').classList.contains('on');
+  if (kind === 'guide') {
+    if (inChat) {
+      $('#log').append(h('div', { class: 'guidenote' }, h('b', null, a.label || 'MAPS 화면'), ' · ', String(a.payload || '')));
+      scrollLog();
+    }
+    snack(a.label ? `${a.label} 경로 안내` : 'MAPS 경로 안내');
+    return;
+  }
   if (kind === 'handoff') {
     for (const b of btn ? [btn] : []) {
       b.classList.add('done');
       b.disabled = true;
-      b.replaceChildren(h('span', { class: 'kd' }, '상담'), '상담 연결 요청됨');
+      b.replaceChildren(h('span', { class: 'kd' }, '상담'), '상담 연결 표시됨');
     }
-    if ($('#tab-chat').classList.contains('on')) {
-      $('#log').append(h('div', { class: 'sysnote' }, h('span', null, '상담 연결 요청됨')));
+    const bot = btn && btn.closest('.msg-bot');
+    // '상담원 연결해 주세요'처럼 계산이 없는 답의 버튼이면 바로 앞의 계산 답으로 요약을 만든다
+    let src = bot && bot._resp;
+    if (src && !(src.calc && asList(src.calc.figures).length)) {
+      const all = [...$$('#log .msg-bot')];
+      const prev = all.slice(0, all.indexOf(bot)).reverse().find(n => n._resp && n._resp.calc && asList(n._resp.calc.figures).length);
+      if (prev) src = prev._resp;
+    }
+    if (inChat) {
+      $('#log').append(src ? handoffCard(src)
+        : h('div', { class: 'sysnote' }, h('span', null, '상담 연결 표시됨 · ' + CENTER_TXT)));
       scrollLog();
     }
-    snack('상담 연결 요청됨');
+    snack('상담 연결 표시됨 · ' + CENTER_TXT);
     return;
   }
   if (kind === 'diy') {
@@ -1077,7 +1200,9 @@ async function newChat() {
 
 function initChat() {
   const chips = $('#chips');
-  for (const sc of SCENES) {
+  // 시연 장면 버튼은 기본으로 숨긴다(10-13 사용자: 다른 사람들이 직접 물어보며 시험 중). 발표 때는 /demo?scenes=1 로 연다
+  const showScenes = new URLSearchParams(location.search).has('scenes');
+  for (const sc of showScenes ? SCENES : []) {
     chips.append(h('button', { type: 'button', class: 'chip-q', title: sc.q || '먼저 알려주기 탭으로', 'data-tab': sc.tab || null,
       onclick: () => {
         if (sc.tab) { switchTab(sc.tab); if (sc.tab === 'alerts') scanWhenReady(); return; }
@@ -1147,7 +1272,7 @@ function renderAlert(a) {
     h('h3', null, a.title || ''),
     h('div', { class: 'md', md: a.message || '' }),
     figs.length ? h('div', { class: 'figs' }, figs.map(([k, v]) => h('div', { class: 'fig' }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, String(v))))) : null,
-    h('div', { class: 'foot' }, asList(a.rule_ids).map(ruleChip), asList(a.docs).map(d => h('span', { class: 'dchip' }, docName(d)))),
+    h('div', { class: 'foot' }, asList(a.rule_ids).map(ruleChip), asList(a.docs).map(d => docChip(d))),
     alertMore(a),
     asList(a.next_actions).length ? h('div', { class: 'acts' }, asList(a.next_actions).map(actButton)) : null);
 }
@@ -1389,7 +1514,7 @@ function combosTable(combos) {
     h('tbody', null,
       rows.map(([lab, f, warnIf, hl]) => h('tr', null, h('th', null, lab),
         combos.map(c => h('td', { class: (hl ? 'hl ' : '') + (warnIf && warnIf(c) ? 'warnc' : '') }, f(c) + (warnIf && warnIf(c) ? ` (한도 초과 ${won(c.over_cap)})` : ''))))),
-      h('tr', null, h('th', null, '근거'), combos.map(c => h('td', { style: 'text-align:left' }, asList(c.rule_ids).map(ruleChip), asList(c.docs).map(d => h('span', { class: 'dchip' }, docName(d))))))));
+      h('tr', null, h('th', null, '근거'), combos.map(c => h('td', { style: 'text-align:left' }, asList(c.rule_ids).map(ruleChip), asList(c.docs).map(d => docChip(d)))))));
 }
 function yearsTable(p) {
   const rows = asList(p.rows);
@@ -1465,7 +1590,7 @@ function renderDiyNode(r) {
   if (rids.length) {
     const evs = asList(r.evidence).filter(e => e && e.text);
     root.append(h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '근거 규칙·문서'),
-      h('div', { style: 'margin-bottom:6px' }, rids.map(ruleChip), asList(r.docs).map(d => h('span', { class: 'dchip' }, docName(d)))),
+      h('div', { style: 'margin-bottom:6px' }, rids.map(ruleChip), asList(r.docs).map(d => docChip(d))),
       evs.length ? h('details', { class: 'more', style: 'margin-bottom:16px' }, h('summary', null, `근거 원문 ${evs.length}개 보기`),
         evs.map(e => h('div', { class: 'quote', style: 'margin-top:6px' }, h('span', { class: 'src' }, `${e.rid || ''} ${e.name || ''} · ${docName(e.file)}`), String(e.text)))) : null);
   }
@@ -1494,10 +1619,12 @@ function initDiy() {
 const HOW_CLASS = { '계산': 'calc', '판정': 'judge', '규칙만': 'only' };
 function renderRulesTable(list) {
   return h('table', { class: 'rules' },
-    h('thead', null, h('tr', null, ['번호', '규칙', '요약', '방식', '원문 근거 (문서 · 기준일)'].map(t => h('th', null, t)))),
+    h('thead', null, h('tr', null, ['번호', '규칙', '요약', '방식', '원문 근거 (문서 제목 · 독자 · 기준일)'].map(t => h('th', null, t)))),
     h('tbody', null, list.map(r => {
       const qs = asList(r.quotes);
-      const q = x => h('div', { class: 'quote' }, h('span', { class: 'src' }, `${docName(x.file)} · 기준일 ${x.as_of || '미상'}`), String(x.text || ''));
+      const q = x => h('div', { class: 'quote' }, h('span', { class: 'src' }, x.title || docLabel(x.file),
+        x.audience ? h('span', { class: 'aud' }, ' · ' + audLabel(x.audience)) : null, ` · 기준일 ${x.as_of || '미상'}`,
+        h('span', { class: 'did' }, docName(x.file))), String(x.text || ''));
       return h('tr', { id: 'rule-' + String(r.rid).replace(/[^\w-]/g, '_') },
         h('td', { class: 'rid' }, r.rid), h('td', { class: 'nm' }, r.name || ''), h('td', null, r.summary || ''),
         h('td', null, r.how ? h('span', { class: 'how ' + (HOW_CLASS[r.how] || 'only') }, r.how) : ''),
@@ -1512,7 +1639,7 @@ function loadRulesView() {
     wrap.replaceChildren(renderRulesTable(list));
     const n = { 계산: 0, 판정: 0, 규칙만: 0 };
     for (const r of list) n[r.how] = (n[r.how] || 0) + 1;
-    $('#rsum').textContent = `규칙 ${list.length}개 — 계산 ${n['계산'] || 0} · 판정 ${n['판정'] || 0} · 규칙만 ${n['규칙만'] || 0}. 원문은 문서 글자 그대로입니다.`;
+    setSum('rules', `규칙 ${list.length}개 — 계산 ${n['계산'] || 0} · 판정 ${n['판정'] || 0} · 규칙만 ${n['규칙만'] || 0}. 원문은 문서 글자 그대로입니다.`);
   }).catch(e => { TAB_INIT.rules = false; wrap.replaceChildren(errNode(e)); });
 }
 function showRule(rid) {
@@ -1528,12 +1655,166 @@ function showRule(rid) {
   if (RULES.list && $('#rules-wrap table')) go();
   else loadRulesView().then(go);
 }
+const RSUM = { map: '', rules: '', graph: '' };
+let RVIEW = 'map';
+function setSum(v, text) { RSUM[v] = text; if (RVIEW === v) $('#rsum').textContent = text; }
 function setRView(v) {
+  RVIEW = v;
   for (const b of $$('#rseg button')) b.classList.toggle('on', b.dataset.v === v);
+  $('#rv-map').classList.toggle('on', v === 'map');
   $('#rv-rules').classList.toggle('on', v === 'rules');
   $('#rv-graph').classList.toggle('on', v === 'graph');
   $('#lseg').hidden = v !== 'graph';
+  $('#rsum').textContent = RSUM[v] || '';
+  if (v === 'map') loadMap();
+  if (v === 'rules' && !$('#rules-wrap table')) loadRulesView();
   if (v === 'graph' && !graph.data && !graph.loading) loadGraph();
+}
+
+/* 세금 지도 — 재원 3 × 인출 방식 3 = 9칸(07 §6 표, 계산 엔진이 쓰는 tax_matrix 그대로) + 생애주기 단계 줄.
+   칸·단계를 누르면 오른쪽에 원문(문서 제목·독자·기준일)과 규칙. 최근 상담 질문이 지난 칸은 주황 테두리
+   (POST /ontology/path — 답변의 '온톨로지 경로'와 같은 함수, 모델 호출 없음) */
+const MAP = { data: null, loading: null, sel: null, stage: null, hit: null, hitQ: '' };
+function ensureOverview() {
+  if (!MAP.loading) {
+    MAP.loading = api('/ontology/overview').then(d => {
+      MAP.data = d || {};
+      Object.assign(DOCS, MAP.data.docs || {});
+      refreshDocChips();
+      return MAP.data;
+    }).catch(e => { MAP.loading = null; throw e; });
+  }
+  return MAP.loading;
+}
+function taxClass(c) {
+  if (c.tax === '비과세') return 't-none';
+  if (/확인/.test(c.tax || '')) return 't-unknown';
+  if (c.mode === '연금외수령') return 't-other';
+  if (c.tax === '퇴직소득세') return 't-retire';
+  return 't-pension';
+}
+function mapCell(src, mode) { return asList(MAP.data && MAP.data.cells).find(c => c.source === src && c.mode === mode); }
+function srcLabel(k) { return (asList(MAP.data && MAP.data.sources).find(s => s.key === k) || {}).label || k; }
+function modeLabel(k) { return (asList(MAP.data && MAP.data.modes).find(m => m.key === k) || {}).label || k; }
+function renderTaxMap(d) {
+  d = d || {};
+  const sources = asList(d.sources), modes = asList(d.modes);
+  const cellBtn = c => c ? h('button', { type: 'button', class: 'tcell ' + taxClass(c), 'data-src': c.source, 'data-mode': c.mode,
+    title: c.plain || '', onclick: () => selectCell(c.source, c.mode) },
+    h('span', { class: 'tax' }, c.short || c.tax || ''), asList(c.rule_ids).length ? h('span', { class: 'rids' }, asList(c.rule_ids).join(' · ')) : null)
+    : h('div');
+  return h('div', null,
+    h('div', { class: 'hitbar', id: 'hitbar', hidden: true }),
+    h('p', { class: 'map-cap' }, '고객 여정 — 단계를 누르면 그 단계에서 쓰는 규칙과 문서가 나와요'),
+    h('div', { class: 'stages' }, asList(d.stages).map(s => h('button', { type: 'button', class: 'stage', 'data-id': s.id, onclick: () => selectStage(s.id) },
+      s.label, asList(s.rule_ids).length ? h('span', { class: 'n' }, `규칙 ${asList(s.rule_ids).length}`) : null))),
+    h('p', { class: 'map-cap' }, '세금 지도 — 같은 계좌라도 돈이 어디서 왔는지(재원)와 어떻게 꺼내는지(인출 방식)로 세금이 정해져요'),
+    h('div', { class: 'tmap' }, h('div'), modes.map(m => h('div', { class: 'colh' }, m.label, h('small', null, m.hint || ''))),
+      sources.map(s => [h('div', { class: 'rowh' }, s.label), modes.map(m => cellBtn(asList(d.cells).find(c => c.source === s.key && c.mode === m.key)))])),
+    h('p', { class: 'map-note' }, '계산 엔진이 쓰는 표 그대로예요(받은 문서 원문의 규칙). 금액은 상담 탭에서 이 규칙으로 계산합니다.'));
+}
+function docList(list) {
+  return h('ul', { class: 'doclist' }, asList(list).map(d => h('li', null, h('span', { class: 't' }, d.title || docLabel(d.file)),
+    h('span', { class: 'm' }, [audLabel(d.audience), d.as_of && d.as_of !== '미상' ? '기준일 ' + d.as_of : '기준일 미상', docName(d.file)].filter(Boolean).join(' · ')))));
+}
+function cellSide(c) {
+  return h('div', { class: 'mside' },
+    h('h4', null, `${srcLabel(c.source)} × ${modeLabel(c.mode)}`),
+    h('div', { class: 'big' }, c.short || c.tax || ''),
+    h('div', null, c.plain || ''),
+    asList(c.rule_ids).length ? [h('div', { class: 'sub' }, '적용 규칙'), h('div', null, asList(c.rule_ids).map(ruleChip))] : null,
+    asList(c.quotes).length ? [h('div', { class: 'sub' }, '원문'), asList(c.quotes).map(q => h('div', { class: 'quote' },
+      h('span', { class: 'src' }, q.title || docLabel(q.file), h('span', { class: 'did' }, docName(q.file))),
+      q.candidate ? h('span', { class: 'cand' }, '근거 후보 — 문서마다 조건이 달라 세목을 정하지 않음\n') : null, String(q.text || '')))] : null,
+    asList(c.docs).length ? [h('div', { class: 'sub' }, '근거 문서'), docList(c.docs)] : null);
+}
+function stageSide(s) {
+  const rids = asList(s.rule_ids);
+  return h('div', { class: 'mside' },
+    h('h4', null, s.label), s.group && s.group !== s.label ? h('div', { style: 'font-size:13px;color:var(--muted)' }, s.group) : null,
+    h('div', { class: 'sub' }, '이 단계 질문에 쓰는 규칙'),
+    rids.length ? rids.map(rid => h('div', { style: 'margin:0 0 8px' }, ruleChip(rid),
+      h('div', { style: 'font-size:13px;color:var(--muted);margin:2px 0 0 2px' }, (RULES.byId[rid] || {}).summary || '')))
+      : h('p', { class: 'empty' }, '세금 계산 규칙 없이 문서 설명으로 답하는 단계예요.'),
+    h('div', { class: 'sub' }, `문서 ${asList(s.docs).length}건`), docList(s.docs));
+}
+function mapIdle() {
+  return h('div', { class: 'mside' }, h('h4', null, '칸이나 단계를 눌러 보세요'),
+    h('p', { style: 'margin:6px 0 0' }, '원문(문서 글자 그대로)과 문서 제목·독자(고객용/직원용)·기준일이 여기에 나와요.'),
+    h('p', { style: 'margin:8px 0 0;color:var(--muted);font-size:13px' }, '상담 탭에서 질문한 뒤 이 화면을 열면, 그 질문이 지나간 칸에 주황 테두리가 생겨요.'));
+}
+function selectCell(src, mode) {
+  MAP.sel = [src, mode];
+  MAP.stage = null;
+  const c = mapCell(src, mode);
+  $('#map-side').replaceChildren(c ? cellSide(c) : mapIdle());
+  applyMapClasses();
+}
+function selectStage(id) {
+  MAP.stage = MAP.stage === id ? null : id;
+  MAP.sel = null;
+  const s = asList(MAP.data && MAP.data.stages).find(x => x.id === MAP.stage);
+  $('#map-side').replaceChildren(s ? stageSide(s) : mapIdle());
+  applyMapClasses();
+}
+function applyMapClasses(root) {
+  root = root || $('#map-main');
+  const st = MAP.stage && asList(MAP.data && MAP.data.stages).find(x => x.id === MAP.stage);
+  const hits = asList(MAP.hit && MAP.hit.cells).map(x => asList(x).join('|'));
+  for (const el of $$('.tcell', root)) {
+    const k = el.dataset.src + '|' + el.dataset.mode;
+    el.classList.toggle('sel', !!MAP.sel && MAP.sel.join('|') === k);
+    el.classList.toggle('hit', hits.includes(k));
+    el.classList.toggle('dim', !!st && !asList(st.modes).includes(el.dataset.mode));
+  }
+  for (const el of $$('.stage', root)) {
+    el.classList.toggle('on', el.dataset.id === MAP.stage);
+    el.classList.toggle('hit', !!MAP.hit && MAP.hit.stage === el.dataset.id);
+  }
+}
+function lastChatResp() {
+  const bots = $$('#log .msg-bot');
+  let last = null;
+  for (let i = bots.length - 1; i >= 0; i--) {
+    const r = bots[i]._resp;
+    if (!r || r.blocked) continue;
+    if (r.calc && asList(r.calc.rule_ids).length) return r;
+    last = last || r;
+  }
+  return last;
+}
+function renderHitbar() {
+  const hb = $('#hitbar');
+  if (!hb) return;
+  const hit = MAP.hit;
+  if (!hit || (!asList(hit.cells).length && !hit.stage)) { hb.hidden = true; hb.replaceChildren(); return; }
+  const q = MAP.hitQ;
+  const st = asList(MAP.data && MAP.data.stages).find(x => x.id === hit.stage);
+  hb.hidden = false;
+  hb.replaceChildren(h('b', null, '최근 상담 질문'), h('span', { class: 'q' }, `“${q.length > 90 ? q.slice(0, 90) + '…' : q}”`),
+    h('span', null, [st ? st.label + ' 단계' : '', asList(hit.cells).length ? `세금 지도 ${asList(hit.cells).length}칸` : ''].filter(Boolean).join(' · ')),
+    h('button', { type: 'button', onclick: () => { MAP.hit = null; renderHitbar(); applyMapClasses(); } }, '표시 지우기'));
+}
+async function refreshHits() {
+  const r = lastChatResp();
+  const q = r ? String(r.standalone || r.question || '').trim() : '';
+  if (!q) { MAP.hit = null; MAP.hitQ = ''; renderHitbar(); applyMapClasses(); return; }
+  if (q !== MAP.hitQ) {
+    MAP.hitQ = q;
+    try { MAP.hit = await api('/ontology/path', { method: 'POST', body: { question: q } }); } catch (e) { MAP.hit = null; }
+  }
+  renderHitbar();
+  applyMapClasses();
+}
+function loadMap() {
+  setSum('map', '재원 3가지 × 인출 방식 3가지 = 9칸. 받은 문서 원문의 규칙으로 정해진 세금이에요.');
+  if (MAP.data && $('#map-main .tmap')) { refreshHits(); return Promise.resolve(); }
+  $('#map-main').replaceChildren(h('p', { class: 'empty' }, '불러오는 중…'));
+  return ensureOverview().then(d => {
+    $('#map-main').replaceChildren(renderTaxMap(d));
+    $('#map-side').replaceChildren(mapIdle());
+    return refreshHits();
+  }).catch(e => $('#map-main').replaceChildren(errNode(e)));
 }
 
 /* 온톨로지 그래프 — 라이브러리 없이 SVG.
@@ -1714,7 +1995,7 @@ function renderGraph() {
   const cnt = {};
   nodes.forEach(n => { cnt[tkey(n)] = (cnt[tkey(n)] || 0) + 1; });
   $('#legend').replaceChildren(...svg._types.map(t => h('li', null, h('span', { class: 'sw', style: `background:${svg._colors[t]}` }), typeLabel(t, graph.data.legend), h('span', { class: 'c' }, cnt[t]))));
-  $('#rsum').textContent = `노드 ${nodes.length}개 · 관계 ${asList(graph.data.edges).length}개 — 노드에 마우스를 올리면 이어진 관계만 남습니다.`;
+  setSum('graph', `노드 ${nodes.length}개 · 관계 ${asList(graph.data.edges).length}개 — 엔진이 쓰는 개념·규칙·문서 연결 전체입니다. 노드에 마우스를 올리면 이어진 관계만 남습니다.`);
 }
 async function loadGraph() {
   graph.loading = true;
@@ -1746,6 +2027,7 @@ function init() {
   initRules();
   api('/health', { timeout: 8000 }).catch(() => setServer(false));   // 상태 표시만. 실패해도 화면은 그대로
   ensureRules().catch(() => {});                                      // R-xx 칩 이름용. 없어도 동작
+  ensureOverview().catch(() => {});                                   // 문서 제목(doc39 → 제목)용. 없어도 번호로 동작
   if (/[?&]selftest=1\b/.test(location.search)) {
     const r = window.__selftest();
     document.body.append(h('div', { id: 'selftest-out' }, `__selftest: ${r.passed}/${r.total} 통과` +
@@ -1834,6 +2116,56 @@ window.__selftest = function () {
   t('오른쪽 패널(단계·규칙·대조)', () => {
     const n = renderSideNode(MOCK_CHAT);
     return (n.querySelectorAll('.steps li').length === 3 && n.querySelectorAll('.rchip').length === 2 && /5 \/ 5/.test(n.textContent) && n.querySelector('details.trace pre').textContent === 'think_trace <b>원문</b>') || n.textContent.slice(0, 200);
+  });
+  t('MAPS 경로 버튼(안내만)', () => { const b = actButton({ label: 'MAPS 연금 개시/해지', kind: 'guide', payload: '메뉴 › 연금 › 연금관리 › 연금지급관리 › 연금 개시/해지' }); return (b.classList.contains('k-guide') && b.querySelector('.kd').textContent === 'MAPS') || b.outerHTML; });
+  t('상담 요약 카드(응답 데이터로, 전달 약속 없음)', () => {
+    const c = handoffCard(Object.assign({ question: '62세 IRP 1,800만 원 빼면?', action: '계산 → 설명' }, MOCK_CHAT));
+    const txt = c.textContent;
+    return (c.querySelectorAll('dt').length >= 7 && /57만 6천 원/.test(txt) && /R-05/.test(txt) && /나이 62세/.test(txt) && /5\/5 확인/.test(txt) &&
+      /1588-5577/.test(txt) && /평일 08시~17시/.test(txt) && /전달되지 않아요/.test(txt)) || txt.slice(0, 300);
+  });
+  t('상담 요약 카드(빈 응답에도 깨지지 않음)', () => !!handoffCard({}).querySelector('.hc-foot') && !handoffCard({}).querySelector('dl'));
+  // 세금 지도(규칙·온톨로지 탭 첫 화면)
+  const OV_SRC = [{ key: 'free', label: '① 세액공제 안 받은 돈' }, { key: 'retire', label: '② 퇴직금(이연퇴직소득)' }, { key: 'credit', label: '③ 세액공제 받은 돈·운용수익' }];
+  const OV_MODE = [{ key: '연금수령', label: '연금수령', hint: '55세 이후 · 한도 안' }, { key: '부득이', label: '부득이한 사유', hint: '' }, { key: '연금외수령', label: '연금외수령', hint: '' }];
+  const MOCK_OV = { sources: OV_SRC, modes: OV_MODE,
+    cells: OV_SRC.flatMap(s => OV_MODE.map(m => ({ source: s.key, mode: m.key, tax: s.key === 'free' ? '비과세' : m.key === '연금외수령' ? '기타소득세' : '연금소득세',
+      short: s.key === 'free' ? '비과세' : '<b>세금</b>', plain: '설명', rule_ids: ['R-10'],
+      quotes: [{ file: 'doc39.txt', title: '연금수령한도 안내', text: '원문 <i>그대로</i>' }, { file: 'doc21.txt', title: 'IRP 연금지급', text: '후보', candidate: true }],
+      docs: [{ file: 'doc39.txt', title: '연금수령한도 안내', audience: '고객', as_of: '미상' }] }))),
+    stages: [{ id: 'stage.early', label: '중도인출·해지', rule_ids: ['R-10'], modes: ['연금외수령'], docs: [] }, { id: 'stage.pay', label: '납입', rule_ids: [], modes: [], docs: [] }] };
+  t('세금 지도 9칸·머리줄', () => {
+    const n = renderTaxMap(MOCK_OV);
+    return (n.querySelectorAll('.tcell').length === 9 && n.querySelectorAll('.rowh').length === 3 && n.querySelectorAll('.colh').length === 3 &&
+      n.querySelectorAll('.stage').length === 2 && n.querySelector('.tcell[data-src="credit"][data-mode="연금외수령"]').classList.contains('t-other') &&
+      n.querySelector('.tcell[data-src="free"]').classList.contains('t-none') && !n.querySelector('.tcell b')) || n.textContent.slice(0, 200);
+  });
+  t('세금 지도 지나간 칸·단계 표시', () => {
+    const keep = { hit: MAP.hit, stage: MAP.stage, sel: MAP.sel, data: MAP.data };
+    try {
+      MAP.data = MOCK_OV; MAP.hit = { cells: [['free', '연금외수령'], ['credit', '연금외수령']], stage: 'stage.early' }; MAP.stage = 'stage.early'; MAP.sel = null;
+      const n = renderTaxMap(MOCK_OV);
+      applyMapClasses(n);
+      return (n.querySelectorAll('.tcell.hit').length === 2 && n.querySelectorAll('.tcell.dim').length === 6 && !!n.querySelector('.stage.hit.on')) || n.innerHTML.slice(0, 200);
+    } finally { Object.assign(MAP, keep); }
+  });
+  t('세금 지도 칸 설명(문서 제목·원문·후보 표시)', () => {
+    const keep = MAP.data;
+    try {
+      MAP.data = MOCK_OV;
+      const n = cellSide(MOCK_OV.cells[8]);
+      const txt = n.textContent;
+      return (/③ 세액공제 받은 돈·운용수익 × 연금외수령/.test(txt) && /연금수령한도 안내/.test(txt) && n.querySelector('.quote .did').textContent === 'doc39' &&
+        /근거 후보/.test(txt) && !n.querySelector('.quote i') && /고객용/.test(txt)) || txt.slice(0, 200);
+    } finally { MAP.data = keep; }
+  });
+  t('문서 칩: 제목이 있으면 제목, 없으면 번호', () => {
+    const had = DOCS['doc999.txt'];
+    const a = docChip('doc999.txt').textContent;
+    DOCS['doc999.txt'] = { title: '시험 문서' };
+    const b = docChip('doc999').textContent;
+    if (had) DOCS['doc999.txt'] = had; else delete DOCS['doc999.txt'];
+    return (a === 'doc999' && b === '시험 문서') || `${a} / ${b}`;
   });
   t('숫자 대조 어긋남 표시', () => verifyClass({ checked: 3, matched: 1, unmatched: [{ text: '1,500만 원' }], contradiction: true, action: '계산값으로 대체 · 상담 연결' }) === 'bad' &&
     verifyClass({ checked: 3, matched: 2, unmatched: [{ text: 'x' }], action: '주의(미확인 숫자 표시)' }) === 'warn' && verifyClass(MOCK_CHAT.verify) === 'ok');

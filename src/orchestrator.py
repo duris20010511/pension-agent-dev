@@ -70,8 +70,48 @@ def decide(question, blocked=False, clarify=False, clarify_what='', calc=None):
     return '검색 → 설명', '제도·상품 문서 검색'
 
 
+# MAPS 화면 경로 — 받은 문서 58건 밖 정보라 답 본문에는 쓰지 않고 '다음 행동'의 안내 버튼(kind 'guide')으로만 보여 준다.
+# 경로를 알려 줄 뿐 연동은 아니다. 10-13 MAPS 앱에서 직접 본 메뉴(본선_작업정리/11 §10) — 앱 메뉴가 바뀌면 여기만 고친다.
+MAPS_AS_OF = '10-13'
+MAPS_PATH = {
+    'simulation': ('MAPS 연금 수령 시뮬레이션', '메뉴 › 연금 › 연금관리 › 연금지급관리 › 연금 수령 시뮬레이션',
+                   '내 계좌로 앞으로 받을 세후 연금은 여기서 계산해요'),
+    'credit': ('MAPS 세액공제 관리', '메뉴 › 연금 › 연금관리 › 연금입금관리 › 세액공제 관리',
+               '올해 납입금액·연간 납입한도·과세제외금액을 여기서 확인해요'),
+    'isa': ('MAPS ISA 전환입금', '메뉴 › 연금 › 연금관리 › 연금입금관리 › ISA 전환입금',
+            '만기 ISA를 연금계좌로 옮기는 신청 화면이에요'),
+    'cancel': ('MAPS 연금 개시/해지', '메뉴 › 연금 › 연금관리 › 연금지급관리 › 연금 개시/해지',
+               '해지 신청 화면이에요. 신청하기 전에 세액공제 안 받은 납입금부터 확인하세요'),
+    'transfer': ('MAPS 타사 연금가져오기', '메뉴 › 연금 › 타사 연금가져오기/실물이전',
+                 '다른 금융회사 연금을 옮겨 오는 신청 화면이에요'),
+}
+_TRANSFER = re.compile(r'(?:타사|다른\s*(?:증권사|은행|보험사|금융회사|회사)|보험사).{0,20}(?:이전|옮기|옮겨|가져오)|실물\s*이전|계약\s*이전')
+
+
+def maps_guide(question, calc=None):
+    """질문·계산 블록에 맞는 MAPS 화면 경로 안내 하나(없으면 None). payload 는 화면에 그대로 보일 안내문."""
+    topics = [b['topic'] for b in (calc or {}).get('blocks', [])]
+    key = None
+    if taxcalc._CANCEL.search(question or '') and any('해지' in t or '재원별' in t for t in topics):
+        key = 'cancel'
+    elif any(t.startswith('ISA') for t in topics):
+        key = 'isa'
+    elif any(t.startswith('세액공제') for t in topics):
+        key = 'credit'
+    elif any(t.startswith(('연금 수령', '재원별 인출', '연금수령한도', '퇴직금 재원')) for t in topics):
+        key = 'simulation'
+    elif _TRANSFER.search(question or ''):
+        key = 'transfer'
+    if not key:
+        return None
+    label, path, what = MAPS_PATH[key]
+    return {'label': label, 'kind': 'guide',
+            'payload': f'{path} — {what}. ({MAPS_AS_OF} MAPS 앱에서 확인한 경로 안내예요. 이 화면과 연동되어 있지는 않아요)'}
+
+
 def next_actions(action, question, calc=None, verify=None, category=''):
-    """답 아래 '다음 행동' 버튼. kind: chat(그 문장으로 다시 묻기) · diy(DIY 설계 열기) · handoff(상담 연결)."""
+    """답 아래 '다음 행동' 버튼. kind: chat(그 문장으로 다시 묻기) · diy(DIY 설계 열기) · guide(MAPS 화면 경로 안내) ·
+    handoff(상담 연결). 4개까지, '상담 연결'은 늘 마지막에 남긴다."""
     acts = []
     topics = [b['topic'] for b in (calc or {}).get('blocks', [])]
     text = '\n'.join(b['text'] for b in (calc or {}).get('blocks', []))
@@ -89,19 +129,23 @@ def next_actions(action, question, calc=None, verify=None, category=''):
         acts.append({'label': '투자성향 진단 받기', 'kind': 'handoff', 'payload': '적합성 진단'})
     if verify and verify.get('contradiction'):
         acts.insert(0, {'label': '상담사에게 금액 확인', 'kind': 'handoff', 'payload': '계산 확인'})
+    guide = maps_guide(question, calc)
+    if guide:
+        acts.append(guide)
     acts.append({'label': '상담 연결', 'kind': 'handoff', 'payload': ''})
     seen, out = set(), []
     for a in acts:
         if a['label'] not in seen:
             seen.add(a['label'])
             out.append(a)
-    return out[:4]
+    return out if len(out) <= 4 else out[:3] + out[-1:]
 
 
 # 빠진 정보마다 '어디서 확인하나' — 문서에 있는 확인 경로만 쓴다(원천징수영수증·연말정산·계좌 평가액)
 _WHERE = [
     (r'평가액', '올해 1월 1일(또는 연금 개시일) 기준 계좌 평가액'),
     (r'퇴직소득세', '퇴직할 때 받은 퇴직소득 원천징수영수증의 퇴직소득세(또는 실효세율)'),
+    (r'재원별 금액', '세액공제 안 받은 돈은 연말정산 때 공제받지 않은 납입액, 퇴직금은 퇴직소득 원천징수영수증, 나머지는 세액공제 받은 돈·수익'),
     (r'퇴직금', '퇴직금을 IRP로 받을 때 들어온 금액(퇴직소득 원천징수영수증)'),
     (r'세액공제 안 받은|비과세 원금', '연말정산 때 세액공제를 받지 않은 납입액(금융회사에 과세제외금액으로 확인)'),
     (r'세액공제 받은 돈', '평가액에서 퇴직금과 공제 안 받은 돈을 뺀 나머지'),
@@ -109,6 +153,24 @@ _WHERE = [
     (r'나이', '만 나이'),
     (r'해지·인출하려는 금액', '이번에 빼려는 금액'),
 ]
+
+
+# 사람 상담 창구 — 번호·운영시간은 doc54 원문('☎연금자산관리센터: 1588-5577', '평일 08시~17시/주말 및 공휴일 제외')
+CENTER = '미래에셋증권 연금자산관리센터(☎ 1588-5577, 평일 08시~17시, 주말·공휴일 제외)'
+
+
+def handoff_reply(prof='', ui=True):
+    """고객이 사람 상담을 원할 때의 안내(모델 호출 없음). answer.py 와 /chat 규칙 답(server.py)이 같이 쓴다.
+    상담사에게 대화를 넘기는 연동은 아직 없다 — '함께 넘겨 드린다'고 약속하지 않는다(본선_작업정리/12 부록 F).
+    ui: 시연 화면(/chat)이면 '상담 요약' 카드(demo.html — 상담 버튼을 누르면 이 대화의 계산값·근거로 만든다)를 안내한다.
+    대회 규격(/answer)에는 버튼이 없어 그 문장을 뺀다."""
+    cond = f'({prof})' if prof and prof != '조건 없음' else ''
+    what = f'지금까지 말씀하신 조건{cond}과 계산 결과·근거' if cond else '지금까지의 계산 결과·근거'
+    return ('상담사 연결을 요청하셨어요. 지금은 상담 연결을 표시만 하고, 대화 내용이 상담사에게 자동으로 전달되지는 않아요.\n\n'
+            f'연금 상담은 {CENTER}에서 받으실 수 있어요. '
+            + (f'아래 상담 버튼을 누르면 {what}를 한 장으로 정리한 상담 요약이 나와요. '
+               '상담하실 때 보여 주시면 처음부터 다시 설명하지 않으셔도 돼요.' if ui else
+               f'상담하실 때 {what}를 함께 알려 주시면 처음부터 다시 설명하지 않으셔도 돼요.'))
 
 
 def is_product_ask(q):
@@ -128,6 +190,21 @@ def product_clarify_answer():
         '상품을 실제로 고르는 단계는 투자성향 진단을 거쳐 진행돼요. 아래 다음 행동에서 진단이나 상담으로 바로 이어 갈 수 있어요.'])
 
 
+def amount_clarify_answer(calc):
+    """단위가 없어 읽는 법에 따라 결과가 크게 갈리는 금액('월 50,000' — 5만 원인가 5억 원인가)을 먼저 묻는다(모델 호출 없음).
+    사용자 결정(10-10): 시연 채널(/chat)에서는 되묻고, 대회 규격(/answer)은 가정을 밝히고 답한다.
+    지금 읽은 대로 계산한 값도 함께 보여 준다 — 맞으면 고객은 '네'만 하면 된다."""
+    amb = (calc or {}).get('ambiguous') or []
+    key = next((b.get('key_figure') for b in (calc or {}).get('blocks', []) if b.get('numbers') and b.get('key_figure')), None)
+    out = ['계산하기 전에 금액을 하나만 확인할게요.', '']
+    out += [f'- {a["ask"]}' for a in amb]
+    if key:
+        out += ['', f'{amb[0]["text"].replace("으로 봄", "")}으로 보면 결과는 **{key}**이에요. 다른 금액이면 알려 주세요 — 문서 규칙으로 다시 계산해 드릴게요.']
+    else:
+        out += ['', '알려 주시면 문서 규칙으로 바로 계산해 드릴게요.']
+    return '\n'.join(out)
+
+
 def clarify_answer(calc, cite=1):
     """되묻기 답 — 계산 블록의 규칙 줄과 빠진 정보 목록으로 만든다(모델을 부르지 않는다).
     시연에서 모델이 되묻기 답에 예시 숫자를 지어내 틀린 계산(2억 ÷ 10 × 120% = 1,818만 원)을 쓴 일이 있어,
@@ -144,14 +221,18 @@ def clarify_answer(calc, cite=1):
             if ln.startswith(('계산에 필요한데', '가정(', '입력:')) or ln in seen:
                 continue
             seen.add(ln)
-            rules.append(re.sub(r'\s*\(R-\d+(?:·R-\d+)*\)', '', ln))
+            ln = re.sub(r'\s*\(R-\d+(?:·R-\d+)*\)', '', ln)          # '(R-04)' 통째로
+            ln = re.sub(r'R-\d+(?:·R-\d+)*\s*', '', ln)                 # '(R-06 순서…)' 안의 번호만
+            rules.append(re.sub(r'\(\s*\)', '', ln).strip())
     needs = list(dict.fromkeys((calc or {}).get('needs', [])))
     out = ['지금 말씀하신 조건으로 문서 규칙에 따라 답하면 이렇습니다' + (f' [문서{cite}].' if cite else '.'), '']
-    out += [f'- {r}' for r in rules[:8]]
+    # '해지 신청 전 확인'(과세재원 확정)은 되돌릴 수 없는 절차라 눈에 띄게
+    out += ['- **해지 신청 전 확인**:' + r.split(':', 1)[1] if r.startswith('해지 신청 전 확인:') else f'- {r}'
+            for r in rules[:8]]
     if needs:
         out += ['', '**세액까지 정확히 계산해 드리려면 아래 정보가 더 필요해요**']
         for k, n in enumerate(needs, 1):
-            name = re.sub(r'\(.*?\)', '', n.split(' —')[0]).strip()
+            name = re.sub(r'\(.*?\)', '', n).split(' —')[0].strip()   # 괄호 안의 '—'에서 자르면 이름이 깨진다
             where = next((w for rx, w in _WHERE if re.search(rx, n)), '')
             out.append(f'{k}. {name}' + (f' — {where}' if where else ''))
         out += ['', '알려 주시면 위 규칙으로 바로 계산해 드릴게요. 모르는 값은 상담사가 계좌 내역에서 확인해 드릴 수 있어요'

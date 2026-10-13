@@ -145,6 +145,10 @@ def health():
         "merge_effort": MERGE_EFFORT,
         "skip_merge_at": SKIP_MERGE_AT,
         "policy_excluded_chunks": sum(1 for c in chunks if c.get("policy") == "exclude"),
+        # 배포 판(deploy/deploy.sh 가 커밋·시각으로 붙임)과 시연 채널 설정 — 어떤 코드가 올라갔는지 밖에서 확인
+        "version": os.environ.get("AGENT_VERSION", ""),
+        "chat_deadline": CHAT_DEADLINE,
+        "chat_calc_effort": CHAT_CALC_EFFORT,
     }
 
 
@@ -359,6 +363,168 @@ def demo_page():
     return FileResponse(path, media_type="text/html; charset=utf-8")
 
 
+# 시연 채널 마감 시간 — API 가 멈추면 한 호출에 최대 240초씩, 6번까지 다시 시도한다(10-10 실측: 첫 질문 397.8초).
+# 90초: 10-12 실측에서 가장 긴 정상 답이 65.6초(주 장면, 알림 문구)였다 — 70초면 정상 답까지 끊길 수 있다.
+# 라이브 시연에서 몇 분씩 멈추지 않게, 이 시간이 지나면 모델 없이 만들 수 있는 답(규칙 계산값·되묻기)을 먼저 내보낸다.
+# 대회 규격(/answer)에는 걸지 않는다.
+CHAT_DEADLINE = float(os.environ.get("AGENT_CHAT_DEADLINE", "90"))
+# 빠른 모드에서 숫자를 규칙 계산이 낸 답(계산 → 설명·계산 + 되묻기)의 생각 강도. 빈 값이면 다른 답과 같이 high.
+# 10-13 실측: 시간은 출력 토큰(생각 포함)에 비례한다 — 시연 장면 4개 합계 high 125초 → low 84초 → none 44초.
+# 계산 9문항 × 3회(eval/_gen_effc_r1~3): 체크리스트 high 87.4% · low 89.9% · none 87.4%(생각을 끈 7문항만 −2.4pp,
+# 95% −10.3~+4.9), 계산 답 생성 평균 25.1 → 16.2 → 7.9초, 할루시네이션 0. none 답은 짧고 곁 설명을 덜 쓴다.
+CHAT_CALC_EFFORT = os.environ.get("AGENT_CHAT_CALC_EFFORT", "none").strip()
+
+
+_RULE_NOTE = {
+    "late": "답을 만드는 데 시간이 오래 걸려, 문서 규칙으로 계산한 결과를 먼저 보여 드려요.",
+    "net": "지금 인터넷 연결이 불안정해, AI 설명 없이 문서 규칙으로 계산한 결과를 먼저 보여 드려요.",
+    "error": "답을 만드는 중 문제가 생겨, 문서 규칙으로 계산한 결과를 먼저 보여 드려요.",
+}
+_RULE_EMPTY = {
+    "late": "답을 만드는 데 시간이 오래 걸리고 있어요. 잠시 뒤 다시 물어봐 주시거나, 아래 상담 연결로 이어 가 주세요.",
+    "net": "지금 인터넷 연결이 불안정해 문서를 찾아 설명할 수 없어요. 연결이 돌아오면 다시 물어봐 주시거나, 아래 상담 연결로 이어 가 주세요.",
+    "error": "죄송합니다. 일시적인 오류로 답변을 생성하지 못했습니다. 잠시 뒤 다시 물어봐 주시거나, 아래 상담 연결로 이어 가 주세요.",
+}
+_RULE_WHY = {"late": f"응답 마감({CHAT_DEADLINE:.0f}초) 초과", "net": "인터넷 연결 끊김", "error": "답 생성 오류"}
+
+
+_AMOUNT_ASK = re.compile(r"'(?P<raw>[^']+)'은\s*(?P<a>[^,]+?)인가요,\s*(?P<b>[^?]+?)인가요")
+_YES = re.compile(r"^\s*(?:네|예|응|넵|맞아|맞습니다|맞아요|그렇)")
+
+
+def _offline_calc_q(question, history):
+    """재작성 모델 없이 앞 질문과 이어 붙일지 정한다 → (계산할 질문, 이어 붙인 까닭 또는 '').
+    answer.py 의 '대체' 경로(재작성 실패)와 같은 조건만 쓴다(10-13 검토):
+      - 지금 질문만으로 계산이 되면 새 질문이다 — 장면 1 → 장면 2 버튼을 이어 눌러도 섞지 않는다
+      - 정정·새 금액·새 나이가 있으면 앞 금액과 섞이므로 잇지 않는다
+      - 앞 답이 금액 단위를 물었으면 고객 답으로 그 표기만 바꿔 앞 질문을 다시 계산한다(이어 붙이면 같은 되묻기가 되풀이된다)"""
+    import taxcalc
+    import memory as mem_mod
+    real = [t for t in (history or []) if not t.get("flagged")]
+    if not real:
+        return question, ""
+    prev = real[-1]
+    prev_q = prev.get("standalone") or prev["q"]
+    for ask in prev.get("needs") or []:
+        m = _AMOUNT_ASK.search(ask)
+        if not m or m.group("raw") not in prev_q:
+            continue
+        say = re.sub(r"\s+", "", question)
+        opt_a, opt_b = m.group("a").strip(), m.group("b").strip()
+        key = lambda o: re.sub(r"원$", "", o.replace(" ", ""))
+        pick = opt_b if key(opt_b) in say else opt_a if (key(opt_a) in say or _YES.search(question)) else None
+        if pick:
+            return prev_q.replace(m.group("raw"), pick, 1), "금액 확인"
+        return question, ""
+    try:
+        if taxcalc.compute(question):
+            return question, ""
+    except Exception:
+        pass
+    fu, why = mem_mod.is_followup(question, history)
+    if not fu or why == "정정":
+        return question, ""
+    if why == "정보 보충":
+        return prev_q + " " + question, why
+    # 그 밖에는 '나머지·달라지면·한도까지만'처럼 앞 계산의 조건을 잇는 말이고, 새 금액·나이가 없을 때만
+    if mem_mod._REF.search(question) and not taxcalc.money_spans(question) and taxcalc.customer_age(question) is None:
+        return prev_q + " " + question, why
+    return question, ""
+
+
+def _rule_reply(question, history=None, reason="late"):
+    """모델 없이 만드는 답 — 마감 초과·연결 끊김·생성 오류 때. 네트워크를 쓰지 않는다(안전 관문·세금 계산·정해진 문장).
+    상담 요청이면 상담 연결 안내, 규칙 계산값이 있으면 그 값과 상담 연결, 빠진 값이 있으면 되묻기, 상품 추천 질문이면
+    정해진 되묻기. 이어지는 질문은 _offline_calc_q 가 정한 경우에만 앞 질문과 이어 계산한다."""
+    import taxcalc
+    import verify
+    import orchestrator
+    import memory as mem_mod
+    from answer import REFUSE, _calc_chunk, finalize, sections as make_sections
+    from understand_guard import guard, detect_injection
+    why = _RULE_WHY[reason]
+    if guard(question)[0]:
+        return {"answer": REFUSE, "think_trace": f"{why} — 안전 관문에서 막힘", "action": "거절", "blocked": True,
+                "late": True, "reason": reason, "standalone": question, "needs": [],
+                "sections": {"result": REFUSE, "evidence": [], "assumptions": [], "needs": [], "next_actions": []},
+                "plan": [{"step": "안전 관문", "detail": "차단"}, {"step": "다음 행동", "detail": "거절"}],
+                "calc": None, "verify": None, "retrieved_context": "", "injection": False}
+    acts, needs, kind, calc, calc_q, how, nums = [], [], "plain", None, question, "", False
+    if orchestrator._HANDOFF.search(question):
+        prof = mem_mod.profile_text(mem_mod.merge_profile(history)) if history else ""
+        ans = orchestrator.handoff_reply(prof)          # answer.py '상담 연결' 안내와 같은 문장
+        action = "상담 연결"
+    else:
+        calc_q, how = _offline_calc_q(question, history)
+        try:
+            calc = taxcalc.compute(calc_q)
+        except Exception:
+            calc = None
+        nums = bool(calc) and any(bl.get("numbers") for bl in calc["blocks"])
+        needs = (calc or {}).get("needs", [])
+        if calc and calc.get("ambiguous"):
+            ans, action = orchestrator.amount_clarify_answer(calc), "되묻기"
+            needs = [x["ask"] for x in calc["ambiguous"]]
+        elif calc and needs:
+            # 계산값이 있으면 '계산 + 되묻기'(장면 1: 330만 원 상한 + 공제 안 받은 납입금 되묻기)
+            ans, kind = orchestrator.clarify_answer(calc, 1), "clarify"
+            action = "계산 + 되묻기" if nums else "되묻기"
+        elif nums:
+            ans, action, kind = (_RULE_NOTE[reason] + "\n\n" + verify.handoff_answer(calc, 1, why="")), "상담 연결", "calc"
+        elif orchestrator.is_product_ask(question):
+            ans, action = orchestrator.product_clarify_answer(), "되묻기"
+        else:
+            ans, action = _RULE_EMPTY[reason], "상담 연결"
+    try:
+        acts = orchestrator.next_actions(action, calc_q, calc, None, "")
+    except Exception:
+        acts = []
+    # 근거 — 계산 블록의 출처 문서(검색 없이 색인에서 찾는다). '[문서1]'을 실제 문서명 각주로 바꾼다
+    hits = []
+    if kind != "plain":
+        try:
+            hits = [(_calc_chunk(bl), 1.0) for bl in calc["blocks"]]
+        except Exception:
+            hits = []
+    ans = finalize(ans, hits, [])
+    sec = {"result": ans, "evidence": [], "assumptions": (calc or {}).get("assume", []), "needs": needs,
+           "next_actions": acts}
+    if hits:
+        sec = make_sections(ans, hits, calc, acts)
+        if kind == "clarify":
+            sec = dict(sec, needs=[])          # 빠진 정보는 답 본문 목록에 있다(answer.py 되묻기와 같게)
+            if not nums:
+                sec["assumptions"] = ["아직 계산하지 않았어요 — 위 정보를 알려 주시면 문서 규칙으로 계산합니다"]
+    trace = f"{why} — 모델 답 대신 {action} 답을 냄(규칙 계산·정해진 문장)" + (f" · 앞 질문과 이어 계산({how})" if how else "")
+    return {"answer": ans, "think_trace": trace,
+            "action": action, "late": True, "reason": reason, "standalone": calc_q, "needs": needs,
+            "sections": sec,
+            "plan": [{"step": _RULE_WHY[reason], "detail": f"모델 답 대신 {action} 답을 먼저 냄"}],
+            "calc": None if not calc else {"rule_ids": calc.get("rids", []), "figures": calc.get("figures", []),
+                                           "needs": needs, "assume": calc.get("assume", [])},
+            "verify": None, "retrieved_context": "", "injection": bool(detect_injection(question))}
+
+
+def _late_reply(question):
+    """(호환) 마감 초과 답."""
+    return _rule_reply(question, None, "late")
+
+
+async def _reachable():
+    """연결 확인(clova.probe) — DNS 조회는 urllib 시간 제한 밖이라 벽시계로 묶는다(10-13 검토). 넘기면 닿지 않는 것으로 본다.
+    이 확인은 실제 호출이 네트워크 오류로 실패한 뒤에만 부른다 — 정상일 때는 부르지 않는다."""
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(clova.probe, 3.0), 6.0)
+    except asyncio.TimeoutError:
+        return False
+
+
+def _drop_result(fut):
+    """기다리지 않기로 한 답 스레드 — 끝나면 결과·예외를 거두기만 한다('Task exception was never retrieved' 방지)."""
+    if not fut.cancelled():
+        fut.exception()
+
+
 @app.post("/chat")
 async def chat(body: dict = Body(...)):
     t0 = time.time()
@@ -378,11 +544,45 @@ async def chat(body: dict = Body(...)):
             kw = {}
             if str(body.get("mode") or "") == "fast":
                 kw = {"samples": 1, "draft_effort": "high", "draft_maxtok": 4096}
-            r = await asyncio.to_thread(answer, question, "", history=history, clarify_template=True, **kw)
+                if CHAT_CALC_EFFORT:
+                    kw["calc_effort"] = CHAT_CALC_EFFORT
+            r = None
+            # 바로 앞 호출에서 연결이 끊겼으면 먼저 짧게 확인한다 — 아직 끊겨 있으면 기다리지 않고 규칙 답(라이브 시연 안전장치)
+            if clova.net_down() and not await _reachable():
+                print("[net] /chat 인터넷 연결 끊김 — 규칙 답으로 대신함", flush=True)
+                r = await asyncio.to_thread(_rule_reply, question, history, "net")
+            else:
+                fut = asyncio.ensure_future(
+                    asyncio.to_thread(answer, question, "", history=history, clarify_template=True, **kw))
+                while r is None:
+                    done, _ = await asyncio.wait({fut}, timeout=1.0)
+                    if done:
+                        r = fut.result()
+                        break
+                    # 답을 만드는 중 네트워크 실패가 생겼고 확인해도 닿지 않으면 재시도 대기(최대 63초)를 기다리지 않는다
+                    if clova.net_failed_since(t0) and not await _reachable():
+                        if fut.done():
+                            continue                # 확인하는 사이 모델 답이 끝났다 — 그 답을 쓴다
+                        fut.add_done_callback(_drop_result)
+                        print("[net] /chat 답 생성 중 인터넷 연결 끊김 — 규칙 답으로 대신함", flush=True)
+                        r = await asyncio.to_thread(_rule_reply, question, history, "net")
+                        break
+                    if time.time() - t0 >= CHAT_DEADLINE:
+                        # 스레드는 뒤에서 마저 돌지만 화면은 기다리지 않는다(라이브 시연 안전장치)
+                        fut.add_done_callback(_drop_result)
+                        print(f"[late] /chat {CHAT_DEADLINE:.0f}초 초과 — 규칙 답으로 대신함", flush=True)
+                        r = await asyncio.to_thread(_rule_reply, question, history, "late")
+                        break
         except Exception as e:
             print(f"[error] /chat: {e}\n{traceback.format_exc(limit=3)}", flush=True)
-            return {"answer": "죄송합니다. 일시적인 오류로 답변을 생성하지 못했습니다.", "elapsed": round(time.time() - t0, 1),
-                    "session_id": sid, "error": type(e).__name__}
+            # 사과문만 내지 않는다 — 규칙 계산·정해진 되묻기는 모델 없이 만들 수 있다
+            try:
+                r = await asyncio.to_thread(_rule_reply, question, history,
+                                            "net" if clova.net_failed_since(t0) else "error")
+            except Exception as e2:
+                print(f"[error] /chat 규칙 답: {e2}", flush=True)
+                return {"answer": "죄송합니다. 일시적인 오류로 답변을 생성하지 못했습니다.", "elapsed": round(time.time() - t0, 1),
+                        "session_id": sid, "error": type(e).__name__}
         out = _to_schema(r, "", question)
         if sid and not r.get("blocked"):
             await asyncio.to_thread(STORE.add, sid, question, r.get("standalone") or question, out["answer"],
@@ -391,10 +591,10 @@ async def chat(body: dict = Body(...)):
         log_query("chat", question, out, el, _inflight, None, session_id=sid, standalone=r.get("standalone", ""))
         sec = r.get("sections") or {"result": out["answer"], "evidence": [], "assumptions": [], "needs": [],
                                     "next_actions": []}
-        return {"answer": out["answer"], "elapsed": round(el, 1), "session_id": sid,
+        return {"answer": out["answer"], "elapsed": round(el, 1), "session_id": sid, "question": question,
                 "sections": sec, "plan": r.get("plan") or [], "calc": r.get("calc"),
                 "verify": r.get("verify"), "action": r.get("action", ""), "trace": out["think_trace"],
-                "standalone": r.get("standalone", "")}
+                "standalone": r.get("standalone", ""), "late": bool(r.get("late")), "reason": r.get("reason", "")}
     finally:
         async with _inflight_lock:
             _inflight -= 1
@@ -477,7 +677,13 @@ def rules_table():
                     asof = dm.as_of(f) or ""
                 except Exception:
                     asof = ""
-            quotes.append({"file": f, "text": text, "as_of": asof})
+            title, aud = "", ""
+            if dm:
+                try:
+                    title, aud = (dm.meta(f) or {}).get("title", ""), dm.audience(f) or ""
+                except Exception:
+                    title, aud = "", ""
+            quotes.append({"file": f, "text": text, "as_of": asof, "title": title, "audience": aud})
         out.append({"rid": rid, "name": name, "summary": summary, "how": how, "quotes": quotes})
     return out
 
@@ -488,6 +694,31 @@ def ontology_graph():
     if not m:
         return JSONResponse({"error": "ontology 모듈 없음"}, status_code=503)
     return m.graph()
+
+
+@app.get("/ontology/overview")
+def ontology_overview():
+    """시연 화면 '세금 지도' — 재원 × 인출 방식 9칸, 단계별 규칙, 문서 제목(문서 번호 대신)."""
+    m = _module("ontology")
+    if not m:
+        return JSONResponse({"error": "ontology 모듈 없음"}, status_code=503)
+    return m.overview()
+
+
+@app.post("/ontology/path")
+def ontology_path(body: dict = Body(...)):
+    """질문이 세금 지도에서 지나는 칸(모델 호출 없음). 화면이 마지막 상담 질문(재작성된 질문)을 보낸다."""
+    m = _module("ontology")
+    if not m:
+        return JSONResponse({"error": "ontology 모듈 없음"}, status_code=503)
+    q = str(body.get("question") or "").strip()[:MAX_Q]
+    if not q:
+        return {"cells": [], "stage": "", "rule_ids": [], "intent": "", "steps": []}
+    try:
+        return m.question_cells(q)
+    except Exception as e:                       # 경로를 못 그려도 화면은 그대로
+        print(f"[error] /ontology/path: {e}", flush=True)
+        return {"cells": [], "stage": "", "rule_ids": [], "intent": "", "steps": []}
 
 
 if __name__ == "__main__":
