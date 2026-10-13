@@ -203,7 +203,34 @@ def check(answer, question='', calc=None, context='', extra=(), lead_strict=Fals
 _OUTDATED = [
     (re.compile(r'((?:연금저축|세액\s*공제)[^.\n]{0,25}?(?:최대|한도|연간?)\s*)400\s*만\s*원'), r'\g<1>600만 원'),
     (re.compile(r'((?:IRP|합산|연금저축\s*포함)[^.\n]{0,25}?(?:최대|한도|연간?)\s*)700\s*만\s*원'), r'\g<1>900만 원'),
+    # '세액공제 혜택(연간 납입액 400만원 한도' — 금액 바로 뒤에 '한도'가 올 때만(10-13 외부 시험)
+    (re.compile(r'((?:연금저축|세액\s*공제)[^.\n]{0,30}?)400\s*만\s*원(?=\s*(?:까지\s*)?한도)'), r'\g<1>600만 원'),
 ]
+
+
+# 나이 한 살과 연금소득세율을 짝지은 문장 — '65세라면 4.4%'(10-13 외부 시험, 65세는 5.5%). 숫자 대조는 4.4%가 문서에
+# 있는 값이라 통과시켰다. 나이 한 살(범위 아님) 뒤 짧은 구간에 5.5·4.4·3.3% 하나가 오면 R-07 표(doc38·doc39)로 맞춘다.
+# '55세 이상 70세 미만 5.5%'처럼 범위의 끝나이, 종신연금(문서 표의 별도 칸)·부득이 아닌 다른 세목 문장은 건드리지 않는다.
+_AGE_RATE = re.compile(r'(?<![\d~∼\-–])(?P<age>[5-9]\d)\s*세(?!\s*(?:미만|이상|이하|초과|부터|까지|~|∼|-|–|·|,|와|과|및|또는|에서))'
+                       r'(?P<mid>[^.\n%~∼]{0,24}?)(?P<rate>5\.5|4\.4|3\.3)\s*%')
+
+
+def fix_age_rate(answer):
+    """(고친 답, 고친 곳 수) — 나이 한 살에 붙은 연금소득세율이 R-07 표와 다르면 바로잡는다."""
+    n = 0
+
+    def sub(m):
+        nonlocal n
+        age, mid = int(m.group('age')), m.group('mid')
+        if age < 55 or re.search(r'종신|\d\s*세|퇴직|기타소득|분리과세|16\.5', mid):
+            return m.group(0)
+        r = taxcalc.age_rate(age)
+        want = f'{r:g}' if r else None
+        if not want or m.group('rate') == want:
+            return m.group(0)
+        n += 1
+        return m.group(0)[:m.start('rate') - m.start(0)] + want + m.group(0)[m.end('rate') - m.start(0):]
+    return _AGE_RATE.sub(sub, answer or ''), n
 
 
 def fix_outdated(answer):

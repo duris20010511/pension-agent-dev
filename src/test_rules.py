@@ -1169,6 +1169,76 @@ def check_mirae_1013(fail):
     return n
 
 
+def check_tester_1013(fail):
+    """10-13 외부 시험에서 나온 결함 — 줄여 부른 상품 이름, 화면에 보인 LaTeX, 지어낸 예상 수령액, 나이와 다른 세율.
+    API 를 부르지 않는다."""
+    import orchestrator
+    import product_names
+    import verify
+    from answer import latex_to_text
+    n = 0
+
+    def ok(cond, msg):
+        nonlocal n
+        n += 1
+        if not cond:
+            fail.append(f'[10-13 외부 시험] {msg}')
+
+    def names(q):
+        return [(m['said'], m['names']) for m in product_names.resolve(q)]
+    # 상품 이름 — 정식 이름의 일부로 물어도 받은 문서(doc37 상품표·펀드 카드)의 상품을 찾는다
+    r = names('인도빌리언컨슈머랑 미국인덱스EMP 두 상품좀 비교해줘')
+    ok(r == [('인도빌리언컨슈머', ['TIGER 인도빌리언컨슈머']), ('미국인덱스EMP', ['미래에셋미국인덱스EMP(주식-재간접)종류C-P2'])], f'줄인 이름 두 개: {r}')
+    ok(names('항셍테크 위험등급은?') == [('항셍테크', ['TIGER 차이나항셍테크'])], '항셍테크')
+    ok(names('필승코리아 펀드 수익률 알려줘') == [('필승코리아', ['NH-Amundi 필승 코리아 증권투자신탁 [주식]'])], '펀드 카드 이름')
+    ok(names('TIGER 인도빌리언컨슈머 보수는?') == [], '정식 이름을 다 쓴 질문은 건드리지 않음')
+    for q in ('연금저축 600 넣으면 세액공제 얼마?', '55세 전에 연금저축 빼면 전부 16.5%예요?', '퇴직연금 디폴트옵션이 뭐야',
+              '미래에셋 연금 상품 추천해줘', '인덱스 펀드가 뭐예요?', 'IRP 위험자산 한도가 70%인가요?'):
+        ok(names(q) == [], f'상품 이름이 아닌 질문에 걸림: {q} → {names(q)}')
+    ok(not any(re.search(r'[○△]', x['name']) for x in product_names.catalog()), "자리표시 예시('○○은행 정기예금')가 상품 목록에 들어감")
+    amb = [{'said': '인덱스플러스', 'names': ['A 인덱스플러스', 'B 인덱스플러스'], 'items': []}]
+    acts = product_names.ask_actions('인덱스플러스 보수는?', amb)
+    ok(len(acts) == 2 and acts[0]['payload'] == 'A 인덱스플러스 보수는?' and acts[0]['kind'] == 'chat', f'되묻기 버튼: {acts}')
+    ok('여러 상품에 걸려요' in product_names.ask_answer(amb) and '- B 인덱스플러스' in product_names.ask_answer(amb), '되묻기 문장')
+    ok(product_names.note([{'said': '항셍테크', 'names': ['TIGER 차이나항셍테크'], 'items': []}]) ==
+       ["'항셍테크' → 'TIGER 차이나항셍테크'(받은 문서의 정식 이름)로 보고 답함"], '가정 칸 문장')
+    # 상품표 값 그대로 — 위험등급·보수를 표의 행에서 옮긴다(모델이 이웃 행 값을 썼다)
+    tab = product_names.table_answer(product_names.resolve('인도빌리언컨슈머랑 미국인덱스EMP 두 상품좀 비교해줘'), 1)
+    ok(tab and '| 위험등급 | 높은위험 | 높은위험 |' in tab and '| 합성총보수(연, %) | 0.66 | 0.80 |' in tab and '매우높은위험' not in tab
+       and 'FundDoctor Pro, 2025.06.30 기준' in tab and '정해 드리지 않아요' in tab and not re.search(r'추천|유리|적합합니다', tab), f'상품표 비교: {tab}')
+    ok(product_names.table_answer(product_names.resolve('항셍테크 위험등급은?'), 2).count('매우높은위험') == 1, '항셍테크 위험등급')
+    ok(product_names.table_answer(product_names.resolve('필승코리아 수익률'), 1) is None, '상품표에 없는 펀드(카드)는 표 답을 쓰지 않음')
+    # LaTeX — '\sum_{n=1}^{13} ( \frac{1,000만 원}{(1+0.05)^{13-n}} )'가 화면에 보였다
+    t = latex_to_text(r'적립금 = \sum_{n=1}^{13} ( \frac{1,000만 원}{(1+0.05)^{13-n}} ) ≈ 1억 4,800만 원')
+    ok('\\' not in t and '{' not in t and 'Σ(n=1 ~ 13)' in t and '1,000만 원 ÷ (1+0.05)^(13-n)' in t, f'합·분수·지수: {t}')
+    ok(latex_to_text(r'\frac{1억}{11 - 1} \times 120\%') == '1억 ÷ (11 - 1) × 120%', '기존 분수 식 그대로')
+    ok(latex_to_text('괄호 {중괄호} 문장') == '괄호 {중괄호} 문장', 'LaTeX 없는 글은 그대로')
+    ok('\\' not in latex_to_text(r'\left( 1 + r \right)^{n} \cdot \unknowncmd P'), '모르는 명령의 역슬래시')
+    # 예상 수령액 질문 — 수익률을 지어내지 않고 정해진 문장(시연 채널)
+    for q in ('나는 현재 29살이고 월급은 400정도야. 65세에 나는 연금을 얼마받니?', '니가 평균으로 가정해서 계산해줘',
+              '42살이고 은퇴는 60정도 일거같고 300정도 받고싶은데 가능할까??',
+              '현재 나는 24살이고 65살에 퇴직한다고 했을 때 연금을 나눠받으면 어느 정도일까?',
+              '내가 42살인데 60살부터 연금수령하고 싶은데 얼마 받을 수 있을까?'):
+        ok(orchestrator.is_projection_ask(q), f'예상 수령액 질문을 못 알아봄: {q}')
+    for q in ('66세인데 연금저축에서 연 1,200만 원 받으면 세금은?', '총급여 5,000만 원이고 연금저축 600 넣었어요. 12월에 IRP 더 넣으면 얼마나 돌려받아요?',
+              '한도까지만 받으면 얼마나 줄어요?', '연금저축 얼마까지 넣을 수 있어?', '올해 한도까지만 받으면?', '과세이연이 뭐야?'):
+        ok(not orchestrator.is_projection_ask(q), f'세금·납입 질문을 예상 수령액 질문으로 봄: {q}')
+    pa = orchestrator.projection_answer()
+    ok('수익률을 가정해 금액을 만들어 드리지는 않을게요' in pa and '55세 이상 70세 미만 5.5%' in pa and '1588-5577' in pa, '예상 수령액 안내문')
+    acts = orchestrator.projection_actions('내가 42살인데 연봉은 1억정도 되거든 얼마 받을 수 있을까?')
+    ok(acts[0]['payload'].startswith('총급여 1억 원이고') and any(a['kind'] == 'guide' for a in acts) and acts[-1]['kind'] == 'handoff',
+       f'예상 수령액 다음 행동: {acts}')
+    # 나이와 맞지 않는 세율·옛 한도
+    ok(verify.fix_age_rate('따라서 65세라면 **4.4%** 세율이 적용됩니다.') == ('따라서 65세라면 **5.5%** 세율이 적용됩니다.', 1), '65세 4.4% → 5.5%')
+    ok(verify.fix_age_rate('70세에 받으면 5.5%가 적용돼요')[0] == '70세에 받으면 4.4%가 적용돼요', '70세 5.5% → 4.4%')
+    for s in ('55세 이상 70세 미만 5.5%, 70세 이상 80세 미만 4.4%, 80세 이상 3.3%', '만70세 ~ 79세는 4.4%, 만80세 이상은 3.3%다.',
+              '- 55~70세 미만: **5.5%**', '62세 종신연금이면 3.3%', '65세 · 70세 4.4%', '85세는 3.3%'):
+        ok(verify.fix_age_rate(s) == (s, 0), f'맞는 세율 문장을 바꿈: {s}')
+    ok(verify.fix_outdated('세액공제 혜택(연간 납입액 400만원 한도, 13.2% 공제)')[0] == '세액공제 혜택(연간 납입액 600만 원 한도, 13.2% 공제)', '옛 한도 400만')
+    ok(verify.fix_outdated('연금저축에 400만 원 넣으면 52만 8천 원')[1] == 0, '한도가 아닌 400만 원을 바꿈')
+    return n
+
+
 def main():
     fail = []
     for q in ATTACKS:
@@ -1207,6 +1277,7 @@ def main():
     total += check_review_1010(fail)
     total += check_review_1010b(fail)
     total += check_mirae_1013(fail)
+    total += check_tester_1013(fail)
     print(f'{total - len(fail)}/{total} 통과')
     for f in fail:
         print('  ' + f)

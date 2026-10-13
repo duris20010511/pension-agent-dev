@@ -8,7 +8,7 @@
   본선 시연 화면 — 한 파일, 외부 CDN 없음, 바닐라 JS.
   서버(src/server.py)가 /demo 로 이 파일을 내고, 같은 주소의 API 를 부른다.
   · 상담           POST /chat · POST /session
-  · 먼저 알려주기  GET /alerts/profiles · POST /alerts · GET /alerts/outbox
+  · 알림 미리받기  GET /alerts/profiles · POST /alerts · GET /alerts/outbox
   · DIY 설계       POST /diy
   · 규칙·온톨로지  GET /rules · GET /ontology
   왜 이렇게 —
@@ -254,7 +254,7 @@ details.full .md { margin-top: 8px; font-size: 15px; }
 details.trace summary { cursor: pointer; font-weight: 700; color: var(--navy); font-size: 14px; }
 details.trace pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; background: var(--bg); border-radius: 8px; padding: 10px; max-height: 320px; overflow-y: auto; margin: 8px 0 0; font-family: Consolas, "D2Coding", monospace; }
 
-/* ---------- 2. 먼저 알려주기 ---------- */
+/* ---------- 2. 알림 미리받기 ---------- */
 #tab-alerts, #tab-rules { flex-direction: column; }
 .toolbar { flex: none; display: flex; gap: 14px; align-items: flex-end; padding: 14px 24px; background: #fff; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; font-weight: 700; }
@@ -312,6 +312,13 @@ details.trace pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1
 /* ---------- 3. DIY ---------- */
 .diy-form { width: 440px; flex: none; overflow-y: auto; background: #fff; border-right: 1px solid var(--line); padding: 16px 20px 24px; }
 .diy-out { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 24px 24px; }
+.diy-qa { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 16px; }
+.diy-qrow { display: flex; gap: 8px; }
+.diy-qrow .diy-q { flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 15px; }
+.diy-qrow .diy-q:focus { outline: none; border-color: var(--navy); }
+.diy-qa .hint { font-size: 13px; color: var(--muted); margin: 6px 0 10px; }
+.diy-turn { margin: 0 0 18px; }
+.diy-turn .diy-ctx { font-size: 12px; color: var(--muted); text-align: right; margin: -4px 0 8px; }
 .frow { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 12px; flex-wrap: wrap; }
 .frow .field { flex: 1 1 0; min-width: 0; }
 .frow .field input, .frow .field select { width: 100%; }
@@ -478,7 +485,7 @@ svg .node.pick circle { stroke: var(--orange); stroke-width: 4; }
   <div class="brand"><span class="logo">연</span>연금 Agent <small>본선 시연</small></div>
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="chat" class="on"><span class="k">1</span>상담</button>
-    <button role="tab" data-tab="alerts"><span class="k">2</span>먼저 알려주기</button>
+    <button role="tab" data-tab="alerts"><span class="k">2</span>알림 미리받기</button>
     <button role="tab" data-tab="diy"><span class="k">3</span>DIY 설계</button>
     <button role="tab" data-tab="rules"><span class="k">4</span>규칙·온톨로지</button>
   </nav>
@@ -506,7 +513,7 @@ svg .node.pick circle { stroke: var(--orange); stroke-width: 4; }
     <aside class="side" id="side"></aside>
   </section>
 
-  <!-- 2. 먼저 알려주기 -->
+  <!-- 2. 알림 미리받기 -->
   <section class="tab" id="tab-alerts" role="tabpanel">
     <div class="toolbar">
       <div class="field"><label for="profile">가상 고객</label><select id="profile"><option value="">불러오는 중…</option></select></div>
@@ -914,7 +921,7 @@ const SCENES = [
   { tag: '장면 2 이어서', label: '정보 보충', q: '평가액은 1억이고 퇴직금이 6,000만 원, 나머지는 공제받은 돈이에요. 퇴직소득세 실효세율은 4%, 올해 퇴직해서 처음 받아요.' },
   { tag: '장면 3', label: '상품 골라 달라', q: '제일 좋은 연금 상품이 뭐예요?' },
   { tag: 'DIY', label: '납입 조합 비교', q: '총급여 5,000만 원인데 연금저축 600 + IRP 300이랑 연금저축 900만 넣는 거 비교해 주세요.' },
-  { tag: '장면 4', label: '먼저 알려주기', tab: 'alerts' },
+  { tag: '장면 4', label: '알림 미리받기', tab: 'alerts' },
 ];
 const chat = { session: null, busy: false, timer: 0, turns: 0 };
 
@@ -1203,7 +1210,7 @@ function initChat() {
   // 시연 장면 버튼은 기본으로 숨긴다(10-13 사용자: 다른 사람들이 직접 물어보며 시험 중). 발표 때는 /demo?scenes=1 로 연다
   const showScenes = new URLSearchParams(location.search).has('scenes');
   for (const sc of showScenes ? SCENES : []) {
-    chips.append(h('button', { type: 'button', class: 'chip-q', title: sc.q || '먼저 알려주기 탭으로', 'data-tab': sc.tab || null,
+    chips.append(h('button', { type: 'button', class: 'chip-q', title: sc.q || '알림 미리받기 탭으로', 'data-tab': sc.tab || null,
       onclick: () => {
         if (sc.tab) { switchTab(sc.tab); if (sc.tab === 'alerts') scanWhenReady(); return; }
         ask(sc.q);
@@ -1227,7 +1234,7 @@ function initChat() {
 }
 
 /* =========================================================================
-   2. 먼저 알려주기
+   2. 알림 미리받기
    ========================================================================= */
 const KIND_LABEL = {
   year_end_credit: '연말 세액공제', isa_maturity: 'ISA 만기', age55: '만 55세 도래', over_limit_plan: '한도 초과 인출',
@@ -1343,7 +1350,7 @@ function pushToast(a) {
   const plain = String(a.message || '').replace(/\*\*|__|`/g, '');
   const el = h('div', { class: 'push sev-' + sevKey(a.severity), role: 'status' },
     h('div', { class: 'ic' }, '연'),
-    h('div', null, h('div', { class: 'app' }, h('b', null, '연금 Agent · 먼저 알려드려요'), h('span', null, '지금')),
+    h('div', null, h('div', { class: 'app' }, h('b', null, '연금 Agent · 미리 받은 알림'), h('span', null, '지금')),
       h('div', { class: 'ttl' }, a.title || ''), plain ? h('div', { class: 'msg' }, plain) : null));
   const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 360); };
   el.addEventListener('click', () => {
@@ -1478,10 +1485,56 @@ async function runDiy() {
   out.replaceChildren(h('p', { class: 'empty' }, h('span', { class: 'spinner', style: 'display:inline-block;vertical-align:middle;margin-right:8px' }), '계산하는 중…'));
   try {
     const r = await api('/diy', { method: 'POST', body: diyPlan() });
-    out.replaceChildren(renderDiyNode(r));
+    out.replaceChildren(renderDiyNode(r), diyQaNode());
   } catch (e) {
     out.replaceChildren(errNode(e));
   } finally { btn.disabled = false; }
+}
+
+/* DIY 결과를 보며 바로 묻기(10-13 교수님 피드백: "DIY에서 보다가 질문은 못하는거야?").
+   지금 설계값을 질문 앞에 붙여 /chat 으로 보낸다 — 상담 탭과 같은 대화 기억·4칸 답. 조합 문장은 규칙 계산(조합 비교)이 읽는 꼴로 쓴다 */
+function diyContext(plan) {
+  const p = plan || diyPlan();
+  const parts = [`${p.income.kind === '종합소득' ? '종합소득' : '총급여'} ${won(p.income.v)}`, `나이 ${p.age}세`];
+  const combo = c => `연금저축 ${won(c.savings)}` + (c.irp ? ` + IRP ${won(c.irp)}` : '');
+  if (asList(p.combos).length) parts.push(asList(p.combos).map(combo).join('이랑 ') + (p.combos.length > 1 ? ' 넣는 거 비교' : ' 넣는 경우'));
+  if (p.payout) parts.push(`수령 설계 ${p.payout.start_age}세부터 ${p.payout.years}년(평가액 ${won(p.payout.balance)})`);
+  return parts.join(', ') + ' 기준으로 질문:';
+}
+function diyQaNode() {
+  const input = h('input', { type: 'text', class: 'diy-q', maxlength: 300, 'aria-label': 'DIY 설계로 질문하기',
+    placeholder: '이 설계로 궁금한 점을 물어보세요 (예: 두 조합 차이가 왜 나요? IRP는 중간에 못 빼요?)' });
+  const list = h('div', { class: 'diy-answers' });
+  const btn = h('button', { type: 'button', class: 'btn primary small' }, '질문하기');
+  const send = async () => {
+    const q = input.value.trim();
+    if (!q || chat.busy) return;
+    const ctx = diyContext();
+    input.value = '';
+    setBusy(true);
+    btn.disabled = true;
+    const pend = h('div', { class: 'msg-bot pending' }, h('div', { class: 'cards' }, h('div', { class: 'card result' }, h('span', { class: 'spinner' }), '설계값과 함께 답을 쓰고 있어요…')));
+    list.prepend(h('div', { class: 'diy-turn' }, h('div', { class: 'msg-user' }, h('div', { class: 'bubble' }, q)),
+      h('p', { class: 'diy-ctx' }, '함께 보낸 설계값: ' + ctx.replace(/ 기준으로 질문:$/, '')), pend));
+    const t0 = performance.now();
+    try {
+      const body = { question: `${ctx} ${q}`, mode: ($('#mode') && $('#mode').value) || 'fast' };
+      if (chat.session) body.session_id = chat.session;
+      const r = await api('/chat', { method: 'POST', body, timeout: 300000 });
+      if (r.session_id) chat.session = r.session_id;
+      if (typeof r.elapsed !== 'number') r.elapsed = (performance.now() - t0) / 1000;
+      pend.replaceWith(renderBot(r));
+    } catch (e) {
+      pend.replaceWith(h('div', { class: 'err-block' }, errNode(e)));
+    } finally { setBusy(false); btn.disabled = false; }
+  };
+  btn.addEventListener('click', send);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); send(); } });
+  return h('div', { class: 'diy-qa' },
+    h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '이 설계로 질문하기'),
+    h('div', { class: 'diy-qrow' }, input, btn),
+    h('p', { class: 'hint' }, '지금 설계값(소득·나이·조합)이 질문에 함께 붙어, 상담 탭과 같은 방식(결과·근거·가정·다음 행동)으로 답해요.'),
+    list);
 }
 
 /* DIY 결과(diy.simulate) 그리기. 금액 글자는 서버가 taxcalc.won 으로 만든 text.* 를 먼저 쓰고, 없을 때만 won() 으로.
@@ -2193,6 +2246,16 @@ window.__selftest = function () {
       /한도 없음/.test(trs[1].textContent) && /300만 원/.test(n.textContent)) || n.textContent.slice(0, 300);
   });
   t('DIY 서버 글자(text.*) 우선', () => tv({ refund: 148.5, text: { refund: '148만 5천 원' } }, 'refund') === '148만 5천 원' && tv({ refund: 99 }, 'refund') === '99만 원' && tv({}, 'x') === '-');
+  t('DIY 질문 앞에 붙는 설계값(규칙 계산이 읽는 꼴)', () => {
+    const c = diyContext({ income: { kind: '총급여', v: 5000 }, age: 40, combos: [{ name: 'A', savings: 600, irp: 300 }, { name: 'B', savings: 900, irp: 0 }] });
+    const one = diyContext({ income: { kind: '종합소득', v: 4000 }, age: 35, combos: [{ name: 'A', savings: 600, irp: 0 }],
+      payout: { start_age: 60, years: 10, balance: 10000 } });
+    return (c === '총급여 5,000만 원, 나이 40세, 연금저축 600만 원 + IRP 300만 원이랑 연금저축 900만 원 넣는 거 비교 기준으로 질문:' &&
+      one === '종합소득 4,000만 원, 나이 35세, 연금저축 600만 원 넣는 경우, 수령 설계 60세부터 10년(평가액 1억 원) 기준으로 질문:') || `${c} / ${one}`;
+  });
+  t('DIY 질문 칸', () => { const n = diyQaNode(); return (!!n.querySelector('input.diy-q') && !!n.querySelector('button') && /이 설계로 질문하기/.test(n.textContent)) || n.outerHTML.slice(0, 200); });
+  t("탭 이름 '알림 미리받기'", () => /알림 미리받기/.test($('nav.tabs button[data-tab="alerts"]').textContent) &&
+    !/먼저\s*알려주기/.test($('nav.tabs').textContent + $('#tab-alerts').textContent + $('#tab-chat').textContent));
   t('DIY 설계값 모으기', () => { const p = diyPlan(); return (p.income && p.income.v >= 0 && p.combos.length >= 2 && 'savings' in p.combos[0]) || JSON.stringify(p); });
 
   // 그래프

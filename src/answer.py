@@ -28,6 +28,15 @@ from index_search import Index
 from hybrid import Hybrid
 from expand import expand
 from understand_guard import classify as classify_v1, needs_clarification, guard
+import product_names
+
+
+def _product_names(q):
+    """줄여 부른 상품 이름 찾기(product_names.resolve) — 실패해도 답은 나가야 한다."""
+    try:
+        return product_names.resolve(q)
+    except Exception:
+        return []
 
 # 분류기 선택 — prior 프롬프트가 이 결과를 보고 유형별 축을 고른다.
 #
@@ -381,7 +390,8 @@ _URL = re.compile(r'https?://\S+')
 
 
 _LATEX_CMD = [(r'\\times', '×'), (r'\\div', '÷'), (r'\\cdot', '·'), (r'\\le(?:q)?', '≤'), (r'\\ge(?:q)?', '≥'),
-              (r'\\approx', '≈'), (r'\\rightarrow|\\to', '→'), (r'\\%', '%'), (r'\\,|\\;|\\!|\\quad', ' ')]
+              (r'\\approx', '≈'), (r'\\rightarrow|\\to', '→'), (r'\\%', '%'), (r'\\,|\\;|\\!|\\quad|\\qquad', ' '),
+              (r'\\pm', '±'), (r'\\neq?', '≠'), (r'\\infty', '∞'), (r'\\[lc]?dots', '…')]
 
 
 _FORMULA_PAREN = re.compile(r'(\S+)\s*÷\s*11\s*[-−–]\s*(\d{1,2}|연금\s*수령\s*연차)\s*×\s*120\s*%')
@@ -407,16 +417,30 @@ def latex_to_text(t):
     if '\\' not in t and '$$' not in t:
         return t
     t = re.sub(r'\\text\{([^{}]*)\}', r'\1', t)
-    t = re.sub(r'\\(?:mathrm|textbf|mathbf|boxed)\{([^{}]*)\}', r'\1', t)    # '\boxed{144만 원}' (시연 실측)
+    t = re.sub(r'\\(?:mathrm|textbf|mathbf|boxed|operatorname)\{([^{}]*)\}', r'\1', t)    # '\boxed{144만 원}' (시연 실측)
     t = re.sub(r'\\(?:left|right|bigl|bigr|Bigl|Bigr|big|Big)(?![A-Za-z])\s*', '', t)   # '\left( … \right)' (10-13 시연)
+    # 합·지수·첨자 — '\sum_{n=1}^{13} ( \frac{1,000만 원}{(1+0.05)^{13-n}} )'가 화면에 그대로 보였다(10-13 외부 시험).
+    # 분모 안의 '^{13-n}'을 먼저 풀어야 아래 \frac(중괄호 한 겹)이 잡힌다
+    t = re.sub(r'\\sum\s*_\{([^{}]*)\}\s*\^\{([^{}]*)\}', r'Σ(\1 ~ \2)', t)
+    t = re.sub(r'\\sum(?![A-Za-z])', 'Σ', t)
+    t = re.sub(r'\\sqrt\{([^{}]*)\}', r'√(\1)', t)
+    t = re.sub(r'\^\{([^{}]*)\}', lambda m: '^' + (m.group(1) if re.fullmatch(r'\w+', m.group(1)) else f'({m.group(1)})'), t)
+    t = re.sub(r'_\{([^{}]*)\}', lambda m: '_' + (m.group(1) if re.fullmatch(r'\w+', m.group(1)) else f'({m.group(1)})'), t)
     # 분모에 +·− 가 있으면 괄호로 묶는다 — '\frac{1억}{11 - 1}' 이 '1억 ÷ 11 - 1' 이 되면 식이 틀려 보인다
-    t = re.sub(r'\\frac\{([^{}]*)\}\{([^{}]*)\}',
-               lambda m: f"{m.group(1)} ÷ " + (f"({m.group(2).strip()})" if re.search(r'[+\-−–]', m.group(2))
-                                               and not re.fullmatch(r'\s*\(.*\)\s*', m.group(2)) else m.group(2)), t)
+    for _ in range(3):                          # 겹친 \frac 은 안쪽부터
+        t2 = re.sub(r'\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}',
+                    lambda m: f"{m.group(1)} ÷ " + (f"({m.group(2).strip()})" if re.search(r'[+\-−–]', m.group(2))
+                                                    and not re.fullmatch(r'\s*\(.*\)\s*', m.group(2)) else m.group(2)), t)
+        if t2 == t:
+            break
+        t = t2
     for rx, rep in _LATEX_CMD:
         t = re.sub(rx + r'(?![A-Za-z])', rep, t)
     t = re.sub(r'\\[\(\)\[\]]', '', t)          # \( \) \[ \] 수식 경계
     t = re.sub(r'\$\$([^$]+)\$\$', r'\1', t)
+    t = re.sub(r'\$([^$\n]{1,200}?)\$', lambda m: m.group(1) if re.search(r'[\\^_=×÷Σ]', m.group(1)) else m.group(0), t)
+    t = re.sub(r'\\([A-Za-z]+)', r'\1', t)       # 모르는 명령은 역슬래시만 걷는다(화면에 '₩'로 보인다)
+    t = re.sub(r'\\\{|\\\}', '', t)
     t = re.sub(r'(?<=\d)\s+(?=만\s*원)', '', t)      # '1,800 만 원' → '1,800만 원'
     t = re.sub(r'[ \t]{2,}', ' ', t)
     return t
@@ -823,6 +847,25 @@ def retrieve(eq, question, want, use_dense=True, qvec=None):
         if routed:
             ids = {id(c) for c in routed}
             hits = [(c, 1.0) for c in routed] + [h for h in hits if id(h[0]) not in ids]
+    # 줄여 부른 상품 이름('인도빌리언컨슈머', '미국인덱스EMP') — 받은 문서의 정식 이름 하나로 정해지면 그 상품이 든 조각
+    # (상품표 조각·펀드 카드)을 맨 앞에 둔다(product_names.py). 10-13 외부 시험에서 검색이 상품표를 놓쳐 '답할 수 없음'이 났다
+    found = [m for m in _product_names(question) if len(m['names']) == 1]
+    if found:
+        _, chunks = get_index()
+        extra = []
+        for m in found:
+            for it in m['items']:
+                if it['kind'] == 'card':
+                    c = (_CARDS_BY_FILE or {}).get(it['file'])
+                    extra += [c] if c else []
+                else:
+                    extra += [c for c in chunks if c['file'] == it['file'] and it['name'] in c['text']][:1]
+        extra = [c for k, c in enumerate(extra) if all(c is not d for d in extra[:k]) and doc_policy.allowed(c, question)]
+        if extra:
+            ids = {id(c) for c in extra}
+            hits = [(c, 1.0) for c in extra] + [h for h in hits if id(h[0]) not in ids]
+            routed = routed + [c for c in extra if c.get('kind') == 'card' and c not in routed]
+            label += ' · 상품 이름: ' + ', '.join(f"{m['said']}→{m['names'][0]}" for m in found)
     return hits[:want], label, dropped, routed
 
 
@@ -1411,6 +1454,58 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                 'plan': orchestrator.plan_steps(trace, '되묻기', P.get('why', ''), P.get('state', '')),
                 'sections': {'result': ans, 'evidence': [], 'assumptions': [], 'needs': [], 'next_actions': acts},
                 'calc': None, 'verify': None, 'needs': []}
+    pcalc = P.get('calc') or {}
+    no_numbers = not any(b.get('numbers') for b in pcalc.get('blocks', []))
+    if clarify_template and P.get('action') != '상담 연결' and no_numbers:
+        # 줄여 부른 상품 이름이 받은 문서의 여러 상품에 걸린다 — "어느 상품인가요?"로 되묻는다(10-13 외부 시험, 모델 호출 없음).
+        # 한 상품으로 정해지면 검색(retrieve)이 그 상품 조각을 맨 앞에 두고 아래 생성 경로로 간다
+        amb = [m for m in _product_names(question) if len(m['names']) >= 2]
+        if amb:
+            ans = product_names.ask_answer(amb)
+            trace.append('응답: 상품 이름 되묻기(여러 상품에 걸리는 이름, 모델 호출 없음) — '
+                         + ' / '.join(f"{m['said']}: {', '.join(m['names'])}" for m in amb))
+            acts = product_names.ask_actions(raw if any(m['said'] in raw for m in amb) else question, amb)
+            acts.append({'label': '상담 연결', 'kind': 'handoff', 'payload': ''})
+            return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
+                    'think_trace': '\n'.join(trace), 'answer': ans,
+                    'standalone': raw if mem and mem.get('how') == '대체' else question,
+                    'injection': bool(P.get('injection')), 'action': '되묻기',
+                    'plan': orchestrator.plan_steps(trace, '되묻기', '상품 이름이 여러 상품에 걸림', P.get('state', '')),
+                    'sections': {'result': ans, 'evidence': [], 'assumptions': [], 'needs': [], 'next_actions': acts},
+                    'calc': None, 'verify': None, 'needs': []}
+        # 상품표(doc37 연금 인출 가이드)에 있는 상품만 물었다 — 표의 행을 그대로 옮긴 비교표로 답한다(모델 호출 없음).
+        # 10-13 외부 시험: 모델이 표를 옮기며 위험등급을 이웃 행 값으로 바꿔 쓰고 '안정성 중시 → ○○'처럼 골라 줬다
+        uniq = [m for m in _product_names(question) if len(m['names']) == 1]
+        tfiles = {it['file'] for m in uniq for it in m['items'] if it['kind'] == 'table'}
+        k = next((i for i, (c, _) in enumerate(cite_hits or [], 1) if c['file'] in tfiles), None)
+        tab = product_names.table_answer(uniq, k) if uniq and k and not orchestrator.is_projection_ask(raw) else None
+        if tab:
+            trace.append('응답: 상품표 값 그대로(받은 문서의 표 행을 옮김, 모델 호출 없음) — '
+                         + ', '.join(f"{m['said']}→{m['names'][0]}" for m in uniq))
+            ans = finalize(tab, cite_hits, trace)
+            acts = [{'label': '투자성향 진단 받기', 'kind': 'handoff', 'payload': '적합성 진단'},
+                    {'label': '상담 연결', 'kind': 'handoff', 'payload': ''}]
+            sec = sections(ans, cite_hits, None, acts)
+            sec['assumptions'] = list(sec.get('assumptions') or []) + product_names.note(uniq)
+            return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
+                    'think_trace': '\n'.join(trace), 'answer': ans,
+                    'standalone': raw if mem and mem.get('how') == '대체' else question,
+                    'injection': bool(P.get('injection')), 'action': '검색 → 설명',
+                    'plan': orchestrator.plan_steps(trace, '검색 → 설명', '상품표 값 그대로', P.get('state', '')),
+                    'sections': sec, 'calc': None, 'verify': None, 'needs': []}
+        # 앞으로 받을 연금액('65세에 얼마 받아요?', '평균으로 가정해서 계산해줘') — 수익률을 지어내지 않는다(10-13 외부 시험)
+        if orchestrator.is_projection_ask(raw) or orchestrator.is_projection_ask(question):
+            ans = orchestrator.projection_answer()
+            trace.append('응답: 예상 수령액 질문 — 미래 수익률 규칙이 문서에 없어 금액을 만들지 않고 계산 가능한 질문·확인 경로로 안내(모델 호출 없음)')
+            acts = orchestrator.projection_actions(question)
+            return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
+                    'think_trace': '\n'.join(trace), 'answer': ans,
+                    'standalone': raw if mem and mem.get('how') == '대체' else question,
+                    'injection': bool(P.get('injection')), 'action': '규칙 → 설명',
+                    'plan': orchestrator.plan_steps(trace, '규칙 → 설명', '예상 수령액은 문서 규칙 밖 — 계산 가능한 질문으로 안내', P.get('state', '')),
+                    'sections': {'result': ans, 'evidence': [], 'needs': [], 'next_actions': acts,
+                                 'assumptions': ['미래 수익률·납입액을 가정한 수령액은 계산하지 않았어요(받은 문서에 기준 없음)']},
+                    'calc': None, 'verify': None, 'needs': []}
     if P.get('action') == '상담 연결':
         # 고객이 사람 상담을 원한다 — 생성 없이 상담 창구(번호·운영시간)를 안내한다. 이관 연동은 없어 '넘겨 드린다'고 하지 않는다
         prof = (mem or {}).get('profile') or P.get('state') or ''
@@ -1570,10 +1665,14 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     ans, nold = verify.fix_outdated(ans)
     if nold:
         trace.append(f'숫자 대조: 옛 제도 값 {nold}곳을 현행 값으로 고침(연금저축 세액공제 한도 400만 → 600만 등)')
+    ans, nage = verify.fix_age_rate(ans)
+    if nage:
+        trace.append(f'숫자 대조: 나이와 맞지 않는 연금소득세율 {nage}곳을 나이별 세율표(R-07)대로 고침(예: 65세 4.4% → 5.5%)')
     ans, nyr = verify.strip_unsupported_years(ans, '\n'.join([question, raw, ctx] + ([mem['history']] if mem else [])))
     if nyr:
         trace.append(f'숫자 대조: 근거에 없는 연도 기준 {nyr}곳을 뺌(예: "2023년 기준")')
-    if calc and calc.get('compare'):
+    # 시연 채널(/chat)은 모든 답에서 — 10-13 외부 시험에서 상품 비교·초보 질문 답에 '추천 전략'·'추천 포인트' 소제목이 나왔다
+    if (calc and calc.get('compare')) or clarify_template:
         ans, nrec = neutral_headings(ans)
         if nrec:
             trace.append(f'비교 질문: 소제목의 추천·권장 표현 {nrec}곳을 "고르는 기준"으로 바꿈')
@@ -1581,6 +1680,12 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     reasoning_line(trace, reasoning, P.get('injection'))
     action = '상담 연결' if vr and vr['contradiction'] and verify.MODE == 'handoff' else P.get('action', '')
     acts = orchestrator.next_actions(action, raw, calc, vr, P.get('category', ''))
+    sec = sections(ans, cite_hits, calc, acts)
+    if clarify_template:
+        # 줄여 부른 상품 이름을 어느 상품으로 봤는지 '가정' 칸에 밝힌다('그 상품 말씀이시죠?')
+        pn = product_names.note(_product_names(question))
+        if pn:
+            sec['assumptions'] = list(sec.get('assumptions') or []) + pn
     return {'question_id': question_id, 'question': raw,
             'retrieved_context': ctx, 'think_trace': '\n'.join(trace),
             'answer': ans,
@@ -1591,7 +1696,7 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
             # 아래는 시연 화면(/chat)용 — 서버의 /answer 는 규격 5필드만 내보낸다
             'action': action,
             'plan': orchestrator.plan_steps(trace, action, P.get('why', ''), P.get('state', ''), calc, vr),
-            'sections': sections(ans, cite_hits, calc, acts),
+            'sections': sec,
             'calc': None if not calc else {'rule_ids': calc.get('rids', []), 'figures': calc.get('figures', []),
                                            'needs': calc.get('needs', []), 'assume': calc.get('assume', [])},
             'verify': vr, 'needs': (calc or {}).get('needs', [])}
