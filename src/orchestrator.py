@@ -182,6 +182,8 @@ _PROJECTION = re.compile(
     r'|(?:수령액|연금액|받을\s*(?:돈|금액))[^.?!\n]{0,10}(?:얼마|계산|예상)'
     r'|\d+\s*(?:만\s*원?)?\s*(?:정도|쯤|씩)?\s*받고\s*싶'
     r'|받(?:으면|을\s*때|는다면)[^.?!\n]{0,10}(?:어느\s*정도|얼마)'
+    # '월 300만 원 정도 연금을 받고 싶은데 가능할까요?'(외부 시험 13번 변형) — 금액과 '받고 싶' 사이에 낱말이 끼는 꼴
+    r'|\d+\s*만\s*원?[^.?!\n]{0,15}(?:받고\s*싶|받을\s*수\s*있을까|받으려면\s*얼마)'
     r'|(?:평균|수익률)[^.?!\n]{0,12}가정[^.?!\n]{0,10}(?:계산|알려)')
 _TAX_WORDS = re.compile(r'세금|세액|공제|세율|과세|소득세|환급|돌려받|줄어|늘어|차이|아끼|절세|한도|이자|지연|담보|대출|빌리|보험금')
 
@@ -249,6 +251,22 @@ _GREETING = re.compile(r'^\s*(?:ㅎㅇ|ㅎ2|하이|hi|hello|헬로|안녕(?:하�
 _WHO = re.compile(r'(?:너|넌|당신|에이전트|agent)\s*(?:는|은|이)?\s*(?:누구|뭐\s*하는|뭘\s*(?:할\s*수|해)|무엇을\s*할|연금(?:에\s*대해)?\s*(?:잘\s*)?알)', re.I)
 
 
+# 연금과 상관없는 잡담 — 10-13 외부 시험 45번: '무슨 노래 들을까나'에 앞 대화의 세액공제 조언을 덧붙였다
+_OFFTOPIC = re.compile(r'노래|음악|날씨|영화|드라마|게임|축구|야구|연애|심심|점심|저녁|아침\s*메뉴|뭐\s*먹|맛집|여행|운동|졸려')
+_DOMAIN_WORDS = re.compile(r'연금|퇴직|IRP|DC|DB|ISA|세금|세액|공제|펀드|ETF|TDF|상품|수령|납입|해지|인출|보수|투자|금리|저축|노후|은퇴'
+                           r'|계좌|미래에셋|증권|이자|배당|상담', re.I)
+
+
+def is_offtopic(q):
+    q = q or ''
+    return bool(_OFFTOPIC.search(q)) and not _DOMAIN_WORDS.search(q)
+
+
+def offtopic_answer():
+    return ('저는 미래에셋증권 연금 문서를 근거로 연금 질문에 답하는 Agent라서, 그 질문에는 답하기 어려워요. '
+            '연금저축·IRP·퇴직연금의 세금이나 제도를 물어보시면 문서 규칙으로 답해 드릴게요.')
+
+
 def is_greeting(q):
     q = q or ''
     return bool(_GREETING.match(q) or (_WHO.search(q) and len(q) <= 40 and not re.search(r'\d', q)))
@@ -274,6 +292,31 @@ def greeting_actions():
             {'label': '연말 세액공제 계산', 'kind': 'chat', 'payload': '총급여 5,000만 원이고 연금저축 600 넣었어요. 12월에 IRP 더 넣으면 얼마나 돌려받아요?'},
             {'label': '55세 전에 깨면 세금', 'kind': 'chat', 'payload': '55세 전에 연금저축 빼면 전부 16.5%예요? 2,000만 원 해지하면 330만 원 내는 거죠?'},
             {'label': '상담 연결', 'kind': 'handoff', 'payload': ''}]
+
+
+# 맞장구·고마움 — 10-13 외부 시험 20번: '휴..알겠어'를 재작성이 '중도인출하면 16.5%가 맞죠?'라는 질문으로 바꿔 틀린 답을 또 냈다
+_ACK = re.compile(r'^\s*(?:휴+[.…~ ]*)?(?:알겠(?:어|어요|습니다|음)|알았(?:어|어요|습니다)|오케이|ㅇㅋ|ok|넵|네+|응+|ㅇㅇ|그렇구나|그렇군요|'
+                  r'고마워(?:요)?|감사(?:합니다|해요)|땡큐|thanks?|좋아(?:요)?|굿|ㅎㅎ+|ㅋㅋ+|이해했(?:어|어요|습니다))[\s!.~…?ㅎㅋ^]*$', re.I)
+
+
+def is_ack(q):
+    return bool(_ACK.match(q or ''))
+
+
+def ack_answer():
+    return '네. 더 궁금한 점이 있으면 편하게 물어봐 주세요. 금액이 있는 질문은 문서 규칙으로 바로 계산해 드릴게요.'
+
+
+# '합성총보수가 뭐야?'처럼 낱말 뜻을 묻는 짧은 질문 — 고쳐 쓰지 않는다(10-13 외부 시험 24번: '성장형 상품의 합성총보수는 몇 %인가요?'로
+# 바꿔 뜻 대신 숫자를 답했다). '그건 뭐야?'처럼 가리키는 말이 있으면 앞 대화가 필요하므로 고쳐 쓴다
+_DEFINE = re.compile(r'^\s*(?!그|이거|저거|그거)([가-힣A-Za-z0-9() ·]{2,20}?)\s*(?:이|가|은|는|란|이란)?\s*'
+                     r'(?:뭐야|뭔가요|뭐예요|뭐에요|무엇인가요|뭔데|뭐냐|뭐지|무슨\s*뜻(?:이야|이에요|인가요)?|뜻이\s*뭐(?:야|예요)?)\s*[?？!]*\s*$')
+
+
+def is_definition(q):
+    q = q or ''
+    # 금액·나이·조건이 있으면 뜻이 아니라 계산을 묻는 말이다('IRP에 300 넣으면 세액공제는 뭐야?')
+    return bool(_DEFINE.match(q)) and not re.search(r'\d|넣으면|빼면|받으면|하면', q.split('뭐')[0])
 
 
 # '연금 종류 알려줘' — 10-13 외부 시험: 답에 'DCE/IPR' 오타, 옛 개인연금저축(2000년 이전 상품)의 '5년 이상 수령'·'만 20세 이상'을
@@ -378,6 +421,45 @@ def clarify_answer(calc, cite=1):
             out.append(f'{k}. {name}' + (f' — {where}' if where else ''))
         out += ['', '알려 주시면 위 규칙으로 바로 계산해 드릴게요. 모르는 값은 상담사가 계좌 내역에서 확인해 드릴 수 있어요'
                 '(아래 다음 행동의 상담 연결).']
+    return '\n'.join(out)
+
+
+def _rule_lines(calc):
+    """계산 블록의 규칙·계산 줄(입력·빠진 정보·가정 줄과 규칙 번호는 뺀다) — clarify_answer·split_answer 가 같이 쓴다."""
+    rules, seen = [], set()
+    for b in (calc or {}).get('blocks', []):
+        for ln in b['text'].split('[원문]')[0].split('\n')[1:]:
+            ln = ln.strip()
+            if not ln.startswith('- '):
+                continue
+            ln = ln[2:].strip()
+            if ln.startswith(('계산에 필요한데', '가정(', '입력:')) or ln in seen:
+                continue
+            seen.add(ln)
+            ln = re.sub(r'\s*\(R-\d+(?:·R-\d+)*\)', '', ln)
+            ln = re.sub(r'R-\d+(?:·R-\d+)*\s*', '', ln)
+            rules.append(re.sub(r'\(\s*\)', '', ln).strip())
+    return rules
+
+
+def split_answer(calc, cite=1):
+    """'올해 한도까지만 받고 나머지는 내년에 받으면?'(시연 2차 장면 3턴) — 계산 블록 문장 그대로(모델 호출 없음).
+    10-14 실측: 모델 설명이 물은 방식의 합계(50만 4천 원)를 빠뜨려 숫자 대조가 '계산값 + 상담 연결'로 바꾼 일이 9회 중 3회."""
+    rules = _rule_lines(calc)
+    asked = next((r for r in rules if r.startswith('질문한 방식')), '')
+    rest = [r for r in rules if r != asked and not r.startswith('비교(나눠 받기)')]
+    cmp_ = next((r for r in rules if r.startswith('비교(나눠 받기)')), '')
+    out = [f'물어보신 방식으로 문서 규칙에 따라 계산하면 이렇습니다 [문서{cite}].', '']
+    m = re.search(r'=\s*([\d,억만천 ]+원)\s*(\([^)]*\))?', asked)
+    if m:
+        out += [f'**결론**: 올해는 한도까지 받고 나머지를 내년에 받으면 두 해 세금 합계는 **{m.group(1).strip()}**이에요'
+                + (f' {m.group(2)}' if m.group(2) else '') + '.', '']
+    elif asked:
+        out += ['**결론**: ' + asked, '']
+    if cmp_:
+        out += ['**나눠 받을 때**', '- ' + cmp_.replace('비교(나눠 받기): ', ''), '']
+    out += ['**계산 근거**'] + [f'- {r}' for r in rest[:7]]
+    out += ['', '고르는 건 고객이에요. 내년 세금은 내년 평가액·나이에 따라 달라질 수 있어요.']
     return '\n'.join(out)
 
 

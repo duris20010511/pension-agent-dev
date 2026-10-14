@@ -240,6 +240,47 @@ def fix_age_rate(answer):
     return _AGE_RATE.sub(sub, answer or ''), n
 
 
+# 나이 구간별 세율 나열('55세 미만: 5.5% · 70세 미만: 4.4% · 80세 미만: 3.3%') — 10-14 실측: DC 연금 수령 세금 답에서 구간을 한 칸씩
+# 밀어 적었다(R-07: 55~69세 5.5%, 70~79세 4.4%, 80세 이상 3.3%). 한 줄에 둘 이상 나열된 구간 중 하나라도 틀리면 나열 전체를 표대로 바꾼다
+_BAND = re.compile(r'(?:만\s*)?(?P<a>[4-9]\d)\s*세\s*(?:(?:~|∼|-|–)\s*(?:만\s*)?(?P<b>[5-9]\d)\s*세\s*)?(?P<q>미만|이상|이하|초과)?\s*'
+                   r'[:：]?\s*(?:\*\*)?(?P<rate>5\.5|4\.4|3\.3)\s*%(?:\*\*)?')
+_BAND_OK = '만 55~69세 **5.5%** · 70~79세 **4.4%** · 80세 이상 **3.3%**'
+
+
+def _band_ok(m):
+    a, b, q, rate = int(m.group('a')), m.group('b'), m.group('q'), float(m.group('rate'))
+    if b:
+        ages = [a, int(b)]
+    elif q == '미만':
+        ages = [a - 1]
+    elif q == '초과':
+        ages = [a + 1]
+    else:
+        ages = [a]
+    return all(taxcalc.age_rate(x) == rate for x in ages)
+
+
+def fix_rate_bands(answer):
+    """(고친 답, 고친 곳 수)."""
+    out, n = [], 0
+    for line in (answer or '').split('\n'):
+        ms = list(_BAND.finditer(line))
+        runs, cur = [], []
+        for m in ms:          # 붙어 있는 나열끼리 묶는다(사이는 '·', ',', '/', '|' 같은 구분자만)
+            if cur and not re.fullmatch(r'[\s·,/|;]*(?:및|그리고)?[\s·,/|;]*', line[cur[-1].end():m.start()]):
+                runs.append(cur)
+                cur = []
+            cur.append(m)
+        if cur:
+            runs.append(cur)
+        for run in reversed(runs):
+            if len(run) >= 2 and not all(_band_ok(m) for m in run):
+                line = line[:run[0].start()] + _BAND_OK + line[run[-1].end():]
+                n += 1
+        out.append(line)
+    return '\n'.join(out), n
+
+
 def fix_outdated(answer):
     """(고친 답, 고친 곳 수)."""
     n = 0

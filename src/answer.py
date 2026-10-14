@@ -29,6 +29,7 @@ from hybrid import Hybrid
 from expand import expand
 from understand_guard import classify as classify_v1, needs_clarification, guard
 import product_names
+import glossary
 
 
 def drop_unpaired_product_figures(ans, cite_hits):
@@ -52,6 +53,29 @@ def drop_unpaired_product_figures(ans, cite_hits):
         if nums and prods and not any(
                 all(any(k in tn or name in t or f == fl for k, (name, fl) in prods.items()) and num in t for num in nums)
                 for t, tn, f in texts):
+            n += 1
+            continue
+        out.append(line)
+    return '\n'.join(out), n
+
+
+_PICK = re.compile(r'유리(?:합니다|해요|하다|하나|할\s*수|한\s*(?:상품|선택|편))|적합(?:합니다|해요|하다|하나|한\s*(?:상품|선택))'
+                   r'|추천(?:드립니다|해요|합니다|드려요)|권(?:장|해)\s*(?:드립니다|합니다|해요)'
+                   r'|(?:이|가)\s*(?:더\s*)?(?:낫습니다|나아요|좋습니다|좋아요)|선택하세요|고르세요')
+
+
+def drop_product_picks(ans):
+    """(고친 답, 뺀 줄 수) — 특정 상품을 고르는 줄('안정성을 중시한다면 미국인덱스EMP가 유리합니다')을 뺀다(시연 채널).
+    10-13 외부 시험 23·42번: 소제목은 '고르는 기준'으로 바뀌었지만 본문의 상품 권유가 남았다. 상품 지목은 적합성 절차의 몫이다."""
+    try:
+        cat = product_names.catalog()
+    except Exception:
+        return ans, 0
+    out, n = [], 0
+    for line in (ans or '').split('\n'):
+        ln = product_names.norm(line)
+        named = any(x['key'] in ln for x in cat) or any(len(m['names']) == 1 for m in product_names.resolve(line))
+        if named and _PICK.search(line):
             n += 1
             continue
         out.append(line)
@@ -914,6 +938,8 @@ TAXCALC = os.environ.get('AGENT_TAXCALC', '1') != '0'
 CALC_FAST = os.environ.get('AGENT_CALC_FAST', '1') != '0'
 # 시연 채널(/chat)에서 '계산 + 되묻기'도 정해진 문장으로(모델 없이) — 0이면 예전처럼 모델이 설명한다(10-13)
 CHAT_CALC_ASK_TEMPLATE = os.environ.get('AGENT_CHAT_CALC_ASK_TEMPLATE', '1') != '0'
+# 시연 채널에서 '나눠 받기' 질문(질문한 방식)도 계산 블록 문장으로(10-14) — 0이면 모델이 설명
+CHAT_SPLIT_TEMPLATE = os.environ.get('AGENT_CHAT_SPLIT_TEMPLATE', '1') != '0'
 
 def _refs(ks):
     if len(ks) > 1 and ks == list(range(ks[0], ks[-1] + 1)):
@@ -1107,6 +1133,33 @@ def _calc_chunk(block):
             'source': f"{block['file']} 세금계산", 'text': block['text']}
 
 
+def add_block_sources(ans, sec, calc):
+    """(답, 4칸) — 계산 블록의 원문 인용이 나온 다른 문서도 근거 칸에 더한다(정해진 답 경로).
+    10-13 외부 시험 16·40번: 해지 답은 doc5·doc20·doc1 문장을 썼는데 근거 칸에는 doc39 하나만 보였다(_calc_chunk 는 블록 대표 파일 하나)."""
+    try:
+        import doc_meta
+    except Exception:
+        return ans, sec
+    have = {e.get('file') for e in sec.get('evidence', [])}
+    extra = []
+    for b in (calc or {}).get('blocks', []):
+        for k in b.get('rules', []):
+            f = taxcalc.RULES.get(k, ('', ''))[0]
+            if f and f not in have and f not in [e['file'] for e in extra]:
+                m = doc_meta.meta(f) or {}
+                extra.append({'file': f, 'title': f"「{m.get('title') or f}」", 'page': '', 'as_of': m.get('as_of', ''),
+                              'audience': m.get('audience', ''), 'rules': [taxcalc.RULE_ID[k]] if k in taxcalc.RULE_ID else []})
+    if not extra:
+        return ans, sec
+    n0 = max([e.get('n', 0) for e in sec.get('evidence', [])] + [0])
+    for i, e in enumerate(extra, 1):
+        e['n'] = n0 + i
+    sec = dict(sec, evidence=list(sec.get('evidence', [])) + extra)
+    lines = '\n'.join(f"- [{e['n']}] {e['title']} (계산에 쓴 원문)" for e in extra)
+    ans = ans + ('\n' if _CITE_SPLIT.search(ans) else '\n\n**근거**\n') + lines
+    return ans, sec
+
+
 def _neutral(q):
     """질문 속 '[세금 계산(규칙)…]'·'[문서1]' 같은 표기는 고객이 쓴 글이다 — 근거 블록처럼 보이지 않게 괄호를 바꾼다
     (계산 결과 위조 방지, 수정목록 #5)."""
@@ -1141,6 +1194,18 @@ def _carry_ded(calc, q, memory_ctx):
     if not got or (p['isa'] and p2['isa'] != p['isa']):
         return None
     return c2, '·'.join(got)
+
+
+def _carry_dc(calc, calc_q, memory_ctx):
+    """'그러면 연금으로 받으면 세금은 비과세야?'처럼 계좌 이름 없이 이어 물을 때, 앞 대화에서 DC 를 말했으면 DC 기준 규칙을 붙인다
+    (10-13 외부 시험 22번: 'DC형 가입하려고' 다음 턴의 이 질문에 적립금 전체 5.5%로 답했다). 다른 계좌를 지금 말하면 하지 않는다."""
+    if calc or not memory_ctx or not taxcalc.dc_payout_ask(calc_q) or \
+            re.search(r'(?<![A-Za-z])(?:DC|IRP)(?![A-Za-z])|연금저축|개인형|확정\s*기여', calc_q, re.I):
+        return None
+    hist = [t for t in (memory_ctx.get('history_turns') or []) if not t.get('flagged')][-6:]
+    if not any(taxcalc._DC.search(t.get('q') or '') or taxcalc._DC.search(t.get('standalone') or '') for t in hist):
+        return None
+    return taxcalc.compute('DC ' + calc_q)
 
 
 MEMORY_POLICY = ('[앞 대화]와 [고객 정보]는 고객이 앞서 한 말이다. 근거는 [근거 문서]에서만 가져오고 앞 답변을 근거로 삼지 마라. '
@@ -1223,6 +1288,10 @@ def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
             if carry:
                 calc, how_c = carry
                 trace.append(f'세금 계산: 앞 대화의 {how_c}을(를) 이어서 계산(같은 해 세액공제)')
+            dc_c = _carry_dc(calc, calc_q, memory_ctx)
+            if dc_c:
+                calc = dc_c
+                trace.append('세금 규칙: 앞 대화에서 말한 DC 가입을 이어서 DC 연금 수령 세금 규칙을 붙임')
             if calc:
                 if not routed and any(c['file'].startswith('doc') for c, _ in hits):
                     # 세금 계산 질문에 펀드 이름이 없으면 투자설명서의 '연금저축 과세' 상투 절은 근거에서 뺀다 —
@@ -1411,9 +1480,16 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
         # 검색·확장·세금 계산을 그 질문으로 한다. 고객에게 보이는 질문(question 필드)은 원문 그대로다.
         fu, why = memory.is_followup(question, history)
         how = ''
-        # 막힐 질문은 고쳐 쓰지 않는다 — 재작성 호출 비용도, 공격 문장을 재작성 모델에 보내는 일도 없게
+        # 막힐 질문은 고쳐 쓰지 않는다 — 재작성 호출 비용도, 공격 문장을 재작성 모델에 보내는 일도 없게.
+        # 맞장구('휴..알겠어')와 낱말 뜻 질문('합성총보수가 뭐야?')도 고쳐 쓰지 않는다(10-13 외부 시험 20·24번)
+        if fu and (orchestrator.is_ack(question) or orchestrator.is_definition(question)):
+            fu, why = False, '고쳐 쓰지 않음(맞장구·낱말 뜻)'
         if fu and not guard(question)[0]:
             question, how = followup.rewrite(question, history)
+            # 원문에도 앞 대화의 고객 말에도 없던 '추천·유리'를 재작성이 끼워 넣으면 쓰지 않는다(외부 시험 15·4번)
+            said = raw + ' ' + ' '.join(t.get('q', '') for t in history)
+            if re.search(r'추천|유리|최적', question) and not re.search(r'추천|유리|최적', said):
+                question, how = memory.fallback_rewrite(raw, history), '대체'
         mem = {'raw': raw, 'turns': len(history), 'why': why, 'how': how, 'history_turns': history,
                'history': memory.history_text(history),
                'profile': memory.profile_text(memory.merge_profile(history))}
@@ -1441,17 +1517,40 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                 'plan': [{'step': '안전 관문', 'detail': '차단'}, {'step': '다음 행동', 'detail': '거절'}],
                 'sections': {'result': REFUSE, 'evidence': [], 'assumptions': [], 'needs': [], 'next_actions': []},
                 'calc': None, 'verify': None}
+    if clarify_template and (orchestrator.is_ack(raw) or orchestrator.is_offtopic(raw)) and not (P.get('calc') or {}).get('blocks'):
+        ack = orchestrator.is_ack(raw)
+        ans = orchestrator.ack_answer() if ack else orchestrator.offtopic_answer()
+        trace.append('응답: ' + ('맞장구에 짧은 안내' if ack else '연금과 상관없는 질문 — 범위 안내') + '(정해진 문장, 모델 호출 없음)')
+        acts = orchestrator.greeting_actions()
+        return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
+                'think_trace': '\n'.join(trace), 'answer': ans, 'standalone': raw,
+                'injection': bool(P.get('injection')), 'action': '되묻기',
+                'plan': orchestrator.plan_steps(trace, '되묻기', '맞장구', P.get('state', '')),
+                'sections': {'result': ans, 'evidence': [], 'assumptions': [], 'needs': [], 'next_actions': acts},
+                'calc': None, 'verify': None, 'needs': []}
     # '쉽게설명해줘'처럼 짧은 이어 묻기는 재작성된 질문('연금 상품을 쉽게 설명해 주세요')으로 본다(외부 시험 21번)
+    # 자주 묻는 용어('합성총보수가 뭐야?')·상품 수('상품이 몇 개야?')도 원문으로 쓴 정해진 풀이 — 10-13 외부 시험 24·26·30·32·34·41번
+    # (합성총보수에 판매·환매수수료를 넣고, VaR 등급 경계를 뒤집고, 디폴트옵션을 '10개 이상'이라 했다)
+    fx = glossary.fixed(raw) if clarify_template and not (P.get('calc') or {}).get('blocks') else None
     if clarify_template and not (P.get('calc') or {}).get('blocks') and (
-            orchestrator.is_greeting(raw) or orchestrator.is_kinds_ask(raw) or (len(raw) <= 15 and orchestrator.is_kinds_ask(question))):
+            fx or orchestrator.is_greeting(raw) or orchestrator.is_kinds_ask(raw) or
+            (len(raw) <= 15 and orchestrator.is_kinds_ask(question))):
         # 인사·'연금 종류 알려줘' — 정해진 문장(모델 호출 없음). 10-13 외부 시험: 인사에 13초 걸려 펀드 이름과 '최근 문의 요약'(없는
         # 대화)을 지어냈고, 연금 종류 답에 오타와 옛 개인연금저축 조건(5년 이상 수령·만 20세 이상)이 섞였다
-        greet = orchestrator.is_greeting(raw)
-        ans = orchestrator.greeting_answer() if greet else orchestrator.kinds_answer()
-        acts = orchestrator.greeting_actions() if greet else orchestrator.kinds_actions()
-        trace.append('응답: ' + ('인사·할 수 있는 일 안내' if greet else '연금 종류 안내(받은 문서 원문 정의)') + ' — 정해진 문장, 모델 호출 없음')
+        greet = orchestrator.is_greeting(raw) and not fx
+        if fx:
+            ans = fx['answer']
+            acts = fx['actions'] + [{'label': '상담 연결', 'kind': 'handoff', 'payload': ''}]
+        else:
+            ans = orchestrator.greeting_answer() if greet else orchestrator.kinds_answer()
+            acts = orchestrator.greeting_actions() if greet else orchestrator.kinds_actions()
+        label = fx['label'] if fx else '인사·할 수 있는 일 안내' if greet else '연금 종류 안내(받은 문서 원문 정의)'
+        trace.append(f'응답: {label} — 정해진 문장, 모델 호출 없음')
         ev = []
-        if not greet:
+        if fx:
+            ev = glossary.evidence(fx['sources'])
+            ans += '\n\n**근거**\n' + '\n'.join(f"- [{e['n']}] {e['title']}" for e in ev)
+        elif not greet:
             try:
                 import doc_meta
                 for k, f in enumerate(orchestrator.KINDS_DOCS, 1):
@@ -1467,7 +1566,8 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                 'think_trace': '\n'.join(trace), 'answer': ans,
                 'standalone': raw if mem and mem.get('how') == '대체' else question,
                 'injection': bool(P.get('injection')), 'action': act,
-                'plan': orchestrator.plan_steps(trace, act, '인사' if greet else '연금 종류 — 문서 원문 정의', P.get('state', '')),
+                'plan': orchestrator.plan_steps(trace, act, '인사' if greet else fx['label'] if fx else '연금 종류 — 문서 원문 정의',
+                                                P.get('state', '')),
                 'sections': {'result': ans.split('\n\n**근거**')[0], 'evidence': ev, 'assumptions': [], 'needs': [],
                              'next_actions': acts},
                 'calc': None, 'verify': None, 'needs': []}
@@ -1490,8 +1590,9 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                          'needs': asks, 'assume': calc.get('assume', [])},
                 'verify': None, 'needs': asks}
     ask_acts = ('되묻기', '계산 + 되묻기') if CHAT_CALC_ASK_TEMPLATE else ('되묻기',)
-    # 퇴직연금 중도인출·담보 규칙만 있는 질문('퇴직연금 담보대출 돼?')도 규칙 문장 그대로 — 10-13 외부 시험에서 모델이 '문서에 없다'고 답했다
-    rp_only = (P.get('calc') or {}).get('blocks') and all(b['topic'].startswith('퇴직연금 중도인출') for b in P['calc']['blocks'])
+    # 퇴직연금 중도인출·담보 규칙만 있는 질문('퇴직연금 담보대출 돼?')도 규칙 문장 그대로 — 10-13 외부 시험에서 모델이 '문서에 없다'고 답했다.
+    # DC 연금 수령 세금('DC 연금으로 받으면 비과세야?')도 같다 — 모델이 적립금 전체에 5.5%를 붙였다(22번)
+    rp_only = (P.get('calc') or {}).get('blocks') and all(b['topic'].startswith(('퇴직연금 중도인출', 'DC 연금 수령')) for b in P['calc']['blocks'])
     if clarify_template and (P.get('action') in ask_acts and (P.get('calc') or {}).get('needs') or rp_only):
         # 고객 채널(/chat): 계산에 빠진 값을 묻는 답은 규칙 문장 + 빠진 정보 목록으로 바로 낸다(모델 호출 없음).
         # '계산 + 되묻기'(계산값이 있고 빠진 값도 있음)도 같다 — 10-13 설명 문장 검토(이름 가린 비교, 검토자 + 반박 검증)에서
@@ -1503,6 +1604,7 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
         ans = finalize(ans, cite_hits, trace)
         acts = orchestrator.next_actions(act, raw, calc, None, P.get('category', ''))
         sec = dict(sections(ans, cite_hits, calc, acts), needs=[])
+        ans, sec = add_block_sources(ans, sec, calc)
         if act == '되묻기':
             sec['assumptions'] = ['아직 계산하지 않았어요 — 위 정보를 알려 주시면 문서 규칙으로 계산합니다']
         return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
@@ -1526,12 +1628,33 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
         trace.append('응답: 조합 비교(계산 블록의 조합별 공제액 그대로, 모델 호출 없음)')
         ans = finalize(ans, cite_hits, trace)
         acts = orchestrator.next_actions('계산 → 설명', raw, calc, None, P.get('category', ''))
+        sec = sections(ans, cite_hits, calc, acts)
+        ans, sec = add_block_sources(ans, sec, calc)
         return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
                 'think_trace': '\n'.join(trace), 'answer': ans,
                 'standalone': raw if mem and mem.get('how') == '대체' else question,
                 'injection': bool(P.get('injection')), 'action': '계산 → 설명',
                 'plan': orchestrator.plan_steps(trace, '계산 → 설명', P.get('why', ''), P.get('state', ''), calc),
-                'sections': sections(ans, cite_hits, calc, acts),
+                'sections': sec,
+                'calc': {'rule_ids': calc.get('rids', []), 'figures': calc.get('figures', []),
+                         'needs': [], 'assume': calc.get('assume', [])},
+                'verify': None, 'needs': []}
+    # 나눠 받기(질문한 방식) — 계산 블록 문장 그대로(시연 2차 장면 3턴). AGENT_CHAT_SPLIT_TEMPLATE=0 이면 예전처럼 모델이 설명
+    if clarify_template and CHAT_SPLIT_TEMPLATE and pc.get('blocks') and not pc.get('needs') and \
+            any('질문한 방식' in b['text'] for b in pc['blocks'] if b.get('numbers')):
+        calc = pc
+        ans = orchestrator.split_answer(calc, 1)
+        trace.append('응답: 나눠 받기 비교(계산 블록의 질문한 방식 합계·비교 그대로, 모델 호출 없음)')
+        ans = finalize(ans, cite_hits, trace)
+        acts = orchestrator.next_actions('계산 → 설명', raw, calc, None, P.get('category', ''))
+        sec = sections(ans, cite_hits, calc, acts)
+        ans, sec = add_block_sources(ans, sec, calc)
+        return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
+                'think_trace': '\n'.join(trace), 'answer': ans,
+                'standalone': raw if mem and mem.get('how') == '대체' else question,
+                'injection': bool(P.get('injection')), 'action': '계산 → 설명',
+                'plan': orchestrator.plan_steps(trace, '계산 → 설명', P.get('why', ''), P.get('state', ''), calc),
+                'sections': sec,
                 'calc': {'rule_ids': calc.get('rids', []), 'figures': calc.get('figures', []),
                          'needs': [], 'assume': calc.get('assume', [])},
                 'verify': None, 'needs': []}
@@ -1762,6 +1885,9 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     ans, nold = verify.fix_outdated(ans)
     if nold:
         trace.append(f'숫자 대조: 옛 제도 값 {nold}곳을 현행 값으로 고침(연금저축 세액공제 한도 400만 → 600만 등)')
+    ans, nband = verify.fix_rate_bands(ans)
+    if nband:
+        trace.append(f'숫자 대조: 나이 구간별 연금소득세율 나열 {nband}곳이 세율표(R-07)와 달라 표대로 고침')
     ans, nage = verify.fix_age_rate(ans)
     if nage:
         trace.append(f'숫자 대조: 나이와 맞지 않는 연금소득세율 {nage}곳을 나이별 세율표(R-07)대로 고침(예: 65세 4.4% → 5.5%)')
@@ -1769,6 +1895,9 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
         ans, npair = drop_unpaired_product_figures(ans, cite_hits)
         if npair:
             trace.append(f'숫자 대조: 상품 이름과 수치가 같은 근거에 없는 줄 {npair}곳을 뺌(상품·수치 짝 지어내기 방지)')
+        ans, npick = drop_product_picks(ans)
+        if npick:
+            trace.append(f'상품 권유: 특정 상품을 고르는 줄 {npick}곳을 뺌(상품 지목은 투자성향 진단·상담으로)')
     ans, nyr = verify.strip_unsupported_years(ans, '\n'.join([question, raw, ctx] + ([mem['history']] if mem else [])))
     if nyr:
         trace.append(f'숫자 대조: 근거에 없는 연도 기준 {nyr}곳을 뺌(예: "2023년 기준")')

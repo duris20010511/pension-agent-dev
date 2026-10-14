@@ -121,6 +121,13 @@ RULES = {
     'loan_ok': ('doc16.txt', '가입자는 주택구입 등 대통령령으로 정하는 사유와 요건을 갖춘 경우에는 대통령령으로 정하는 '
                              '한도에서 퇴직연금제도의 급여를 받을 권리를 담보로 제공할 수 있다.'),
     'loan_repay': ('doc20.txt', '퇴직연금제도를 받을 권리를 담보로 제공하고 대출받은 가입자가 그 대출 원리금을 상환하기 위한 경우 | O | X | 16.5%  기타소득세'),
+    # DC 적립금을 연금으로 받을 때 — 10-13 외부 시험 22번: 'DC 연금으로 받으면 비과세야?'에 적립금 전체에 연금소득세 5.5%를 붙였다.
+    # DC 운용수익도 퇴직 때 퇴직소득(doc42), 감면은 퇴직소득세에만·세액공제 받은 돈과 수익은 연금소득세(doc51)
+    'dc_profit': ('doc42.txt', 'DC계좌에서 운용하면서 발생한 운용수익도 마찬가지로 인출 전 까지 과세이연되고 이후 중도인출 혹은 퇴직 시 '
+                               '퇴직소득으로 과세된다.'),
+    'dc_irp_route': ('doc51.txt', 'DC법정퇴직금 | IRP 의무이전 | IRP·일반계좌 선택가능 (IRP 수령 시 연금저축으로 계약이전 가능)'),
+    'retire_only': ('doc51.txt', '이 감면은 퇴직소득에서 발생한 퇴직소득세에만 적용된다. 연금계좌 내에서 세액공제를 받은 납입금과 운용수익에는 '
+                                 '연금소득세(3.3% ~ 5.5%)가 별도로 적용된다.'),
 
     # 중도인출·운용 규칙(R-12~R-15) — 금액 계산은 없고 규칙만
     'savings_withdraw': ('doc1.txt', '중도인출 | 일부 or 전액 인출 가능'),
@@ -154,7 +161,7 @@ RULEBOOK = [
     ('R-07', '연금소득세율', ['rate_table', 'limit_rates'], '55~69세 5.5%, 70~79세 4.4%, 80세 이상 3.3%', '계산'),
     ('R-08', '1,500만 원 분리과세 선택', ['over_1500', 'whole_amount', 'progressive', 'excluded', 'all_accounts', 'not_always'],
      '③ 재원 연금이 연 1,500만 원을 넘으면 전액 16.5% 분리과세 또는 종합과세', '계산'),
-    ('R-09', '퇴직소득세 감면', ['retire_rate', 'retire_in', 'retire_years', 'actual_year'],
+    ('R-09', '퇴직소득세 감면', ['retire_rate', 'retire_in', 'retire_years', 'actual_year', 'dc_profit', 'dc_irp_route', 'retire_only'],
      '퇴직금을 한도 안에서 연금으로 받으면 실제수령 1~10년차 30%, 11~20년차 40%, 21년차~ 50% 감면', '계산'),
     ('R-10', '연금외수령 세금', ['over_limit', 'early_out', 'retire_over', 'early_retire', 'early_credit',
                                 'cancel_fix', 'cancel_fix_exc', 'irp_fix', 'irp_fix_doc'],
@@ -1699,6 +1706,40 @@ def retire_plan_rule(p, q):
                   numbers=False, needs=needs)
 
 
+# 'DC형 연금상품으로 수령 시'(10-14 실측 재작성문)도 받는다
+_PAYOUT = re.compile(r'연금(?:\s*(?:상품|계좌|형태|형식))?\s*(?:으로|로)\s*(?:받|수령|타)|연금\s*(?:을\s*)?(?:수령|개시)')
+_PAYOUT_TAX = re.compile(r'세금|비과세|과세|세율|퇴직소득세|연금소득세|떼|감면')
+
+
+def dc_payout_ask(q):
+    """'연금으로 받으면 세금은?' 꼴 — 계좌 이름은 보지 않는다(앞 대화의 DC 를 이어 붙일 때도 쓴다)."""
+    return bool(_PAYOUT.search(q) and _PAYOUT_TAX.search(q)) and not (_RP_WITHDRAW.search(q) or _LOAN.search(q))
+
+
+def dc_payout_rule(p, q):
+    """DC 적립금을 연금으로 받을 때 세금 — 금액 없이 규칙만(10-13 외부 시험 22번: 적립금 전체에 5.5%를 붙여 '198만 원'이라 했다).
+    DC 운용수익도 퇴직 때 퇴직소득(doc42), DC 법정퇴직금은 55세 미만 퇴직이면 IRP 의무이전(doc51 표), 퇴직금 몫은 한도 안 연금수령 시
+    30~50% 감면(doc39), 감면은 퇴직소득세에만·세액공제 받은 돈과 수익은 연금소득세(doc51). DC 에 본인이 넣은 돈이 IRP 로 옮겨질 때
+    어느 재원으로 나뉘는지는 문서에 없어 상담으로."""
+    if not (_DC.search(q) and dc_payout_ask(q)):
+        return None
+    lines = ['비과세는 아니다 — DC에서 운용해 생긴 수익도 퇴직할 때 퇴직소득으로 과세되고, 퇴직금 몫은 연금으로 받아도 퇴직소득세를 낸다'
+             '(다만 감면됨)',
+             'DC 퇴직금은 퇴직할 때 IRP로 옮겨 IRP에서 연금으로 받는다 — 55세 미만에 퇴직하면 IRP 이전이 의무, 55세 이상이면 IRP·일반계좌 중 선택',
+             '퇴직금 몫을 연금수령한도 안에서 받으면 퇴직소득세를 1~10년차 30%, 11~20년차 40%, 21년차부터 50% 감면받는다'
+             '(원래 세금의 70~50%만 냄)',
+             '감면은 퇴직소득세에만 적용된다 — 연금계좌에서 세액공제를 받은 납입금과 그 운용수익은 연금소득세 5.5~3.3%'
+             '(만 55~69세 5.5%, 70~79세 4.4%, 80세 이상 3.3%)',
+             '세액공제를 받지 않은 납입금은 꺼낼 때 비과세',
+             '한도를 넘겨 받으면 넘은 금액 중 퇴직금 몫은 퇴직소득세 그대로, 세액공제 받은 돈·수익은 기타소득세 16.5%',
+             'DC에 본인이 추가로 넣은 돈이 IRP로 옮겨질 때 어느 몫으로 나뉘는지는 받은 문서에 없어 상담에서 확인해야 한다']
+    keys = ['dc_profit', 'dc_irp_route', 'retire_in', 'retire_years', 'retire_only', 'limit_rates', 'free', 'retire_over',
+            'over_limit']
+    return _block('doc51.txt', 'DC 연금 수령 세금(규칙)', lines, keys, numbers=False,
+                  needs=['DC 적립금(퇴직금) 규모', '퇴직소득세(퇴직소득 원천징수영수증)', '그중 본인이 넣어 세액공제 받은 돈',
+                         '연금 받기 시작할 나이'])
+
+
 def compute(q):
     """질문 → {'blocks': [...], 'summary': str, 'parsed': dict} 또는 None(넣을 게 없음)."""
     try:
@@ -1749,7 +1790,7 @@ def _compute(q):
         blocks.extend(deduction(p, q))
     # 퇴직연금 중도인출·담보 규칙 — 담보를 물었거나 DC 이거나 다른 블록이 없을 때(IRP 해지 세금 블록과 겹치지 않게)
     if not any(b.get('numbers') for b in blocks) and (_LOAN.search(q) or _DC.search(q) or not blocks):
-        rp = retire_plan_rule(p, q)
+        rp = retire_plan_rule(p, q) or dc_payout_rule(p, q)
         if rp:
             blocks.append(rp)
     if not blocks:

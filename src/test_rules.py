@@ -1352,6 +1352,106 @@ def check_defects_1014(fail):
     return n
 
 
+def check_defects_1014b(fail):
+    """14 문서의 남은 결함 2차 — 3턴 나눠 받기 정해진 답, 맞장구·낱말 뜻 재작성 막기, 상품 권유 줄, 잡담, 예상 수령액 변형."""
+    import orchestrator
+    from answer import drop_product_picks
+    n = 0
+
+    def ok(cond, msg):
+        nonlocal n
+        n += 1
+        if not cond:
+            fail.append(f'[10-14 결함 2] {msg}')
+    q = ('만 62세, IRP 평가액 1억 원, 퇴직금 6,000만 원, 퇴직소득세 실효세율 4%, 연금수령연차 1년차예요. 올해 1,800만 원을 한꺼번에 빼지 않고, '
+         '올해는 연금수령한도까지만 받고 나머지는 내년에 받으면 세금이 어떻게 달라져요?')
+    sa = orchestrator.split_answer(taxcalc.compute(q), 1)
+    ok('두 해 세금 합계는 **50만 4천 원**' in sa and '57만 6천 원' in sa and '33만 6천 원' in sa and '16만 8천 원' in sa
+       and 'R-0' not in sa and not re.search(r'추천|유리', sa), f'3턴 나눠 받기 답: {sa[:200]}')
+    for s in ('휴..알겠어', '알겠어요', '고마워', 'ㅇㅋ', '감사합니다!'):
+        ok(orchestrator.is_ack(s), f'맞장구: {s}')
+    for s in ('네 그럼 IRP는요?', '알겠는데 세금은?', '좋아요 그럼 600 넣으면?'):
+        ok(not orchestrator.is_ack(s), f'맞장구가 아님: {s}')
+    for s in ('합성총보수가 뭐야?', 'VaR기준이 뭐야?', '환매조건부매매가 뭔데', '디폴트옵션은 뭐야?'):
+        ok(orchestrator.is_definition(s), f'낱말 뜻 질문: {s}')
+    for s in ('그건 뭐야?', '그럼 세금은 얼마야?', 'IRP에 300 넣으면 세액공제는 뭐야?'):
+        ok(not orchestrator.is_definition(s), f'낱말 뜻 질문이 아님: {s}')
+    a, k = drop_product_picks('- 안정성을 중시한다면 **미래에셋미국인덱스EMP**가 유리합니다.\n'
+                              '- **TIGER 인도빌리언컨슈머**가 적합하나 위험이 커요.\n- TIGER 인도빌리언컨슈머의 위험등급은 높은위험입니다.\n'
+                              '- 연금저축이 중도인출 면에서 유리합니다.')
+    ok(k == 2 and '높은위험입니다' in a and '연금저축이 중도인출' in a, f'상품 권유 줄: {a!r}')
+    ok(orchestrator.is_offtopic('무슨 노래 들을까나') and not orchestrator.is_offtopic('주말에 연금 상담 돼?'), '잡담')
+    ok(orchestrator.is_projection_ask('60세쯤 은퇴해서 월 300만 원 정도 연금을 받고 싶은데 가능할까요?'), '예상 수령액 변형')
+    return n
+
+
+def check_defects_1014c(fail):
+    """14 문서의 남은 결함 3차 — DC 연금 수령 세금(22번), 용어 풀이(24·26·30·32·41번), 상품 수(34번)."""
+    import glossary
+    from answer import _carry_dc
+    n = 0
+
+    def ok(cond, msg):
+        nonlocal n
+        n += 1
+        if not cond:
+            fail.append(f'[10-14 결함 3] {msg}')
+
+    def blk(q):
+        r = taxcalc.compute(q)
+        return '\n'.join(b['text'].split('\n[원문]')[0] for b in (r or {}).get('blocks', [])), r
+    # 22번 — DC 적립금을 연금으로 받으면: 비과세 아님, 퇴직금 몫은 퇴직소득세 감면, 세액공제 받은 돈은 연금소득세
+    from verify import fix_rate_bands
+    a, k = fix_rate_bands('적용 (나이에 따라 다름): 55세 미만: **5.5%** · 70세 미만: **4.4%** · 80세 미만: **3.3%** · (지방소득세 포함)')
+    ok(k == 1 and '만 55~69세 **5.5%** · 70~79세 **4.4%** · 80세 이상 **3.3%**' in a and '55세 미만' not in a, f'세율 구간 나열: {a}')
+    for s in ('만 55~69세 5.5%, 70~79세 4.4%, 80세 이상 3.3%', '70세 미만 5.5%, 80세 미만 4.4%, 80세 이상 3.3%',
+              '55세 이상 5.5%, 70세 이상 4.4%, 80세 이상 3.3%', '65세라면 5.5%예요'):
+        ok(fix_rate_bands(s)[1] == 0, f'맞는 세율 구간은 그대로: {s}')
+    for q in ('DC형 퇴직연금을 연금으로 받으면 세금은 비과세인가요?', 'DC 적립금을 연금으로 받으면 비과세야?',
+              'DC형 연금 수령하면 세금 얼마나 떼요?', 'DC형 연금상품으로 수령 시 세금은 비과세인가요?'):
+        t, r = blk(q)
+        ok('비과세는 아니다' in t and '30%' in t and '연금소득세 5.5~3.3%' in t and '5.5%를' not in t
+           and all(not b.get('numbers') for b in r['blocks']), f'DC 연금 수령 세금: {q} → {t[:120]}')
+    t, _ = blk('DC에서 집 사려고 중도인출하면 세금은?')
+    ok('퇴직연금 중도인출' in t or '중도인출은 DC·IRP만' in t, 'DC 중도인출은 중도인출 규칙 그대로')
+    ok(taxcalc.compute('IRP 연금으로 받으면 세금은?') is None or
+       'DC 연금 수령' not in str([b['topic'] for b in taxcalc.compute('IRP 연금으로 받으면 세금은?')['blocks']]), 'IRP 질문에 DC 규칙 안 붙음')
+    mem = {'history_turns': [{'q': '내가 지금 이직해서 새로운 회사에 와서 DC형 연금상품 가입하려고 하거든. 추천 좀 해줄래??'},
+                             {'q': '과세이연이 뭐야?'}]}
+    c = _carry_dc(None, '그러면 연금으로 받으면 세금은 비과세야?', mem)
+    ok(c and c['blocks'][0]['topic'].startswith('DC 연금 수령'), '앞 대화의 DC 를 이어 붙임')
+    ok(_carry_dc(None, '그러면 연금저축은 연금으로 받으면 세금은?', mem) is None, '지금 다른 계좌를 말하면 안 이어 붙임')
+    ok(_carry_dc(None, '그러면 연금으로 받으면 세금은 비과세야?', {'history_turns': [{'q': 'IRP 가입하려고'}]}) is None,
+       '앞 대화에 DC 가 없으면 안 붙임')
+    # 용어 풀이 — 원문이 파일에 그대로 있다(공백 무시)
+    srcs = [(k, s) for k, t in glossary.TERMS.items() for s in t['sources']] + [('상품 수', s) for s in glossary.COUNT_SOURCES]
+    for k, (f, quote) in srcs:
+        sub = 'docs' if f.startswith('doc') else 'prospectus'
+        with open(os.path.join(ROOT, 'extracted', sub, f), encoding='utf-8') as fh:
+            ok(_nows(quote) in _nows(fh.read()), f'용어 풀이 원문 없음: {k} — {f} {quote[:30]}')
+    for q, key in (('합성총보수가 뭐야?', '합성총보수'), ('VaR기준이 뭐야?', 'VaR'), ('과세이연이 뭐야?', '과세이연'),
+                   ('디폴트옵션은 뭐야?', '디폴트옵션'), ('환매조건부매매가 뭔데', 'RP'), ('증권거래비용 설명해줘', '증권거래비용'),
+                   ('미래에셋은 도대체 상품이 몇개나 있는거야...', '상품 수'), ('디폴트옵션 상품은 몇 개야?', '상품 수')):
+        f = glossary.fixed(q)
+        ok(f and f['key'] == key, f'정해진 답 고르기: {q} → {f and f["key"]}')
+    for q in ('TDF 몇 개 넣어야 해?', 'IRP에 300 넣으면 세액공제는 뭐야?', '그건 뭐야?', '연금저축 600 넣으면 얼마 돌려받아?'):
+        ok(glossary.fixed(q) is None, f'정해진 답 아님: {q}')
+    a = glossary.fixed('합성총보수가 뭐야?')['answer']
+    ok('투자자에게 직접 부과되는 수수료' in a and '증권거래비용은** 기타비용에 들어가지 않아' not in a and '추가로 생길 수 있어요' in a,
+       '합성총보수: 판매·환매수수료와 증권거래비용은 따로')
+    a = glossary.fixed('VaR기준이 뭐야?')['answer']
+    ok('1등급(매우높은위험) 50% 초과' in a and '6등급(매우 낮은위험) 1% 이하' in a, 'VaR 등급 경계')
+    a = glossary.fixed('RP가 뭐야?')['answer']
+    ok('브렉시트' not in a and '환매조건부매수' in a and '환매조건부매도' in a, 'RP 풀이')
+    a = glossary.fixed('상품이 몇 개야?')['answer']
+    ok('7개' in a and '10개 이상' not in a and '1588-5577' in a and '연금자산관리센터' in a and '고객센터' not in a
+       and 'ETF 850개' in a, '상품 수 답')
+    ev = glossary.evidence(glossary.TERMS['합성총보수']['sources'])
+    ok(any('투자설명서' in e['title'] and 'DB정통크레딧' in e['title'] for e in ev) and any(e['file'] == 'doc31.txt' for e in ev),
+       f'용어 풀이 근거 제목: {[e["title"] for e in ev]}')
+    return n
+
+
 def main():
     fail = []
     for q in ATTACKS:
@@ -1393,6 +1493,8 @@ def main():
     total += check_tester_1013(fail)
     total += check_feedback_1014(fail)
     total += check_defects_1014(fail)
+    total += check_defects_1014b(fail)
+    total += check_defects_1014c(fail)
     print(f'{total - len(fail)}/{total} 통과')
     for f in fail:
         print('  ' + f)
