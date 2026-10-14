@@ -172,9 +172,13 @@ _MASKS = [
 _PII_OUT = re.compile(r"\d{6}\s*-\s*[1-4]\d{6}|01[016-9]\s*-\s*\d{3,4}\s*-\s*\d{4}")
 
 
+_DATE = re.compile(r"(?:19|20)\d{2}-\d{1,2}-\d{1,2}")
+
+
 def mask(t):
+    # 계좌번호 꼴(숫자-숫자-숫자)에 날짜('2025-09-01', 근거의 기준일)가 걸려 '[계좌번호]'로 가려졌다(10-13 질문 기록) — 날짜는 그대로
     for pat, rep_ in _MASKS:
-        t = pat.sub(rep_, t or "")
+        t = pat.sub(lambda m, r=rep_: m.group(0) if r == "[계좌번호]" and _DATE.fullmatch(m.group(0)) else r, t or "")
     return t
 
 

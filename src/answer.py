@@ -31,6 +31,33 @@ from understand_guard import classify as classify_v1, needs_clarification, guard
 import product_names
 
 
+def drop_unpaired_product_figures(ans, cite_hits):
+    """(고친 답, 뺀 줄 수) — 상품 이름과 소수 수치(보수·비용 %)가 한 줄에 있는데, 그 둘이 함께 들어 있는 근거 조각이 없으면 그 줄을 뺀다.
+    10-13 외부 시험 30번: 'TIGER 인도빌리언컨슈머 C-P 0.17%'를 지어냈다(문서 값은 0.66, 0.17은 다른 펀드 투자설명서 값).
+    숫자 대조는 0.17이 근거 어딘가에 있기만 하면 통과시켰다 — 상품과 수치가 같은 조각에 있는지는 보지 않았다."""
+    try:
+        cat = product_names.catalog()
+    except Exception:
+        return ans, 0
+    # 투자설명서 쪽 조각은 본문에 펀드 이름이 없을 수 있다 — 그 펀드의 파일이면 그 펀드 조각으로 본다
+    texts = [(c.get('text') or '', product_names.norm(c.get('text') or ''), c.get('file', '')) for c, _ in (cite_hits or [])]
+    out, n = [], 0
+    for line in (ans or '').split('\n'):
+        nums = re.findall(r'(?<![\d.,])\d+\.\d+(?![\d.])', line)
+        ln = product_names.norm(line)
+        prods = {x['key']: (x['name'], x['file']) for x in cat if x['key'] in ln}
+        for m in product_names.resolve(line):
+            if len(m['names']) == 1:
+                prods.setdefault(product_names.norm(m['names'][0]), (m['names'][0], m['items'][0]['file']))
+        if nums and prods and not any(
+                all(any(k in tn or name in t or f == fl for k, (name, fl) in prods.items()) and num in t for num in nums)
+                for t, tn, f in texts):
+            n += 1
+            continue
+        out.append(line)
+    return '\n'.join(out), n
+
+
 def _product_names(q):
     """줄여 부른 상품 이름 찾기(product_names.resolve) — 실패해도 답은 나가야 한다."""
     try:
@@ -406,7 +433,7 @@ _RID_PAREN = re.compile(r'[ \t]*\((?P<cite>[ \t]*\[(?:문서[ \t]*)?\d+\][ \t]*,
 def _rid_sub(m):
     return (m.group('cite') or '').strip().rstrip(',').strip()
 _MODEL_CITE_LINE = re.compile(r'(?m)^[ \t]*\[?근거\]?[ \t]*[:：]?[ \t]*\[\d+\][ \t]*「[^\n]*$\n?')
-_EMOJI = re.compile('[\U0001F000-\U0001FAFF\u2705\u274C\u2B50\u2728\uFE0F]')
+_EMOJI = re.compile('[\U0001F000-\U0001FAFF\u2705\u274C\u2B50\u2728\uFE0F\u2757\u2755\u203C\u26A0]')   # \u2757\u2755\u203C\u26A0 (10-13 \uC678\uBD80 \uC2DC\uD5D8)
 _MODEL_REFS = re.compile(r'(?m)^[ \t]*(?:#{1,4}[ \t]*|\*\*)(?:참고[ \t]*자료|참고[ \t]*문서|출처)(?:\*\*)?[ \t]*:?[ \t]*\n'
                          r'(?:[ \t]*[-*•][^\n]*(?:\n|$))+')
 
@@ -428,9 +455,9 @@ def latex_to_text(t):
     t = re.sub(r'_\{([^{}]*)\}', lambda m: '_' + (m.group(1) if re.fullmatch(r'\w+', m.group(1)) else f'({m.group(1)})'), t)
     # 분모에 +·− 가 있으면 괄호로 묶는다 — '\frac{1억}{11 - 1}' 이 '1억 ÷ 11 - 1' 이 되면 식이 틀려 보인다
     for _ in range(3):                          # 겹친 \frac 은 안쪽부터
-        t2 = re.sub(r'\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}',
-                    lambda m: f"{m.group(1)} ÷ " + (f"({m.group(2).strip()})" if re.search(r'[+\-−–]', m.group(2))
-                                                    and not re.fullmatch(r'\s*\(.*\)\s*', m.group(2)) else m.group(2)), t)
+        # 분자에도 +·− 가 있으면 묶는다 — '\frac{1 - r^n}{1 - r}' 이 '1 - r^n ÷ (1 - r)' 이 되면 식의 뜻이 바뀐다(10-13 외부 시험)
+        wrap = lambda x: f"({x.strip()})" if re.search(r'[+\-−–]', x) and not re.fullmatch(r'\s*\(.*\)\s*', x) else x  # noqa: E731
+        t2 = re.sub(r'\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}', lambda m: f"{wrap(m.group(1))} ÷ {wrap(m.group(2))}", t)
         if t2 == t:
             break
         t = t2
@@ -479,6 +506,9 @@ def sanitize_answer(t):
     if not t:
         return t
     t = html_to_markdown(t)            # 표 셀 안 <br> 등
+    # 코드 울타리('```markdown') — 시연 화면 마크다운은 코드 블록을 그리지 않아 글자로 보였다(10-13 외부 시험). 울타리 줄만 걷는다
+    t = re.sub(r'(?m)^[ \t]*```[\w-]*[ \t]*\n?', '', t)
+    t = re.sub(r'`([^`\n]{1,80})`', r'\1', t)      # 인라인 백틱도 글자로 보였다
     t = t.replace('수릉', '수령')        # 모델이 되풀이하는 오타('연금수릉한도')
     t = _EMOJI.sub('', t)              # 시연 화면은 한눈에 깔끔하게 — 이모지는 뺀다(초안 1개 high 답에 많았다)
     t = _MODEL_REFS.sub('', t)         # 모델이 직접 쓴 '### 참고 자료' 목록 — 근거 목록은 render_citations 가 다시 만든다
@@ -850,7 +880,11 @@ def retrieve(eq, question, want, use_dense=True, qvec=None):
     # 줄여 부른 상품 이름('인도빌리언컨슈머', '미국인덱스EMP') — 받은 문서의 정식 이름 하나로 정해지면 그 상품이 든 조각
     # (상품표 조각·펀드 카드)을 맨 앞에 둔다(product_names.py). 10-13 외부 시험에서 검색이 상품표를 놓쳐 '답할 수 없음'이 났다
     found = [m for m in _product_names(question) if len(m['names']) == 1]
-    if found:
+    try:
+        trows = product_names.table_rows_in(question)      # 정식 이름으로 적은 상품표 상품도(외부 시험 29번)
+    except Exception:
+        trows = []
+    if found or trows:
         _, chunks = get_index()
         extra = []
         for m in found:
@@ -860,12 +894,15 @@ def retrieve(eq, question, want, use_dense=True, qvec=None):
                     extra += [c] if c else []
                 else:
                     extra += [c for c in chunks if c['file'] == it['file'] and it['name'] in c['text']][:1]
+        for r in trows:
+            extra += [c for c in chunks if c['file'] == r['file'] and r['name'] in c['text']][:1]
         extra = [c for k, c in enumerate(extra) if all(c is not d for d in extra[:k]) and doc_policy.allowed(c, question)]
         if extra:
             ids = {id(c) for c in extra}
             hits = [(c, 1.0) for c in extra] + [h for h in hits if id(h[0]) not in ids]
             routed = routed + [c for c in extra if c.get('kind') == 'card' and c not in routed]
-            label += ' · 상품 이름: ' + ', '.join(f"{m['said']}→{m['names'][0]}" for m in found)
+            label += ' · 상품 이름: ' + ', '.join([f"{m['said']}→{m['names'][0]}" for m in found] + [r['name'] for r in trows if
+                                                    not any(r['name'] == m['names'][0] for m in found)])
     return hits[:want], label, dropped, routed
 
 
@@ -1009,7 +1046,9 @@ def enforce_grounding(ans):
 
 # 비교 질문 답의 소제목 — '권하지 마라' 지시에도 '### 추천 전략'·'분할 납입 권장 이유' 같은 소제목이 남았다(대화 C18·G08 실측).
 # 본문 문장은 건드리지 않고 소제목(# 줄·굵은 글씨 줄머리)만 바꾼다.
-_REC_HEAD = re.compile(r'(?m)^([ \t]*(?:#{1,4}[ \t]*|[-*][ \t]*)?\**[^\n*]{0,20}?)(?:추천|권장|최적)[ \t]*(포인트|전략|조합|방안|안|이유|선택)?'
+# '### 추천 행동', '### 최종 권장 사항', '→ **추천**:'도(10-13 외부 시험) — 꼬리말 목록을 넓히고 '→' 로 시작하는 줄도 본다
+_REC_HEAD = re.compile(r'(?m)^([ \t]*(?:#{1,4}[ \t]*|[-*→][ \t]*)?\**[^\n*]{0,20}?)(?:추천|권장|최적)[ \t]*'
+                       r'(포인트|전략|조합|방안|안|이유|선택|행동|절차|사항|방법|상품|포트폴리오)?'
                        r'(?=[ \t]*(?:\*\*|:|：|$))')
 
 
@@ -1023,7 +1062,7 @@ def neutral_headings(ans):
         return m.group(1) + ('고려할 점' if m.group(2) == '이유' else '고르는 기준')
     lines = []
     for line in (ans or '').split('\n'):
-        if re.match(r'[ \t]*(?:#{1,4}|[-*][ \t]*\*\*|\*\*)', line):
+        if re.match(r'[ \t]*(?:#{1,4}|[-*→][ \t]*\*\*|\*\*)', line):
             line = _REC_HEAD.sub(sub, line, count=1)
         lines.append(line)
     return '\n'.join(lines), n
@@ -1402,6 +1441,36 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                 'plan': [{'step': '안전 관문', 'detail': '차단'}, {'step': '다음 행동', 'detail': '거절'}],
                 'sections': {'result': REFUSE, 'evidence': [], 'assumptions': [], 'needs': [], 'next_actions': []},
                 'calc': None, 'verify': None}
+    # '쉽게설명해줘'처럼 짧은 이어 묻기는 재작성된 질문('연금 상품을 쉽게 설명해 주세요')으로 본다(외부 시험 21번)
+    if clarify_template and not (P.get('calc') or {}).get('blocks') and (
+            orchestrator.is_greeting(raw) or orchestrator.is_kinds_ask(raw) or (len(raw) <= 15 and orchestrator.is_kinds_ask(question))):
+        # 인사·'연금 종류 알려줘' — 정해진 문장(모델 호출 없음). 10-13 외부 시험: 인사에 13초 걸려 펀드 이름과 '최근 문의 요약'(없는
+        # 대화)을 지어냈고, 연금 종류 답에 오타와 옛 개인연금저축 조건(5년 이상 수령·만 20세 이상)이 섞였다
+        greet = orchestrator.is_greeting(raw)
+        ans = orchestrator.greeting_answer() if greet else orchestrator.kinds_answer()
+        acts = orchestrator.greeting_actions() if greet else orchestrator.kinds_actions()
+        trace.append('응답: ' + ('인사·할 수 있는 일 안내' if greet else '연금 종류 안내(받은 문서 원문 정의)') + ' — 정해진 문장, 모델 호출 없음')
+        ev = []
+        if not greet:
+            try:
+                import doc_meta
+                for k, f in enumerate(orchestrator.KINDS_DOCS, 1):
+                    m = doc_meta.meta(f) or {}
+                    ev.append({'n': k, 'title': f"「{m.get('title') or f}」", 'page': '', 'file': f,
+                               'as_of': m.get('as_of', ''), 'audience': m.get('audience', '')})
+            except Exception:
+                ev = []
+            if ev:
+                ans += '\n\n**근거**\n' + '\n'.join(f"- [{e['n']}] {e['title']}" for e in ev)
+        act = '되묻기' if greet else '규칙 → 설명'
+        return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
+                'think_trace': '\n'.join(trace), 'answer': ans,
+                'standalone': raw if mem and mem.get('how') == '대체' else question,
+                'injection': bool(P.get('injection')), 'action': act,
+                'plan': orchestrator.plan_steps(trace, act, '인사' if greet else '연금 종류 — 문서 원문 정의', P.get('state', '')),
+                'sections': {'result': ans.split('\n\n**근거**')[0], 'evidence': ev, 'assumptions': [], 'needs': [],
+                             'next_actions': acts},
+                'calc': None, 'verify': None, 'needs': []}
     if clarify_template and (P.get('calc') or {}).get('ambiguous'):
         # 고객 채널(/chat): 단위가 없어 결과가 크게 갈리는 금액은 계산 전에 묻는다(사용자 결정 10-10, 모델 호출 없음).
         # 대회 규격(/answer)은 이 길을 타지 않고, 계산 블록의 '금액 읽기' 가정을 밝히고 답한다.
@@ -1421,7 +1490,9 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                          'needs': asks, 'assume': calc.get('assume', [])},
                 'verify': None, 'needs': asks}
     ask_acts = ('되묻기', '계산 + 되묻기') if CHAT_CALC_ASK_TEMPLATE else ('되묻기',)
-    if clarify_template and P.get('action') in ask_acts and (P.get('calc') or {}).get('needs'):
+    # 퇴직연금 중도인출·담보 규칙만 있는 질문('퇴직연금 담보대출 돼?')도 규칙 문장 그대로 — 10-13 외부 시험에서 모델이 '문서에 없다'고 답했다
+    rp_only = (P.get('calc') or {}).get('blocks') and all(b['topic'].startswith('퇴직연금 중도인출') for b in P['calc']['blocks'])
+    if clarify_template and (P.get('action') in ask_acts and (P.get('calc') or {}).get('needs') or rp_only):
         # 고객 채널(/chat): 계산에 빠진 값을 묻는 답은 규칙 문장 + 빠진 정보 목록으로 바로 낸다(모델 호출 없음).
         # '계산 + 되묻기'(계산값이 있고 빠진 값도 있음)도 같다 — 10-13 설명 문장 검토(이름 가린 비교, 검토자 + 반박 검증)에서
         # 해지 장면 모델 답은 생각 high·none 모두 규칙을 틀리게 옮겼다('일부에만 16.5%', 문서에 없는 해지 절차). 블록 문장은 원문 그대로다.
@@ -1443,7 +1514,30 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                 'calc': {'rule_ids': calc.get('rids', []), 'figures': calc.get('figures', []),
                          'needs': calc.get('needs', []), 'assume': calc.get('assume', [])},
                 'verify': None, 'needs': calc.get('needs', [])}
-    if clarify_template and P.get('action') == '되묻기' and not P.get('calc') and orchestrator.is_product_ask(raw):
+    # 조합 비교('연금저축 600 + IRP 300이랑 연금저축 900 비교') — 계산 블록 문장 그대로(모델 호출 없음). 10-13 외부 시험에서 모델이
+    # '둘 다 148만 5천 원'으로 잘못 옮겼고(연금저축 900은 99만 원), 숫자 대조는 값이 블록에 있어 통과시켰다
+    pc = P.get('calc') or {}
+    combo_only = (pc.get('blocks') and all(b['topic'].startswith('세액공제(조합') for b in pc['blocks'] if b.get('numbers'))
+                  and any(b.get('numbers') for b in pc['blocks']) and not pc.get('needs'))
+    if clarify_template and combo_only and P.get('action') == '계산 → 설명' and \
+            re.search(r'비교|차이|어느\s*(?:쪽|게|것)|뭐가\s*(?:더|나)|어떤\s*게\s*(?:더|나)', raw.split('기준으로 질문:', 1)[-1]):
+        calc = pc
+        ans = orchestrator.clarify_answer(calc, 1)
+        trace.append('응답: 조합 비교(계산 블록의 조합별 공제액 그대로, 모델 호출 없음)')
+        ans = finalize(ans, cite_hits, trace)
+        acts = orchestrator.next_actions('계산 → 설명', raw, calc, None, P.get('category', ''))
+        return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
+                'think_trace': '\n'.join(trace), 'answer': ans,
+                'standalone': raw if mem and mem.get('how') == '대체' else question,
+                'injection': bool(P.get('injection')), 'action': '계산 → 설명',
+                'plan': orchestrator.plan_steps(trace, '계산 → 설명', P.get('why', ''), P.get('state', ''), calc),
+                'sections': sections(ans, cite_hits, calc, acts),
+                'calc': {'rule_ids': calc.get('rids', []), 'figures': calc.get('figures', []),
+                         'needs': [], 'assume': calc.get('assume', [])},
+                'verify': None, 'needs': []}
+    # 상품을 골라 달라는 말 — 막연한 말('추천할만한 연금', '뭘 넣어야')도(10-13 외부 시험). 상품 이름이 정해졌으면 아래 상품표·검색 길로
+    if clarify_template and not P.get('calc') and orchestrator.is_product_ask(raw) and \
+            not any(len(m['names']) == 1 for m in _product_names(question)):
         ans = orchestrator.product_clarify_answer()
         trace.append('응답: 상품 추천 되묻기(정해진 문장, 모델 호출 없음) — 상품 지목 대신 적합성 진단으로 연결')
         acts = orchestrator.next_actions('되묻기', raw, None, None, P.get('category', ''))
@@ -1476,12 +1570,15 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
         # 상품표(doc37 연금 인출 가이드)에 있는 상품만 물었다 — 표의 행을 그대로 옮긴 비교표로 답한다(모델 호출 없음).
         # 10-13 외부 시험: 모델이 표를 옮기며 위험등급을 이웃 행 값으로 바꿔 쓰고 '안정성 중시 → ○○'처럼 골라 줬다
         uniq = [m for m in _product_names(question) if len(m['names']) == 1]
-        tfiles = {it['file'] for m in uniq for it in m['items'] if it['kind'] == 'table'}
+        try:
+            trows = product_names.table_rows_in(question)
+        except Exception:
+            trows = []
+        tfiles = {r['file'] for r in trows}
         k = next((i for i, (c, _) in enumerate(cite_hits or [], 1) if c['file'] in tfiles), None)
-        tab = product_names.table_answer(uniq, k) if uniq and k and not orchestrator.is_projection_ask(raw) else None
+        tab = product_names.table_answer([], k, rows=trows) if trows and k and not orchestrator.is_projection_ask(raw) else None
         if tab:
-            trace.append('응답: 상품표 값 그대로(받은 문서의 표 행을 옮김, 모델 호출 없음) — '
-                         + ', '.join(f"{m['said']}→{m['names'][0]}" for m in uniq))
+            trace.append('응답: 상품표 값 그대로(받은 문서의 표 행을 옮김, 모델 호출 없음) — ' + ', '.join(r['name'] for r in trows))
             ans = finalize(tab, cite_hits, trace)
             acts = [{'label': '투자성향 진단 받기', 'kind': 'handoff', 'payload': '적합성 진단'},
                     {'label': '상담 연결', 'kind': 'handoff', 'payload': ''}]
@@ -1668,6 +1765,10 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     ans, nage = verify.fix_age_rate(ans)
     if nage:
         trace.append(f'숫자 대조: 나이와 맞지 않는 연금소득세율 {nage}곳을 나이별 세율표(R-07)대로 고침(예: 65세 4.4% → 5.5%)')
+    if clarify_template and not calc:
+        ans, npair = drop_unpaired_product_figures(ans, cite_hits)
+        if npair:
+            trace.append(f'숫자 대조: 상품 이름과 수치가 같은 근거에 없는 줄 {npair}곳을 뺌(상품·수치 짝 지어내기 방지)')
     ans, nyr = verify.strip_unsupported_years(ans, '\n'.join([question, raw, ctx] + ([mem['history']] if mem else [])))
     if nyr:
         trace.append(f'숫자 대조: 근거에 없는 연도 기준 {nyr}곳을 뺌(예: "2023년 기준")')

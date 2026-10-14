@@ -110,6 +110,17 @@ RULES = {
     'irp_fix': ('doc19.txt', '금융기관의 연금계좌 과세대상금액과 국세청 소득·세액공제합계액을 확인하여 국세청 합계액을 '
                              '초과하는 과세대상금액을 과세제외함으로써 과세대상금액을 일치시켜주는 업무입니다.'),
     'irp_fix_doc': ('doc19.txt', '재원확정 필요서류 -연금보험료등 소득·세액공제확인서(국세청자료)'),
+    # 퇴직연금(DC·IRP) 중도인출·담보 — 10-13 외부 시험: DC 가입자의 '집 사려고 중도인출'에 '16.5%'로 단정했고(퇴직금은 퇴직소득세),
+    # '퇴직연금 담보대출 돼?'에 '문서에 없다'고 답했다(doc16·doc20 에 있음)
+    'dc_withdraw_ok': ('doc49.txt', '제도별로는 DC(확정기여형)제도, IRP제도의 경우 중도인출이 가능하며 DB(확정급여형)제도의 경우는 중도인출이 허용되지 않습니다.'),
+    'house_req': ('doc49.txt', '신청시기 : 주택매매계약 체결일로부터 소유권 이전 등기후 1개월 이내'),
+    'dc_submit': ('doc49.txt', '서류 구비후, DC 중도인출은 재직 중인 회사에 제출, IRP 중도인출은 가까운 지점에 내점하여 신청가능'),
+    'dc_tax': ('doc55.txt', '과세 | 퇴직금 : 퇴직소득세 / 가입자부담금 : 기타소득세'),
+    'loan_no': ('doc16.txt', '퇴직연금제도(중소기업퇴직연금기금제도를 포함한다. 이하 이 조에서 같다)의 급여를 받을 권리는 양도 또는 압류하거나 '
+                             '담보로 제공할 수 없다.'),
+    'loan_ok': ('doc16.txt', '가입자는 주택구입 등 대통령령으로 정하는 사유와 요건을 갖춘 경우에는 대통령령으로 정하는 '
+                             '한도에서 퇴직연금제도의 급여를 받을 권리를 담보로 제공할 수 있다.'),
+    'loan_repay': ('doc20.txt', '퇴직연금제도를 받을 권리를 담보로 제공하고 대출받은 가입자가 그 대출 원리금을 상환하기 위한 경우 | O | X | 16.5%  기타소득세'),
 
     # 중도인출·운용 규칙(R-12~R-15) — 금액 계산은 없고 규칙만
     'savings_withdraw': ('doc1.txt', '중도인출 | 일부 or 전액 인출 가능'),
@@ -151,9 +162,10 @@ RULEBOOK = [
     ('R-11', '부득이한 사유 인출', ['unavoidable', 'unavoidable_care', 'unavoidable_sep', 'unavoidable_doc',
                                    'unavoidable_emigrate', 'emigrate_proof', 'emigrate_retire', 'house_not_unavoidable'],
      '부득이한 사유면 중도 인출도 연금소득세 5.5~3.3%', '규칙만'),
-    ('R-12', '중도인출 가능 여부', ['savings_withdraw', 'irp_withdraw_ok', 'irp_reason_req'],
+    ('R-12', '중도인출 가능 여부', ['savings_withdraw', 'irp_withdraw_ok', 'irp_reason_req', 'dc_withdraw_ok', 'dc_submit', 'dc_tax',
+                                   'loan_no', 'loan_ok', 'loan_repay'],
      '연금저축은 사유 없이, IRP는 법정 사유가 있어야', '규칙만'),
-    ('R-13', '법정 중도인출 사유', ['irp_reasons'], '무주택 주택 구입·전월세 보증금, 6개월 이상 요양, 재난, 파산·회생 등', '규칙만'),
+    ('R-13', '법정 중도인출 사유', ['irp_reasons', 'house_req'], '무주택 주택 구입·전월세 보증금, 6개월 이상 요양, 재난, 파산·회생 등', '규칙만'),
     ('R-14', '위험자산 한도', ['risk_limit'], 'DC·IRP 위험자산 70% 이내', '규칙만'),
     ('R-15', '(구)개인연금저축', ['old_pension', 'old_no_transfer'], '2000.12.31 이전 개설, 연금저축계좌로 이체 불가', '규칙만'),
 ]
@@ -614,6 +626,15 @@ def parse(q):
         if x['period'] is None and x['v'] <= p['balance'] and not re.match(r'\s*씩', q[x['e']:]):
             x['role'] = 'withdraw'
             p['withdraw'], p['payout'] = x['v'], []
+    # '이직하면서 퇴직금 3,000만 원이 IRP로 들어왔어요. 이거 해지하면 세금은?' — 꺼낼 금액 없이 '해지'만 말하면 계좌 전부를 꺼내는
+    # 것이다(12 문서 H·결정 D-6, 발표 8장 예시: 금액을 알려 줘도 '해지하려는 금액'을 다시 물었다). 평가액이 있으면 평가액,
+    # 없으면 밝힌 재원 금액의 합을 인출액으로 본다. '일부'·'중도인출'·'만 빼면'은 전부 해지가 아니다
+    p['cancel_all'] = False
+    if p['withdraw'] is None and not p['payout'] and re.search(r'해지|해약|깨(?!끗)', q) and \
+            not re.search(r'일부|부분|중도\s*인출|만\s*(?:빼|꺼내|찾|인출)', q):
+        total = p['balance'] if p['balance'] is not None else (sum(p['fund'].values()) if p['fund'] else None)
+        if total:
+            p['withdraw'], p['cancel_all'] = total, True
     rt = [x['v'] for x in spans if x['role'] == 'rtax']
     p['rtax'] = rt[0] if len(rt) == 1 else None
     m = _EFF.search(q)
@@ -1320,6 +1341,8 @@ def by_source(p, q):
     B = p['balance']
     keys = ['order', 'free'] if 'free' in mentioned or f.get('free') else ['order']
     needs, assume = [], []
+    if p.get('cancel_all'):
+        assume.append(f"'해지'를 계좌 전부를 꺼내는 것으로 봄 — 인출 {won(w)}")
     acct = 'IRP' if re.search(r'IRP|개인형', q, re.I) else '연금저축' if '연금저축' in q else '연금계좌'
     # 재원 구성 채우기 — 평가액과 두 재원을 알면 나머지 하나는 뺄셈으로
     if B is None and len(f) >= 2 and all(k in f for k in mentioned):
@@ -1607,10 +1630,73 @@ def early_rule(p, q):
              '넣은 돈을 모두 세액공제 받았다면 전부 16.5%',
              '예: 2,000만 원 해지, 그중 공제 안 받은 돈 500만 원 → 1,500만 원 × 16.5% = 247만 5천 원 (전부 공제받은 돈이면 330만 원)',
              '부득이한 사유(사망·해외이주·3개월 이상 요양 등)면 연금소득세 5.5~3.3%(R-11)']
-    cl, ck = _cancel_check(q, 'IRP' if re.search(r'IRP|개인형', q, re.I) else '연금저축')
+    # 이직·퇴직 때 받은 퇴직금은 IRP로 들어온다(55세 전 퇴직, doc51) — '퇴직금 깨면'은 IRP 규칙으로
+    acct = 'IRP' if re.search(r'IRP|개인형|퇴직금|퇴직\s*연금', q, re.I) and '연금저축' not in q else '연금저축'
+    # IRP 인출 요건·'집 사려고 중도인출'(주택은 부득이한 사유가 아님 → 16.5%) — 금액이 없는 질문에도 싣는다(발표 13장 장면, 10-14)
+    hk = []
+    if acct == 'IRP':
+        irp_l, irp_k = _irp_early(q, 'IRP')
+        lines += [x for x in irp_l if not x.startswith('세법상 부득이한 사유')]
+        hk = [k for k in irp_k if k not in ('unavoidable', 'unavoidable_care', 'unavoidable_doc')]
+    elif re.search(r'주택|전세|집\s*(?:사|구입|마련)', q):
+        lines.append('주택 구입·전세보증금은 세법상 부득이한 사유가 아니어서 세금은 그대로다 — 세액공제 받은 돈·수익은 기타소득세 16.5%')
+        hk = ['house_not_unavoidable']
+    cl, ck = _cancel_check(q, acct)
     return _block('doc39.txt', '55세 전·해지 인출 세금(규칙)', lines + cl,
-                  ['pension_req', 'order', 'free', 'early_credit', 'early_retire', 'unavoidable'] + ck, numbers=False,
+                  ['pension_req', 'order', 'free', 'early_credit', 'early_retire', 'unavoidable'] + hk + ck, numbers=False,
                   needs=['해지·인출하려는 금액', '그중 세액공제 안 받은 납입금(비과세 원금)'])
+
+
+_DC = re.compile(r'(?<![A-Za-z])DC(?![A-Za-z])|확정\s*기여', re.I)
+_RP_CTX = re.compile(r'퇴직\s*연금|(?<![A-Za-z])(?:DC|IRP)(?![A-Za-z])|확정\s*기여|개인형|퇴직금', re.I)
+_RP_WITHDRAW = re.compile(r'중도\s*인출|중간에\s*(?:빼|꺼내|찾)|집\s*(?:을\s*)?(?:사|구입|마련|살)|주택\s*(?:을\s*)?(?:사|구입|마련)|전세')
+_LOAN = re.compile(r'담보|대출|대여|빌리|빌릴|빌려')
+
+
+def retire_plan_rule(p, q):
+    """퇴직연금(DC·IRP) 중도인출·담보대출 규칙 — 금액 없이 규칙만(10-13 외부 시험 15·19·20번).
+    DC 는 퇴직금 몫이 퇴직소득세, 본인이 넣은 가입자부담금 몫이 기타소득세다(doc55 표). 담보 제공은 원칙 금지·법정 사유 예외(doc16
+    근퇴법 제7조), 대출 원리금 상환은 IRP 중도인출 사유(doc20 표). 사유별 한도·금리·절차는 문서에 없어 상담으로."""
+    if not _RP_CTX.search(q) or ('연금저축' in q and not re.search(r'퇴직\s*연금|IRP|DC|퇴직금|개인형', q, re.I)):
+        return None
+    loan, wd = bool(_LOAN.search(q)), bool(_RP_WITHDRAW.search(q))
+    if not (loan or wd):
+        return None
+    dc = bool(_DC.search(q))
+    house = bool(re.search(r'주택|전세|집\s*(?:을\s*)?(?:사|구입|마련|살)', q))
+    lines, keys, needs = [], [], []
+    if wd:
+        lines.append('퇴직연금 중도인출은 DC·IRP만 가능하고 DB는 허용되지 않는다 — 무주택자의 본인 명의 주택 구입, 전세보증금 등 '
+                     '법으로 정한 사유가 있어야 한다')
+        keys += ['dc_withdraw_ok', 'irp_reason_req', 'irp_reasons']
+        if house:
+            lines.append('주택 구입 중도인출은 신청일 기준 본인 명의 주택이 없어야 하고, 주택매매계약 체결일부터 소유권 이전 등기 후 '
+                         '1개월 안에 신청한다')
+            keys.append('house_req')
+        lines.append('신청: DC 중도인출은 재직 중인 회사에 서류를 내고, IRP 중도인출은 가까운 지점에 내점해 신청한다')
+        keys.append('dc_submit')
+        if dc:
+            lines.append('세금(DC): 퇴직금 몫은 퇴직소득세, 가입자부담금(본인이 추가로 넣은 돈) 몫은 기타소득세')
+            keys.append('dc_tax')
+            needs = ['중도인출하려는 금액', '그중 퇴직금 몫과 본인이 넣은 돈 몫', '퇴직소득세(퇴직소득 원천징수영수증)']
+        else:
+            lines.append('세금(IRP): ① 세액공제 안 받은 돈은 비과세, ② 퇴직금은 퇴직소득세 100%, ③ 세액공제 받은 돈·운용수익은 '
+                         '기타소득세 16.5%')
+            keys += ['early_retire', 'early_credit']
+            if house:
+                lines.append('주택 구입·전세보증금은 중도인출 사유지만 세법상 부득이한 사유는 아니어서 세금이 낮아지지 않는다'
+                             '(연금소득세 5.5~3.3% 적용 안 됨)')
+                keys.append('house_not_unavoidable')
+            needs = ['중도인출하려는 금액', '그중 퇴직금 몫과 세액공제 안 받은 납입금']
+    if loan:
+        lines.append('퇴직연금 급여를 받을 권리는 원칙적으로 담보로 제공할 수 없지만, 주택 구입 등 법령이 정한 사유와 요건을 갖추면 '
+                     '정해진 한도 안에서 담보로 제공할 수 있다(근로자퇴직급여 보장법 제7조)')
+        lines.append('담보로 대출받은 뒤 그 대출 원리금을 갚기 위한 경우는 IRP 중도인출 사유다 — 세법상 부득이한 사유는 아니어서 '
+                     '세액공제 받은 돈·수익은 기타소득세 16.5%')
+        lines.append('담보대출의 구체적인 사유·한도·금리·신청 방법은 받은 문서에 없어 상담에서 확인해야 한다')
+        keys += ['loan_no', 'loan_ok', 'loan_repay']
+    return _block('doc49.txt' if wd else 'doc16.txt', '퇴직연금 중도인출·담보(규칙)', lines, list(dict.fromkeys(keys)),
+                  numbers=False, needs=needs)
 
 
 def compute(q):
@@ -1661,6 +1747,11 @@ def _compute(q):
         or (p['income'] and _acct_choice(p, q))
     if ded_intent and (p['income'] or p['contrib'] or p['isa'] or p['income_unknown_kind']) and not blocks:
         blocks.extend(deduction(p, q))
+    # 퇴직연금 중도인출·담보 규칙 — 담보를 물었거나 DC 이거나 다른 블록이 없을 때(IRP 해지 세금 블록과 겹치지 않게)
+    if not any(b.get('numbers') for b in blocks) and (_LOAN.search(q) or _DC.search(q) or not blocks):
+        rp = retire_plan_rule(p, q)
+        if rp:
+            blocks.append(rp)
     if not blocks:
         return None
     amount_assume = [n['text'] for n in p.get('amount_notes', [])]

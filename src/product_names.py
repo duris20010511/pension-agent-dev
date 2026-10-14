@@ -95,18 +95,43 @@ def _table_products():
     return [(r['name'], r['file']) for r in table_rows()]
 
 
-def table_answer(found, cite=1):
-    """줄여 부른(또는 정식) 이름이 모두 상품표의 상품이면, 표의 행을 그대로 옮긴 비교표 답(모델 호출 없음) — 아니면 None.
-    10-13 외부 시험: 모델이 표를 옮기며 위험등급을 이웃 행 값('매우높은위험')으로 바꿔 쓰고, '안정성 중시 → ○○'처럼 골라 줬다."""
+def table_rows_in(question):
+    """질문에 나온 상품표 상품의 행(질문에 나온 순서) — 줄여 부른 이름과 정식 이름을 다 센다.
+    10-13 외부 시험 29번: 표 다섯 줄을 정식 이름으로 붙여 넣자, 이미 정식 이름인 넷은 건너뛰고 한 상품만 표에 나왔다.
+    상품표에 없는 상품(펀드 카드)이 섞이거나 여러 상품에 걸리는 이름이 있으면 [] — 표 답을 쓰지 않는다."""
+    qn = norm(question)
+    found = resolve(question)
+    if any(len(m['names']) != 1 for m in found):
+        return []
+    if any(x['kind'] == 'card' and x['key'] in qn for x in catalog()):
+        return []
     rows = []
     for m in found:
-        if len(m['names']) != 1:
-            return None
         r = next((x for x in table_rows() if x['name'] == m['names'][0]), None)
         if r is None:
-            return None
-        if all(r is not x for x in rows):
-            rows.append(r)
+            return []
+        rows.append((qn.find(norm(m['said'])), r))
+    for r in table_rows():
+        k = norm(r['name'])
+        if k in qn and all(r is not x for _, x in rows):
+            rows.append((qn.find(k), r))
+    return [r for _, r in sorted(rows, key=lambda t: t[0])]
+
+
+def table_answer(found, cite=1, rows=None):
+    """줄여 부른(또는 정식) 이름이 모두 상품표의 상품이면, 표의 행을 그대로 옮긴 비교표 답(모델 호출 없음) — 아니면 None.
+    10-13 외부 시험: 모델이 표를 옮기며 위험등급을 이웃 행 값('매우높은위험')으로 바꿔 쓰고, '안정성 중시 → ○○'처럼 골라 줬다.
+    rows 를 주면(table_rows_in) 그 행으로 만든다."""
+    if rows is None:
+        rows = []
+        for m in found:
+            if len(m['names']) != 1:
+                return None
+            r = next((x for x in table_rows() if x['name'] == m['names'][0]), None)
+            if r is None:
+                return None
+            if all(r is not x for x in rows):
+                rows.append(r)
     if not rows:
         return None
     heads = []

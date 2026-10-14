@@ -1128,7 +1128,7 @@ def check_mirae_1013(fail):
     ok('해지 신청 전 확인' in t, '금액 없는 해지 질문에 확인 문장이 없음')
     _, t = body('50세인데 연금저축 2,000만 원 인출하면 세금은?')
     ok('해지 신청 전 확인' not in t, '해지가 아닌 인출에도 해지 확인 문장이 붙음')
-    ok(not any('내점' in v[1] for k, v in taxcalc.RULES.items()), "doc19 '재원확정: 내점만 가능'을 원문으로 실음(D-4)")
+    ok(not any('내점만' in v[1] for k, v in taxcalc.RULES.items()), "doc19 '재원확정: 내점만 가능'을 원문으로 실음(D-4)")
     ok('R-10' in taxcalc.compute(scene)['blocks'][0]['rids'], '해지 확인 원문이 R-10 에 묶이지 않음')
     ans = orchestrator.clarify_answer(taxcalc.compute(scene), 1)
     ok('- **해지 신청 전 확인**: 연금저축은' in ans and '330만 원' in ans, '해지 되묻기 답에 확인 문장(굵게)이 없음')
@@ -1239,6 +1239,119 @@ def check_tester_1013(fail):
     return n
 
 
+def check_feedback_1014(fail):
+    """10-13 1차 외부 시험에서 남은 것 — 막연한 상품 질문, 인사, 연금 종류, 조합 비교, 코드 울타리, 주택 중도인출 문장, 로그 날짜 가림."""
+    import orchestrator
+    from answer import sanitize_answer
+    n = 0
+
+    def ok(cond, msg):
+        nonlocal n
+        n += 1
+        if not cond:
+            fail.append(f'[10-14 피드백] {msg}')
+    for q in ('20세에게 추천하ㅏㄹ만한 연금', '나 연금을 뭘 넣어야 할지 모르겠어', 'IRP에 뭘 담아야 할까요?', '어떤 연금 상품이 좋아?',
+              '내가 지금 이직해서 새로운 회사에 와서 DC형 연금상품 가입하려고 하거든. 추천 좀 해줄래??'):
+        ok(orchestrator.is_product_ask(q), f'막연한 상품 질문을 못 알아봄: {q}')
+    for q in ('IRP에 있는 돈 일부는 언제든 뺄 수 있게 두고 싶어서요, 한화내일받는단기국공채라는 게 목록에 보이던데 이게 뭘 담는 펀드예요?',
+              '연금저축이랑 IRP 중 어디에 넣어야 세액공제 많이 받아요?', '디폴트옵션 상품은 어떻게 골라져요?', '과세이연이 뭐야?'):
+        ok(not orchestrator.is_product_ask(q), f'상품 고르기 질문이 아닌데 걸림: {q}')
+    for q in ('ㅎㅇ', '흠 안녕', '안녕하세요', '너 연금에 대해 잘알아??', '넌 누구야?'):
+        ok(orchestrator.is_greeting(q), f'인사를 못 알아봄: {q}')
+    for q in ('안녕하세요 연금저축 600 넣었는데요', '안녕 해지하면 세금은?', '연금 알려줘'):
+        ok(not orchestrator.is_greeting(q), f'질문을 인사로 봄: {q}')
+    g = orchestrator.greeting_answer()
+    ok('최근' not in g and '문의하셨' not in g and '58건' in g and not re.search(r'추천|유리', g), '인사 문장')
+    for q in ('연금 종류를 알려줘', '나는 25세고 아직 가입은 하지 않았어. 연금 종류는 뭐가 뭔지 모르겠는데 쉽게 알려줘.', 'DB DC IRP 차이가 뭐야?'):
+        ok(orchestrator.is_kinds_ask(q), f'연금 종류 질문을 못 알아봄: {q}')
+    ok(not orchestrator.is_kinds_ask('연금저축 600 넣으면 세액공제?'), '계산 질문을 연금 종류로 봄')
+    k = orchestrator.kinds_answer()
+    ok('DCE' not in k and 'IPR' not in k and '5년 이상 수령' not in k and '만 20세' not in k and '2000년 12월 31일' in k
+       and '연간 임금총액의 1/12' in k and '연 900만 원' in k, '연금 종류 문장')
+    # 연금 종류 문장의 사실이 받은 문서에 있다(원문 대조)
+    docs = ''
+    for f in orchestrator.KINDS_DOCS:
+        with open(os.path.join(ROOT, 'extracted', 'docs', f), encoding='utf-8') as fh:
+            docs += _nows(fh.read())
+    for frag in ('연간임금총액의1/12', '2000년12월31일까지신규가입', '연금저축은누구나가입할수있다', 'IRP는직장인,자영업자,직역연금가입자등가입대상이정해져',
+                 '사유와무관하게언제든중도인출이가능하다', '평균임금×계속근로기간', '연금저축은연600만원,IRP는연금저축납입액을포함해서연900만원'):
+        ok(frag in docs, f'연금 종류 근거 원문 없음: {frag}')
+    # 코드 울타리·주택 중도인출·로그 날짜
+    ok(sanitize_answer('가입 대상:\n```markdown\n- 1년 미만 근무자\n```\n끝') == '가입 대상:\n- 1년 미만 근무자\n끝', '코드 울타리')
+    for q, acct in (('집 사려고 IRP에서 중도인출하면 세금은?', 'IRP'), ('집 사려고 연금저축에서 중도인출하면 세금은?', '연금저축')):
+        t = '\n'.join(b['text'].split('[원문]')[0] for b in (taxcalc.compute(q) or {}).get('blocks', []))
+        ok('부득이한 사유' in t and '16.5%' in t and '주택' in t, f'주택 중도인출 문장({acct})')
+    import server
+    ok(server.mask('기준일 2025-09-01 · 123-45-678901') == '기준일 2025-09-01 · [계좌번호]', f"날짜 가림: {server.mask('기준일 2025-09-01 · 123-45-678901')}")
+    # 시험 대화 45건 검토(본선_작업정리/14)에서 나온 작은 틈과 7710316 이 만든 결함
+    import product_names
+    from answer import latex_to_text
+    pasted = ('펀드\t미래에셋미국인덱스EMP\t높은위험\nETF\tTIGER 토탈월드스탁액티브\t높은위험\n펀드\t피델리티글로벌테크놀로지\t높은위험\n'
+              'ETF\tTIGER 인도빌리언컨슈머\t높은위험\nETF\tTIGER 차이나항셍테크\t매우높은위험')
+    rows = [r['name'] for r in product_names.table_rows_in(pasted)]
+    ok(len(rows) == 5 and rows[0].startswith('미래에셋미국인덱스EMP') and rows[-1] == 'TIGER 차이나항셍테크', f'붙여 넣은 상품표 다섯 줄(29번): {rows}')
+    ok([r['name'] for r in product_names.table_rows_in('TIGER 인도빌리언컨슈머 보수는?')] == ['TIGER 인도빌리언컨슈머'], '정식 이름 한 상품')
+    ok(product_names.table_rows_in('필승코리아 증권투자신탁이랑 TIGER 인도빌리언컨슈머 비교') == [], '펀드 카드 상품이 섞이면 표 답을 쓰지 않음')
+    frac = latex_to_text(r'\frac{1 - r^{n}}{1 - r}')
+    ok(frac == '(1 - r^n) ÷ (1 - r)', f'분자 괄호: {frac}')
+    ok(sanitize_answer('비용은 `0.66%`예요 ❗') == '비용은 0.66%예요', f"백틱·❗: {sanitize_answer('비용은 `0.66%`예요 ❗')!r}")
+    ok(orchestrator.projection_actions('42살인데 60살부터 연금수령하고 싶은데 얼마 받을 수 있을까?')[1]['label'] == '60세에 받을 때 세금', '받기 시작 나이 버튼(38번)')
+    ok(orchestrator.is_product_ask('인도 시장의 고성장에 베팅하시겠습니까?'), "'베팅' 질문(33번)")
+    ok(orchestrator.is_kinds_ask('연금 상품을 쉽게 설명해 주세요.'), "'쉽게 설명' 이어 묻기(21번)")
+    return n
+
+
+def check_defects_1014(fail):
+    """14 문서의 시연 전 결함 — 이직 퇴직금 해지(H), DC 주택 중도인출·퇴직연금 담보, 상품·수치 짝, 옛 한도·종합과세 문장, 권유 소제목."""
+    from answer import drop_unpaired_product_figures, neutral_headings
+    import verify
+    n = 0
+
+    def ok(cond, msg):
+        nonlocal n
+        n += 1
+        if not cond:
+            fail.append(f'[10-14 결함] {msg}')
+
+    def blk(q):
+        r = taxcalc.compute(q) or {}
+        return r, '\n'.join(b['text'].split('[원문]')[0] for b in r.get('blocks', []))
+    # H — 이직 퇴직금 IRP 해지: 금액을 다시 묻지 않고 퇴직금 몫은 퇴직소득세 100%
+    r, t = blk('35살인데 이직하면서 퇴직금 3,000만 원이 IRP로 들어왔어요. 이거 해지하면 세금 얼마예요?')
+    ok('퇴직소득세 100%(감면 없음)' in t and '해지·인출하려는 금액' not in ' '.join(r.get('needs', []))
+       and any('퇴직소득세' in x for x in r.get('needs', [])), f'H 이직 퇴직금 해지: {r.get("needs")}')
+    r, t = blk('35살인데 이직하면서 퇴직금 3,000만 원이 IRP로 들어왔어요. 퇴직소득세는 150만 원이었어요. 이거 해지하면 세금 얼마예요?')
+    ok(r and r['blocks'][0].get('key_figure') == '150만 원', f'H 퇴직소득세를 알려 주면 계산: {r and r["blocks"][0].get("key_figure")}')
+    r, t = blk('40세, IRP 평가액 5,000만 원인데 퇴직금 3,000만 원이고 나머지는 공제받은 돈이에요. 일부만 중도인출하면 세금은?')
+    ok(not taxcalc.parse('40세, IRP 평가액 5,000만 원인데 퇴직금 3,000만 원. 일부만 중도인출하면 세금은?')['cancel_all'], "'일부만'을 전부 해지로 봄")
+    r, t = blk('이직하면서 받은 퇴직금, 깨면 세금 얼마예요?')
+    ok('IRP는 재원확정' in t, "'퇴직금 깨면'은 IRP 해지 확인 문장")
+    # DC 주택 중도인출·퇴직연금 담보
+    r, t = blk('근데 만약에 내가 집사야해서 중간에 중도인출해야하면 어떻게해?? DC형이야. 혹시 퇴직연금 담보로 대출도 가능해?')
+    ok('퇴직금 몫은 퇴직소득세' in t and '가입자부담금' in t and 'DB는 허용되지 않는다' in t and '담보로 제공할 수 있다' in t
+       and '상담에서 확인' in t, f'DC 중도인출·담보 규칙: {t[:200]}')
+    ok('16.5%' not in t.split('담보로 대출받은')[0], 'DC 중도인출에 16.5% 단정')
+    r, t = blk('퇴직연금 담보대출 받을 수 있어?')
+    ok('원칙적으로 담보로 제공할 수 없지만' in t, '퇴직연금 담보만 물어도 규칙')
+    ok(not taxcalc.compute('연금저축계좌에 1억쯤 굴리고 있는데 급하게 목돈이 필요해서요. 이거 담보 잡고 빌리면 6천만원 나오는 거 맞죠?'),
+       '연금저축 담보에 퇴직연금 담보 규칙을 붙임')
+    # 상품·수치 짝 — 근거 조각에 상품과 수치가 함께 없으면 그 줄을 뺀다
+    c37 = {'file': 'doc37.txt', 'text': 'TIGER 인도빌리언컨슈머 | 세계 최대 | 1,336 | 0.66 | 0.2528 | ○'}
+    other = {'file': 'KR0000000000.txt', 'text': '증권거래비용 0.17%'}
+    a, k = drop_unpaired_product_figures('- TIGER 인도빌리언컨슈머 C-P 0.17%\n- TIGER 인도빌리언컨슈머 증권거래비용 0.2528%\n- 설명 0.17',
+                                         [(c37, 1.0), (other, 1.0)])
+    ok(k == 1 and '0.17%' not in a and '0.2528%' in a and '설명 0.17' in a, f'상품·수치 짝: {a!r}')
+    # 옛 한도·종합과세 문장·권유 소제목
+    ok(verify.fix_outdated('(연금저축 400만 원 + IRP 500만 원 한도 내)')[0] == '(연금저축 600만 원 + IRP 300만 원 한도 내)', '400+500 옛 한도')
+    ok(verify.fix_outdated('연 1,500만원 이내 수령 시 3.3~5.5% 분리과세, 초과 시 종합과세')[0].endswith('종합과세(또는 16.5% 분리과세 선택)'),
+       '1,500만 초과 종합과세만 쓴 문장')
+    for s in ('1,500만 원을 넘으면 종합과세 또는 16.5% 분리과세 중 선택', '1,500만 원 초과분만 종합과세'):
+        ok(verify.fix_outdated(s)[1] == 0, f'바꾸면 안 되는 문장: {s}')
+    for h, want in (('### 추천 행동', '### 고르는 기준'), ('→ **추천**: 미국', '→ **고르는 기준**: 미국'), ('**추천하지 않는 경우**', '**추천하지 않는 경우**')):
+        ok(neutral_headings(h)[0] == want, f'소제목 {h} → {neutral_headings(h)[0]}')
+    return n
+
+
 def main():
     fail = []
     for q in ATTACKS:
@@ -1278,6 +1391,8 @@ def main():
     total += check_review_1010b(fail)
     total += check_mirae_1013(fail)
     total += check_tester_1013(fail)
+    total += check_feedback_1014(fail)
+    total += check_defects_1014(fail)
     print(f'{total - len(fail)}/{total} 통과')
     for f in fail:
         print('  ' + f)

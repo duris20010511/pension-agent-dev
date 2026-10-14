@@ -180,16 +180,16 @@ def _combo(c, idx, income, years_to_start, ev, out):
         if no_income:
             refund = 0.0
             ev.add('ded_need_income')
-            warns.append(f'조합 {name}: 소득이 없으면 세액공제를 받을 수 없어 환급이 없고, 넣은 돈 전부가 공제 못 받은 돈으로 쌓입니다'
+            warns.append(f'조합 {name}: 소득이 없으면 세액공제를 받을 수 없고, 넣은 돈 전부가 공제 못 받은 돈으로 쌓입니다'
                          + _tag(['R-02', 'R-06'], ['doc39.txt', 'doc41.txt']))
-            lines.append('환급 0원 — 소득이 없으면 세액공제를 받을 수 없음' + _tag(['R-02'], ['doc41.txt']))
+            lines.append('세액공제 0원 — 소득이 없으면 세액공제를 받을 수 없음' + _tag(['R-02'], ['doc41.txt']))
         else:
             rate = taxcalc.credit_rate(v, kind)
             refund = elig * rate / 100
     if refund is not None and rate is not None:
-        lines.append(f'환급 {won(refund)} = 공제 대상 {won(elig)} × {pct(rate)}' + _tag(rids, files))
+        lines.append(f'세액공제 {won(refund)} = 공제 대상 {won(elig)} × {pct(rate)}' + _tag(rids, files))
     elif refund is None:
-        lines.append(f'공제 대상 {won(elig)} — 환급은 소득 구간에 따라 {won(elig * _RATE_HI / 100)}({pct(_RATE_HI)}) 또는 '
+        lines.append(f'공제 대상 {won(elig)} — 세액공제는 소득 구간에 따라 {won(elig * _RATE_HI / 100)}({pct(_RATE_HI)}) 또는 '
                      f'{won(elig * _RATE_LO / 100)}({pct(_RATE_LO)})' + _tag(rids, files))
     if not no_income:
         lines.append(f'공제 대상 {won(elig)}: 연금저축은 600만 원까지, IRP를 더해 합산 900만 원까지')
@@ -536,11 +536,11 @@ def simulate(plan):
         if income is None:
             out['needs'].append(f'총급여(직장인) 또는 종합소득금액 — 세액공제율 {pct(_RATE_HI)}/{pct(_RATE_LO)}를 정하는 데 필요')
         elif income[1] > 0:
-            out['assumptions'].append('올해 낼 세금(결정세액)이 환급액보다 크다고 봄 — 낼 세금이 적으면 환급도 그만큼 줄어듦'
+            out['assumptions'].append('올해 낼 세금(결정세액)이 세액공제액보다 크다고 봄 — 낼 세금이 적으면 세액공제도 그만큼 줄어듦'
                                       + _tag(['R-02'], ['doc41.txt']))
         if years_to_start:
             out['assumptions'].append(f'수령 시작 전 {years_to_start}년 동안 해마다 같은 금액을 넣고 소득 구간도 그대로라고 봄 '
-                                      '(누적 환급·과세제외금액 참고값, 수익 제외)')
+                                      '(누적 세액공제·과세제외금액 참고값, 수익 제외)')
     if po:
         out['payout'] = _payout(po, cur_age, ev, out)
     if not combos and not po:
@@ -550,7 +550,7 @@ def simulate(plan):
     for c in out['combos']:
         head = f'조합 {c["name"]}: {_acct(c["savings"], c["irp"])} → '
         if c['refund'] is not None:
-            line = head + f'환급 {c["text"]["refund"]}'
+            line = head + f'세액공제 {c["text"]["refund"]}'
         else:
             line = head + f'공제 대상 {c["text"]["eligible"]}'
         if c['excluded']:

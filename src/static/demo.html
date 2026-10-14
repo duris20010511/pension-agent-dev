@@ -500,7 +500,7 @@ svg .node.pick circle { stroke: var(--orange); stroke-width: 4; }
       <div class="composer">
         <div class="chips" id="chips"></div>
         <div class="input-row">
-          <textarea id="q" placeholder="연금 질문을 입력하세요 (Enter 보내기 · Shift+Enter 줄바꿈)" maxlength="2000"></textarea>
+          <textarea id="q" placeholder="연금 질문을 입력하세요 (Enter 보내기 · Shift+Enter 줄바꿈) — 주민번호·계좌번호·병명 같은 개인정보는 넣지 마세요" maxlength="2000"></textarea>
           <div class="mode-col">
             <label class="mode" title="빠른 모드: 초안 1개(생각 깊게) · 정밀 모드: 초안 여러 개를 맞춰 봄">
               <select id="mode"><option value="fast" selected>빠른 모드</option><option value="quality">정밀 모드</option></select>
@@ -918,12 +918,13 @@ const SCENES = [
   { tag: '주 장면', label: '연말 공제', q: '총급여 5,000만 원이고 연금저축 600 넣었어요. 12월에 IRP 더 넣으면 얼마나 돌려받아요?' },
   { tag: '장면 1', label: '55세 전 해지', q: '55세 전에 연금저축 빼면 전부 16.5%예요? 2,000만 원 해지하면 330만 원 내는 거죠?' },
   { tag: '장면 2', label: '퇴직금 섞인 IRP', q: '만 62세예요. IRP에 퇴직금이랑 공제받은 돈이 섞였는데, 올해 1,800만 원 빼면 세금이 어떻게 돼요?' },
-  { tag: '장면 2 이어서', label: '정보 보충', q: '평가액은 1억이고 퇴직금이 6,000만 원, 나머지는 공제받은 돈이에요. 퇴직소득세 실효세율은 4%, 올해 퇴직해서 처음 받아요.' },
+  // after: 바로 앞 질문이 장면 2 여야 누를 수 있다 — 장면 2 없이 누르면 410만·80만 원이 한 화면에 섞였다(10-13 외부 시험 17번)
+  { tag: '장면 2 이어서', label: '정보 보충', after: '장면 2', q: '평가액은 1억이고 퇴직금이 6,000만 원, 나머지는 공제받은 돈이에요. 퇴직소득세 실효세율은 4%, 올해 퇴직해서 처음 받아요.' },
   { tag: '장면 3', label: '상품 골라 달라', q: '제일 좋은 연금 상품이 뭐예요?' },
   { tag: 'DIY', label: '납입 조합 비교', q: '총급여 5,000만 원인데 연금저축 600 + IRP 300이랑 연금저축 900만 넣는 거 비교해 주세요.' },
   { tag: '장면 4', label: '알림 미리받기', tab: 'alerts' },
 ];
-const chat = { session: null, busy: false, timer: 0, turns: 0 };
+const chat = { session: null, busy: false, timer: 0, turns: 0, lastQ: '' };
 
 function welcomeNode() {
   return h('div', { class: 'welcome' },
@@ -1146,6 +1147,7 @@ function sideIdle() {
 async function ask(text) {
   const q = String(text || '').trim();
   if (!q || chat.busy) return;
+  chat.lastQ = q;
   setBusy(true);
   const log = $('#log');
   const w = $('.welcome', log);
@@ -1193,6 +1195,7 @@ async function newChat() {
   if (chat.busy) return;
   chat.session = null;
   chat.turns = 0;
+  chat.lastQ = '';
   $('#log').replaceChildren(welcomeNode());
   $('#side').replaceChildren(sideIdle());
   $('#q').value = '';
@@ -1213,6 +1216,10 @@ function initChat() {
     chips.append(h('button', { type: 'button', class: 'chip-q', title: sc.q || '알림 미리받기 탭으로', 'data-tab': sc.tab || null,
       onclick: () => {
         if (sc.tab) { switchTab(sc.tab); if (sc.tab === 'alerts') scanWhenReady(); return; }
+        if (sc.after) {
+          const prev = SCENES.find(x => x.tag === sc.after);
+          if (!prev || chat.lastQ !== prev.q) { snack(`'${sc.after}' 버튼을 먼저 눌러 주세요 — 그 답에 이어지는 질문이에요`); return; }
+        }
         ask(sc.q);
       } }, h('b', null, sc.tag), sc.label));
   }
@@ -1555,11 +1562,11 @@ function combosTable(combos) {
     ['납입 합계', c => tv(c, 'total'), c => c.over_cap > 0],
     ['세액공제 대상', c => tv(c, 'eligible')],
     ['공제율', c => c.text && c.text.rate ? c.text.rate : c.rate == null ? '소득 필요' : pct(c.rate)],
-    ['올해 환급액', c => c.refund == null ? '소득 필요' : tv(c, 'refund'), null, true],
+    ['올해 세액공제액', c => c.refund == null ? '소득 필요' : tv(c, 'refund'), null, true],
     ['공제 못 받는 금액 (나중에 비과세)', c => tv(c, 'excluded')],
   ];
   if (anyYears) {
-    rows.push([`수령 전 ${yrs}년 누적 환급`, c => c.refund_total == null ? '-' : tv(c, 'refund_total')]);
+    rows.push([`수령 전 ${yrs}년 누적 세액공제`, c => c.refund_total == null ? '-' : tv(c, 'refund_total')]);
     rows.push([`수령 전 ${yrs}년 누적 비과세 쌓임`, c => tv(c, 'excluded_total')]);
   }
   return h('table', { class: 'cmp' },
@@ -2246,6 +2253,9 @@ window.__selftest = function () {
       /한도 없음/.test(trs[1].textContent) && /300만 원/.test(n.textContent)) || n.textContent.slice(0, 300);
   });
   t('DIY 서버 글자(text.*) 우선', () => tv({ refund: 148.5, text: { refund: '148만 5천 원' } }, 'refund') === '148만 5천 원' && tv({ refund: 99 }, 'refund') === '99만 원' && tv({}, 'x') === '-');
+  t("'장면 2 이어서'는 장면 2 뒤에만", () => (SCENES.find(x => x.tag === '장면 2 이어서') || {}).after === '장면 2' && !!SCENES.find(x => x.tag === '장면 2'));
+  t('입력칸 개인정보 안내', () => /개인정보는 넣지 마세요/.test($('#q').getAttribute('placeholder')));
+  t("DIY 표에 '환급' 대신 '세액공제'", () => { const n = renderDiyNode({ combos: [{ name: 'A', savings: 600, irp: 300, eligible: 900, refund: 148.5 }], rule_ids: [], assumptions: [], warnings: [] }); return (!/환급/.test(n.textContent) && /세액공제/.test(n.textContent)) || n.textContent.slice(0, 200); });
   t('DIY 질문 앞에 붙는 설계값(규칙 계산이 읽는 꼴)', () => {
     const c = diyContext({ income: { kind: '총급여', v: 5000 }, age: 40, combos: [{ name: 'A', savings: 600, irp: 300 }, { name: 'B', savings: 900, irp: 0 }] });
     const one = diyContext({ income: { kind: '종합소득', v: 4000 }, age: 35, combos: [{ name: 'A', savings: 600, irp: 0 }],
