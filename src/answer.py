@@ -1603,12 +1603,13 @@ def _answer_checked(*args, **kwargs):
     t0, _XC.t0 = getattr(_XC, 't0', None), None
     if (fut is None and ofut is None) or not isinstance(r, dict) or r.get('action') in ('거절', '상담', '상담 연결'):
         return r
-    # 모델이 쓰지 않은 정해진 답(규칙 문장)은 확인을 시작한 지 몇 초 안에 나온다 — 여기서 확인 결과를 다 기다리면
-    # 0.2초 답이 5~7초가 됐다(10-15 서버 실측). 그런 답은 두 확인을 합쳐 AGENT_CHECK_FAST_WAIT 초까지만 기다리고,
-    # 그 안에 안 오면 막지 않는다(규칙 문장 답은 시연 장면마다 반복 측정으로 확인된 것)
+    # 정해진 답(모델이 쓰지 않은 규칙 문장)도 두 확인을 끝까지 기다린다(10-15 사용자 결정). 3초로 줄였더니 판독 기준표(약 5초)는
+    # 한 번도, 금액 확인(중앙 3.3초)은 절반쯤 결과를 못 반영한 채 시간만 0.2 → 3초가 됐다(서버 실측). 정해진 답도 숫자를
+    # 내므로(해지 세금 등) 계산기가 잘못 읽었으면 막아야 한다. AGENT_CHECK_FAST_WAIT 를 주면 그 초까지만 기다린다
     deadline = None
-    if t0 is not None and time.time() - t0 < float(os.environ.get('AGENT_CHECK_FAST_AFTER', '3')):
-        deadline = time.time() + float(os.environ.get('AGENT_CHECK_FAST_WAIT', '3'))
+    fast_wait = os.environ.get('AGENT_CHECK_FAST_WAIT', '').strip()
+    if fast_wait and t0 is not None and time.time() - t0 < float(os.environ.get('AGENT_CHECK_FAST_AFTER', '3')):
+        deadline = time.time() + float(fast_wait)
 
     def _wait(default):
         return max(0.05, deadline - time.time()) if deadline else float(default)
