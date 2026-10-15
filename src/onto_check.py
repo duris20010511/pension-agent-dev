@@ -350,6 +350,10 @@ def _hit(s, v, ctx):
         return None
     scope = s.get('scope', 'q')
     texts = [ctx['q']] if scope == 'q' else [ctx['ask']] if scope == 'ask' else ctx['sents']
+    # 계산기는 줄임말을 풀어 읽는다('연저'→연금저축) — 근거도 푼 글에서 함께 찾아야 '질문에 없는 계좌를 적었다'는 헛경보가 안 난다
+    # (10-15 서버 실측: '연저 600 넣었어. 12월에 irp 더 넣으면' 13/13 되묻기)
+    norm = ctx.get('norm') or {}
+    texts = texts + [x for x in norm.get(scope, []) if x not in texts]
     for t in texts:
         ms = [re.search(c, t, re.I) for c in cues]
         if all(ms) and not (s.get('unless') and re.search(s['unless'], t, re.I)):
@@ -498,6 +502,13 @@ def compare(q, calc, reading, onto=None):
         return [], consulted
     ctx = {'q': q or '', 'ask': _ask_part(q), 'sents': _sentences(q), 'parsed': (calc or {}).get('parsed') or {},
            'blocks': blocks, 'rids': rids, 'texts': [(b.get('text') or '').split('[원문]')[0] for b in blocks]}
+    try:
+        import taxcalc
+        qn = taxcalc.norm_ws(taxcalc.normalize(q or ''))
+    except Exception:
+        qn = q or ''
+    if qn != (q or ''):
+        ctx['norm'] = {'q': [qn], 'ask': [_ask_part(qn)], 'sentence': _sentences(qn)}
     E = {}
 
     def eng(aid):

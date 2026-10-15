@@ -385,6 +385,27 @@ CHAT_CALC_EFFORT = os.environ.get("AGENT_CHAT_CALC_EFFORT", "none").strip()
 CHAT_FAST_EFFORT = os.environ.get("AGENT_CHAT_FAST_EFFORT", "low").strip() or "high"
 CHAT_PRECISE_EFFORT = os.environ.get("AGENT_CHAT_PRECISE_EFFORT", "high").strip() or "high"
 
+# 시연 화면 실시간 단계(10-15) — 답을 기다리는 동안 화면이 0.5초마다 GET /chat/progress 로 '지금 하는 일'과 지금까지의 단계·규칙
+# 계산값을 묻는다. 생성이 시간의 98%라(속도 세션 실측) 규칙이 이미 낸 숫자를 먼저 보여 준다. 답 글자는 담지 않는다 — 답은 숫자 대조를
+# 거친 /chat 응답에만 있다. 기록은 메모리에만 두고 /chat 이 끝나면 지운다. request_id 가 없으면(대회 규격·예전 화면) 예전과 같다.
+_PROGRESS = {}
+_RID = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+PROGRESS_MAX = 64
+
+
+def _progress_sink(rid, t0):
+    """request_id 의 진행 기록을 만들고, answer() 가 부를 콜백을 돌려준다(콜백은 답 스레드에서 불린다)."""
+    while len(_PROGRESS) >= PROGRESS_MAX:            # 끝나지 않은 기록이 쌓이면 오래된 것부터 버린다
+        _PROGRESS.pop(min(_PROGRESS, key=lambda k: _PROGRESS[k]["t0"]), None)
+    st = {"steps": [], "now": "질문을 확인하는 중", "calc": None, "t0": t0}
+    _PROGRESS[rid] = st
+
+    def cb(ev):
+        for k in ("steps", "now", "calc"):
+            if k in ev:
+                st[k] = ev[k]
+    return cb
+
 
 _RULE_NOTE = {
     "late": "답을 만드는 데 시간이 오래 걸려, 문서 규칙으로 계산한 결과를 먼저 보여 드려요.",
@@ -545,6 +566,8 @@ async def chat(body: dict = Body(...)):
     sid = sid if _SID.match(sid or "-") else secrets.token_urlsafe(24)
     if not question:
         return {"answer": "질문을 입력해 주십시오.", "elapsed": 0, "session_id": sid}
+    rid = str(body.get("request_id") or "").strip()
+    prog = _progress_sink(rid, t0) if _RID.match(rid) else None
     global _inflight
     async with _inflight_lock:
         _inflight += 1
@@ -558,6 +581,8 @@ async def chat(body: dict = Body(...)):
                     kw["calc_effort"] = CHAT_CALC_EFFORT
             else:
                 kw = {"samples": 1, "draft_effort": CHAT_PRECISE_EFFORT, "draft_maxtok": 4096}
+            if prog:
+                kw["progress"] = prog
             r = None
             # 바로 앞 호출에서 연결이 끊겼으면 먼저 짧게 확인한다 — 아직 끊겨 있으면 기다리지 않고 규칙 답(라이브 시연 안전장치)
             if clova.net_down() and not await _reachable():
@@ -608,8 +633,20 @@ async def chat(body: dict = Body(...)):
                 "verify": r.get("verify"), "action": r.get("action", ""), "trace": out["think_trace"],
                 "standalone": r.get("standalone", ""), "late": bool(r.get("late")), "reason": r.get("reason", "")}
     finally:
+        if prog:
+            _PROGRESS.pop(rid, None)
         async with _inflight_lock:
             _inflight -= 1
+
+
+@app.get("/chat/progress")
+async def chat_progress(id: str = Query("")):
+    """답을 기다리는 동안의 단계 — 지금 하는 일, 지금까지의 단계, 규칙 계산값(답 글자 없음)."""
+    st = _PROGRESS.get(id) if _RID.match(id or "") else None
+    if not st:
+        return {"found": False}
+    return {"found": True, "now": st["now"], "steps": list(st["steps"] or []), "calc": st["calc"],
+            "elapsed": round(time.time() - st["t0"], 1)}
 
 
 def _module(name):

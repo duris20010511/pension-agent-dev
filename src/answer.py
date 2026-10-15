@@ -969,6 +969,29 @@ CHAT_PRIMER = os.environ.get('AGENT_PRIMER', 'onto')
 CHAT_XCHECK = os.environ.get('AGENT_XCHECK', '1') != '0'
 _XC = threading.local()
 _XC_POOL = ThreadPoolExecutor(4)
+# 시연 화면 실시간 단계(10-15) — /chat 이 progress 콜백을 넘기면 단계가 끝날 때마다 '지금 하는 일'과 지금까지의 단계·규칙 계산값을 알린다.
+# 생성이 시간의 98%라(속도 세션 실측) 기다리는 동안 규칙이 이미 낸 숫자를 먼저 보여 주려는 것이다. 답 글자·모델 추론은 알리지 않는다
+# (답은 숫자 대조를 거친 뒤에만 화면에 나간다). 콜백을 넘기지 않으면(대회 규격 /answer·측정) 아무 일도 하지 않는다.
+_PROG = threading.local()
+
+
+def _progress_on():
+    return getattr(_PROG, 'cb', None) is not None
+
+
+def _progress(now, steps=None, calc=None):
+    cb = getattr(_PROG, 'cb', None)
+    if cb is None:
+        return
+    ev = {'now': now}
+    if steps is not None:
+        ev['steps'] = steps
+    if calc is not None:
+        ev['calc'] = calc
+    try:
+        cb(ev)
+    except Exception:
+        pass                                  # 진행 표시가 실패해도 답은 막지 않는다
 _XC_ASKED = '틀린 금액으로 계산하지 않으려고'      # crosscheck.message 첫 줄 — 바로 앞 턴이 이 확인이면 다시 막지 않는다
 # 온톨로지 판독 기준표(onto_check) — 계산 블록 규칙의 조건 칸(나이·시점·사람·재원·사유 …)을 HCX-005 가 따로 읽어 계산기와 견준다.
 # 10-15 처음 보는 현실 질문 160개: 고객에게 나가는 틀린 계산 블록 24개 중 8개를 되묻기로 막고 맞는 숫자 10개 중 1개를 막음
@@ -1369,11 +1392,13 @@ def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
                     and _XC_ASKED not in str((memory_ctx or {}).get('history') or '')):
                 # 금액 읽기 이중 확인을 지금 시작해 두고 답 생성과 함께 돌린다(answer 끝에서 결과를 본다)
                 _XC.future = _XC_POOL.submit(crosscheck.check, calc_q, calc)
+                _XC.t0 = time.time()
                 trace.append('금액 읽기 이중 확인: HCX-005 가 따로 읽기 시작(답 생성과 동시에)')
             if (xcheck and CHAT_ONTO_CHECK and calc and calc.get('blocks')
                     and _OC_ASKED not in str((memory_ctx or {}).get('history') or '')):
                 # 온톨로지 판독 기준표도 같이 — 블록이 쓴 규칙의 조건 칸만 읽게 해 계산기 읽기와 견준다(answer 끝에서 본다)
                 _XC.onto = _XC_POOL.submit(onto_check.check, calc_q, calc)
+                _XC.t0 = getattr(_XC, 't0', None) or time.time()
                 trace.append('온톨로지 판독 기준표: 계산 블록 규칙의 조건 칸을 HCX-005 가 따로 읽기 시작(답 생성과 동시에)')
             if calc:
                 if not routed and any(c['file'].startswith('doc') for c, _ in hits):
@@ -1557,26 +1582,48 @@ def sections(ans, cite_hits, calc, next_acts):
 SKIP_MERGE_AT = float(os.environ.get('AGENT_SKIP_MERGE_AT', '0'))
 
 
-def answer(*args, **kwargs):
+def answer(*args, progress=None, **kwargs):
+    """질의 → 응답 dict. progress: 시연 화면 실시간 단계용 콜백(넘기지 않으면 예전과 같다)."""
+    _PROG.cb = progress
+    try:
+        return _answer_checked(*args, **kwargs)
+    finally:
+        _PROG.cb = None
+
+
+def _answer_checked(*args, **kwargs):
     """질의 → 응답 dict(_answer). 시연 채널에서 금액 읽기 이중 확인이나 온톨로지 판독 기준표가 다르게 읽었으면
     계산 숫자 대신 확인 질문으로 바꾼다. 금액 확인을 먼저 본다(금액이 틀리면 조건 칸도 의미가 없다)."""
     _XC.future = None
     _XC.onto = None
+    _XC.t0 = None
     r = _answer(*args, **kwargs)
     fut, _XC.future = getattr(_XC, 'future', None), None
     ofut, _XC.onto = getattr(_XC, 'onto', None), None
+    t0, _XC.t0 = getattr(_XC, 't0', None), None
     if (fut is None and ofut is None) or not isinstance(r, dict) or r.get('action') in ('거절', '상담', '상담 연결'):
         return r
+    # 모델이 쓰지 않은 정해진 답(규칙 문장)은 확인을 시작한 지 몇 초 안에 나온다 — 여기서 확인 결과를 다 기다리면
+    # 0.2초 답이 5~7초가 됐다(10-15 서버 실측). 그런 답은 두 확인을 합쳐 AGENT_CHECK_FAST_WAIT 초까지만 기다리고,
+    # 그 안에 안 오면 막지 않는다(규칙 문장 답은 시연 장면마다 반복 측정으로 확인된 것)
+    deadline = None
+    if t0 is not None and time.time() - t0 < float(os.environ.get('AGENT_CHECK_FAST_AFTER', '3')):
+        deadline = time.time() + float(os.environ.get('AGENT_CHECK_FAST_WAIT', '3'))
+
+    def _wait(default):
+        return max(0.05, deadline - time.time()) if deadline else float(default)
     xc = None
     if fut is not None:
+        if not fut.done():
+            _progress('금액 읽기 이중 확인(HCX-005) 결과를 기다리는 중')
         try:
-            xc = fut.result(timeout=float(os.environ.get('AGENT_XCHECK_WAIT', '12')))
+            xc = fut.result(timeout=_wait(os.environ.get('AGENT_XCHECK_WAIT', '12')))
         except Exception:
             xc = None                      # 늦거나 실패하면 막지 않는다(지금 동작 유지)
         if not xc:
             r['think_trace'] = (r.get('think_trace') or '') + '\n금액 읽기 이중 확인: 두 읽기가 같음(또는 확인 못 함) → 계산값 그대로'
     if not xc:
-        return _apply_onto_check(r, ofut)
+        return _apply_onto_check(r, ofut, deadline)
     msg = xc['message']
     why = '; '.join(f"{crosscheck._won(v) if v is not None else ''} {a} ↔ {b}".strip() for v, a, b, _ in xc['diffs'])
     r.update({'answer': msg, 'action': '되묻기',
@@ -1590,16 +1637,21 @@ def answer(*args, **kwargs):
     return r
 
 
-def _apply_onto_check(r, ofut):
-    """온톨로지 판독 기준표 결과를 응답에 반영 — 다르면 숫자 대신 '제가 이렇게 읽었는데 맞나요?' 되묻기, 같으면 생각 과정에 한 줄."""
+def _apply_onto_check(r, ofut, deadline=None):
+    """온톨로지 판독 기준표 결과를 응답에 반영 — 다르면 숫자 대신 '제가 이렇게 읽었는데 맞나요?' 되묻기, 같으면 생각 과정에 한 줄.
+    deadline: 정해진 답이면 이 시각까지만 기다린다(_answer_checked)."""
     if ofut is None:
         return r
+    if not ofut.done():
+        _progress('온톨로지 판독 기준표(HCX-005) 결과를 기다리는 중')
+    wait = max(0.05, deadline - time.time()) if deadline else float(os.environ.get('AGENT_ONTO_WAIT', '12'))
     try:
-        oc = ofut.result(timeout=float(os.environ.get('AGENT_ONTO_WAIT', '12')))
+        oc = ofut.result(timeout=wait)
     except Exception:
         oc = None                          # 늦거나 실패하면 막지 않는다(지금 동작 유지)
     if oc is None:
-        r['think_trace'] = (r.get('think_trace') or '') + '\n온톨로지 판독 기준표: 확인 못 함(시간 초과·오류) → 계산값 그대로'
+        why = '정해진 답이라 짧게만 기다림' if deadline else '시간 초과·오류'
+        r['think_trace'] = (r.get('think_trace') or '') + f'\n온톨로지 판독 기준표: 확인 못 함({why}) → 계산값 그대로'
         return r
     r['think_trace'] = (r.get('think_trace') or '') + '\n' + onto_check.trace_line(oc)
     # 이미 되묻는 답(숫자가 나가지 않음)은 바꾸지 않는다
@@ -1641,6 +1693,7 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
         if fu and (orchestrator.is_ack(question) or orchestrator.is_definition(question)):
             fu, why = False, '고쳐 쓰지 않음(맞장구·낱말 뜻)'
         if fu and not guard(question)[0]:
+            _progress('앞 대화를 이어 질문을 다시 쓰는 중(대화 기억 · HCX-005)')
             question, how = followup.rewrite(question, history)
             # 원문에도 앞 대화의 고객 말에도 없던 '추천·유리'를 재작성이 끼워 넣으면 쓰지 않는다(외부 시험 15·4번)
             said = raw + ' ' + ' '.join(t.get('q', '') for t in history)
@@ -1660,6 +1713,7 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
             real = [t for t in history if not t.get('flagged')]
             if real:
                 mem['calc_q'] = (real[-1].get('standalone') or real[-1]['q']) + ' ' + raw
+    _progress('안전 관문 · 규칙 계산 · 문서 검색 중')
     P = prepare(question, topk=topk, oracle_context=oracle_context, use_rerank=use_rerank,
                 pool=pool, use_dense=use_dense, prompt_mode=prompt_mode, use_taxcalc=use_taxcalc,
                 memory_ctx=mem, use_cards=bool(clarify_template and CHAT_CARDS),
@@ -1953,6 +2007,15 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
     elif clarify_template and LOW_GUARD and draft_effort == 'low' and P.get('injection'):
         draft_effort = 'high'
         trace.append('오케스트레이터: 지시문 의심 질문이라 생각 high 로 답함')
+    if _progress_on():
+        # 여기까지가 준비(가드·검색·규칙 계산·다음 행동) — 생성 전에 단계와 규칙 계산값을 먼저 알린다
+        n_now = int(samples if samples is not None else DEFAULT_SAMPLES)
+        eff = (draft_effort or DRAFT_EFFORT) if thinking else '없음'
+        c = P.get('calc')
+        _progress(f'AI가 설명을 쓰는 중({clova.CHAT_MODEL} · 생각 {eff}' + (f' · 초안 {n_now}개' if n_now > 1 else '') + ')',
+                  steps=orchestrator.plan_steps(trace, P.get('action', ''), P.get('why', ''), P.get('state', ''), c),
+                  calc={'rule_ids': c.get('rids', []), 'figures': c.get('figures', []),
+                        'needs': c.get('needs', []), 'assume': c.get('assume', [])} if c else {})
 
     def _gen():
         return generate(msgs, maxtok=maxtok, effort=draft_effort, thinking=thinking)
@@ -2061,6 +2124,7 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
         ans = verify.handoff_answer(calc, _cite_for_tax(cite_hits) or 1)
         trace.append('답이 비어 규칙 계산값과 상담 연결 안내로 대체')
     vr = None
+    _progress('답 속 숫자를 규칙 계산·근거와 대조하는 중')
     if verify.MODE != 'off':
         extra = [mem['history'], mem.get('profile') or ''] if mem else []
         # 시연 채널(/chat)은 결론 자리에 규칙 계산과 다른 세금 금액이 있으면 덧붙임 대신 상담 연결로 넘긴다(10-12 시연 점검:
