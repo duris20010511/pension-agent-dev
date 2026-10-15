@@ -149,6 +149,8 @@ def health():
         "version": os.environ.get("AGENT_VERSION", ""),
         "chat_deadline": CHAT_DEADLINE,
         "chat_calc_effort": CHAT_CALC_EFFORT,
+        "chat_fast_effort": CHAT_FAST_EFFORT,
+        "chat_precise_effort": CHAT_PRECISE_EFFORT,
     }
 
 
@@ -377,6 +379,11 @@ CHAT_DEADLINE = float(os.environ.get("AGENT_CHAT_DEADLINE", "90"))
 # 계산 9문항 × 3회(eval/_gen_effc_r1~3): 체크리스트 high 87.4% · low 89.9% · none 87.4%(생각을 끈 7문항만 −2.4pp,
 # 95% −10.3~+4.9), 계산 답 생성 평균 25.1 → 16.2 → 7.9초, 할루시네이션 0. none 답은 짧고 곁 설명을 덜 쓴다.
 CHAT_CALC_EFFORT = os.environ.get("AGENT_CHAT_CALC_EFFORT", "none").strip()
+# 시연 채널 모드별 생각 강도(10-15 사용자 결정: 빠른 모드 low · 정밀 모드 high, 둘 다 초안 1개).
+# 같은 123문항 짝비교(답 가림·문서 대조·반박 검증 4회): low 는 API 중앙 20.8 → 12.8초, 틀린 문장은 같거나 적고
+# 빠진 핵심이 문항당 +0.15~0.30 — 꼼꼼함이 필요하면 정밀 모드. 정밀 모드는 예전 '초안 3개(low) + 병합'(체감 약 50초) 대신 high 1개.
+CHAT_FAST_EFFORT = os.environ.get("AGENT_CHAT_FAST_EFFORT", "low").strip() or "high"
+CHAT_PRECISE_EFFORT = os.environ.get("AGENT_CHAT_PRECISE_EFFORT", "high").strip() or "high"
 
 
 _RULE_NOTE = {
@@ -544,12 +551,13 @@ async def chat(body: dict = Body(...)):
     try:
         history = STORE.history(sid) if sid else None
         try:
-            # 빠른 모드: 초안 1개(생각 high) / 정밀 모드: 기본 설정(초안 여러 개) — 화면에서 고른다
-            kw = {}
+            # 빠른 모드: 초안 1개(생각 low, 카드 답 low, 계산 답 none) / 정밀 모드: 초안 1개(생각 high) — 화면에서 고른다
             if str(body.get("mode") or "") == "fast":
-                kw = {"samples": 1, "draft_effort": "high", "draft_maxtok": 4096}
+                kw = {"samples": 1, "draft_effort": CHAT_FAST_EFFORT, "draft_maxtok": 4096}
                 if CHAT_CALC_EFFORT:
                     kw["calc_effort"] = CHAT_CALC_EFFORT
+            else:
+                kw = {"samples": 1, "draft_effort": CHAT_PRECISE_EFFORT, "draft_maxtok": 4096}
             r = None
             # 바로 앞 호출에서 연결이 끊겼으면 먼저 짧게 확인한다 — 아직 끊겨 있으면 기다리지 않고 규칙 답(라이브 시연 안전장치)
             if clova.net_down() and not await _reachable():

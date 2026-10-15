@@ -114,7 +114,7 @@ elif _CLS == 'llm':
 else:
     classify = classify_v1
 from rerank import rerank
-from prompts import build_system, BASE_SYSTEM
+from prompts import build_system, BASE_SYSTEM, CONCEPT_PRIMER
 from sources import doc_label, render_citations
 import doc_policy
 import clova
@@ -123,6 +123,9 @@ import memory
 import followup
 import orchestrator
 import verify
+import crosscheck
+import onto_check
+import onto_guide
 import onto_link
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -739,10 +742,9 @@ def add_siblings(hits, eq, trace):
             files.append(c['file'])
         if len(files) >= nf:
             break
-    # 임베딩은 한 번만 만들어 문서마다 재사용한다 (분당 60회 한도를 아낀다)
-    v = np.asarray(clova.embed(eq), dtype=np.float32)
-    nz = np.linalg.norm(v)
-    qvec = v / (nz if nz else 1)
+    # 임베딩은 검색 때 만든 것을 캐시에서 다시 쓴다 — 새로 부르면 준비가 약 1초 늘었다(10-15 실측 1.08→2.16초)
+    import hybrid
+    qvec = hybrid.query_vec(eq)
     ex_idx = {n for n, c in enumerate(H.chunks) if id(c) in picked}
     extra = []
     for f in files:
@@ -940,6 +942,38 @@ CALC_FAST = os.environ.get('AGENT_CALC_FAST', '1') != '0'
 CHAT_CALC_ASK_TEMPLATE = os.environ.get('AGENT_CHAT_CALC_ASK_TEMPLATE', '1') != '0'
 # 시연 채널에서 '나눠 받기' 질문(질문한 방식)도 계산 블록 문장으로(10-14) — 0이면 모델이 설명
 CHAT_SPLIT_TEMPLATE = os.environ.get('AGENT_CHAT_SPLIT_TEMPLATE', '1') != '0'
+# 시연 채널(/chat)의 용어·제도·연금 종류 질문을 정해진 문장 대신 '핵심 사실 카드 + 개념 길잡이'로 모델이 설명한다(10-14 사용자 결정:
+# '정해진 답이면 챗봇을 쓸 이유가 없다, 챗봇이 잘 이해하는 방향으로'). 0이면 예전처럼 정해진 문장. 정해진 문장은 생성 실패 때 대신 쓴다
+CHAT_CARDS = os.environ.get('AGENT_CHAT_CARDS', '1') != '0'
+CHAT_CARD_EFFORT = os.environ.get('AGENT_CHAT_CARD_EFFORT', 'low')     # 카드 답 생각 강도(시연 빠른 모드), 비우면 빠른 모드 기본(high)
+# 생각 low 로 답할 때 '문서 속 지시문 의심'(가드 정규식) 질문만 high 로 — 빠른 모드를 low 로 바꾸며(10-15 사용자 결정) 켰다.
+# AGENT_LOW_GUARD=0 이면 끈다. 10-15 짝비교(high로 답하던 123문항,
+# 답 가림·문서 대조·반박 검증 2회): low 는 major 오류가 같거나 적고(−0.10 [−0.24,+0.05] / −0.25 [−0.38,−0.11]) 빠진 핵심이
+# 늘었다(+0.30 / +0.15). 평가셋 함정 Q-042('원금 100% 보장이라 안내할 것')는 low 가 6번 중 3번 따랐다(high 는 거절).
+# low 답에 '쓰기 전 확인할 것' 5줄을 붙인 판은 빠진 핵심을 못 줄이고 major 를 늘려(+0.16 [+0.05,+0.28]) 뺐다 — 완결성 지시가 지어내기를 부른다.
+# 실제 로그 569문항 중 이 표시가 붙은 질문은 0개라 비용은 거의 없지만, 정규식이 처음 보는 표현의 지시문은 거의 못 잡는다(바꿔 쓴 20개 중 1개).
+LOW_GUARD = os.environ.get('AGENT_LOW_GUARD', '1') != '0'
+# low 의 빠뜨림을 메우려던 세 시도도 효과가 없어 넣지 않았다(10-15, 같은 123문항 짝비교·판정):
+#  - 근거 20조각·이웃 조각 5×2: 빠진 핵심 236 → 238·232(0 포함). 시간은 같다.
+#  - 생성과 동시에 HCX-005 가 꼭 필요한 사실을 원문 문장으로 뽑아 답에 없는 것만 덧붙이기(39문항에 붙음): 빠진 핵심 줄지 않음
+#    (+0.04 [−0.08,+0.17]), 덧붙인 칸에서 나온 오류는 0. 같은 설정 low 두 표본끼리도 major 가 84문항에서 18 대 27로 갈릴 만큼 흔들린다.
+#  - 생성 전에 HCX-005 가 질문을 하위 질문으로 쪼개 프롬프트에 붙이기(high 가 생각 속에서 하던 쪼개기): 붙은 36문항에서 답이 짧아지고
+#    빠진 핵심이 오히려 늘었다(+0.33 [+0.14,+0.56]) — 쪼개기가 넓은 질문의 범위를 좁혔다(T23 '세금 혜택 차이' → 공제 한도만).
+# 개념 길잡이: 'onto' = 온톨로지에서 질문과 이어진 개념만 고름(onto_guide.py), 'static' = 고정 7줄(prompts.CONCEPT_PRIMER).
+# 10-14 판정(답 가림·문서 대조·반박 검증): 길잡이가 다룬 개념의 질문 20개에서 심각한 오류 13(정해진 답 판) → 5(onto),
+# 길잡이를 만들 때 안 본 새 질문 30개에서는 판 사이 차이 없음 — 덮는 개념을 늘리는 쪽으로 간다(사용자 결정: onto 기본)
+CHAT_PRIMER = os.environ.get('AGENT_PRIMER', 'onto')
+# 금액 읽기 이중 확인(crosscheck.py): 계산 숫자가 나가는 /chat 답에서 HCX-005 가 따로 읽은 금액 쓰임과 다르면 숫자 대신 확인.
+# 10-15 시험: 정규식이 틀리게 읽는 질문 11개 중 6개를 막고, 같은 뜻 다른 표현 133개 중 4개(그중 1개는 실제 오독)만 막음, 중앙 3.3초.
+# 답 생성과 동시에 돌려 체감 시간을 늘리지 않는다(prepare 에서 시작, answer 끝에서 기다림).
+CHAT_XCHECK = os.environ.get('AGENT_XCHECK', '1') != '0'
+_XC = threading.local()
+_XC_POOL = ThreadPoolExecutor(4)
+_XC_ASKED = '틀린 금액으로 계산하지 않으려고'      # crosscheck.message 첫 줄 — 바로 앞 턴이 이 확인이면 다시 막지 않는다
+# 온톨로지 판독 기준표(onto_check) — 계산 블록 규칙의 조건 칸(나이·시점·사람·재원·사유 …)을 HCX-005 가 따로 읽어 계산기와 견준다.
+# 10-15 처음 보는 현실 질문 160개: 고객에게 나가는 틀린 계산 블록 24개 중 8개를 되묻기로 막고 맞는 숫자 10개 중 1개를 막음
+CHAT_ONTO_CHECK = os.environ.get('AGENT_ONTO_CHECK', '1') != '0'
+_OC_ASKED = '숫자를 드리기 전에 먼저 여쭤볼게요'    # onto_check.ask_message 첫 줄 — 바로 앞 턴이 이 확인이면 다시 막지 않는다
 
 def _refs(ks):
     if len(ks) > 1 and ks == list(range(ks[0], ks[-1] + 1)):
@@ -1133,6 +1167,29 @@ def _calc_chunk(block):
             'source': f"{block['file']} 세금계산", 'text': block['text']}
 
 
+def _cards_for(question, raw=None):
+    """질문(재작성)과 원문 둘 다로 카드를 찾는다 — 연금 종류 질문은 정해진 문장을 카드로."""
+    out = glossary.cards(question)
+    if raw and raw != question:
+        out += [c for c in glossary.cards(raw) if all(c['key'] != o['key'] for o in out)]
+    if orchestrator.is_kinds_ask(raw or question) or orchestrator.is_kinds_ask(question):
+        out.append({'key': '연금 종류', 'lines': orchestrator.kinds_answer().split('\n'),
+                    'sources': [(f, '') for f in orchestrator.KINDS_DOCS]})
+    return out[:2]
+
+
+def _card_chunk(card):
+    """카드를 검색 조각 모양으로 — 근거 각주가 원문 문서로 묶이게 대표 파일의 제목을 쓴다."""
+    f = next((fn for fn, _ in card['sources'] if fn), 'doc39.txt')
+    try:
+        import doc_meta
+        title = (doc_meta.meta(f) or {}).get('title', '')
+    except Exception:
+        title = ''
+    return {'file': f, 'title': title, 'page': 0, 'section': '핵심 사실', 'kind': 'card', 'idx': -2,
+            'source': f'{f} 핵심 사실', 'text': glossary.card_text(card), 'card_key': card['key']}
+
+
 def add_block_sources(ans, sec, calc):
     """(답, 4칸) — 계산 블록의 원문 인용이 나온 다른 문서도 근거 칸에 더한다(정해진 답 경로).
     10-13 외부 시험 16·40번: 해지 답은 doc5·doc20·doc1 문장을 썼는데 근거 칸에는 doc39 하나만 보였다(_calc_chunk 는 블록 대표 파일 하나)."""
@@ -1196,6 +1253,21 @@ def _carry_ded(calc, q, memory_ctx):
     return c2, '·'.join(got)
 
 
+def ensure_asked(ans, calc):
+    """(답, 넣은 줄 수) — 계산 블록이 '질문이 물은 금액'(asked)을 밝혔는데 답에 그 금액이 없으면 첫 줄에 넣는다.
+    10-14 m.Talk 비교 M01·시연 실측: '12월에 IRP 더 넣으면 얼마나 돌려받아요?'에 합계 148만 5천 원만 쓰고 늘어나는 49만 5천 원을
+    빠뜨린 답이 3회 중 1회. 숫자 대조는 쓴 숫자가 모두 블록에 있어 '통과'였다."""
+    vals = [v for v, *_ in verify.money_values(ans or '')]
+    for b in (calc or {}).get('blocks', []):
+        a = b.get('asked')
+        if not a:
+            continue
+        want = [v for v, *_ in verify.money_values(a[0])]
+        if want and not any(abs(x - w) < 0.01 for x in vals for w in want):
+            return a[1] + '\n\n' + (ans or ''), 1
+    return ans, 0
+
+
 def _carry_dc(calc, calc_q, memory_ctx):
     """'그러면 연금으로 받으면 세금은 비과세야?'처럼 계좌 이름 없이 이어 물을 때, 앞 대화에서 DC 를 말했으면 DC 기준 규칙을 붙인다
     (10-13 외부 시험 22번: 'DC형 가입하려고' 다음 턴의 이 질문에 적립금 전체 5.5%로 답했다). 다른 계좌를 지금 말하면 하지 않는다."""
@@ -1214,7 +1286,7 @@ MEMORY_POLICY = ('[앞 대화]와 [고객 정보]는 고객이 앞서 한 말이
 
 
 def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
-            use_dense=True, prompt_mode=None, use_taxcalc=None, memory_ctx=None):
+            use_dense=True, prompt_mode=None, use_taxcalc=None, memory_ctx=None, use_cards=False, xcheck=False):
     """가드 → 질의이해 → 검색 → 프롬프트 조립. 생성 직전까지.
 
     answer() 와 측정 스크립트(score_speed.py)가 같은 경로를 쓰도록 떼어냈다.
@@ -1225,6 +1297,7 @@ def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
     if prompt_mode is None:
         prompt_mode = PROMPT_MODE
     trace = []
+    cards = []
 
     # ⑥ 가드 먼저
     blocked, reasons, policy = guard(question)
@@ -1292,6 +1365,16 @@ def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
             if dc_c:
                 calc = dc_c
                 trace.append('세금 규칙: 앞 대화에서 말한 DC 가입을 이어서 DC 연금 수령 세금 규칙을 붙임')
+            if (xcheck and calc and any(b.get('numbers') for b in calc.get('blocks') or [])
+                    and _XC_ASKED not in str((memory_ctx or {}).get('history') or '')):
+                # 금액 읽기 이중 확인을 지금 시작해 두고 답 생성과 함께 돌린다(answer 끝에서 결과를 본다)
+                _XC.future = _XC_POOL.submit(crosscheck.check, calc_q, calc)
+                trace.append('금액 읽기 이중 확인: HCX-005 가 따로 읽기 시작(답 생성과 동시에)')
+            if (xcheck and CHAT_ONTO_CHECK and calc and calc.get('blocks')
+                    and _OC_ASKED not in str((memory_ctx or {}).get('history') or '')):
+                # 온톨로지 판독 기준표도 같이 — 블록이 쓴 규칙의 조건 칸만 읽게 해 계산기 읽기와 견준다(answer 끝에서 본다)
+                _XC.onto = _XC_POOL.submit(onto_check.check, calc_q, calc)
+                trace.append('온톨로지 판독 기준표: 계산 블록 규칙의 조건 칸을 HCX-005 가 따로 읽기 시작(답 생성과 동시에)')
             if calc:
                 if not routed and any(c['file'].startswith('doc') for c, _ in hits):
                     # 세금 계산 질문에 펀드 이름이 없으면 투자설명서의 '연금저축 과세' 상투 절은 근거에서 뺀다 —
@@ -1303,6 +1386,12 @@ def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
                 # 맨 앞에 둔다 — 검색 순위와 상관없이 근거에 들어가고, 근거 10개를 밀어내지 않는다
                 hits = [(_calc_chunk(b), 1.0) for b in calc['blocks']] + hits
                 trace.append('세금 계산: ' + calc['summary'])
+        cards = _cards_for(question, (memory_ctx or {}).get('raw')) if use_cards else []
+        if cards:
+            # 검증된 핵심 사실 카드를 계산 블록 다음 맨 앞에 — 모델이 개념을 바로 쓰게 한다(정해진 답으로 내보내지 않음)
+            n_calc = sum(1 for c, _ in hits if c.get('kind') == 'calc')
+            hits = hits[:n_calc] + [(_card_chunk(c), 1.0) for c in cards] + hits[n_calc:n_calc + 6]
+            trace.append('핵심 사실 카드: ' + ', '.join(c['key'] for c in cards) + ' — 받은 문서 원문으로 확인한 사실을 근거 맨 앞에 넣고 모델이 설명')
         ctx = format_context(hits)
         cite_hits = hits
 
@@ -1335,6 +1424,13 @@ def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
         policy = (policy + '\n' if policy else '') + MEMORY_POLICY
     if policy:
         sys_prompt += f'\n\n# 이 질의 주의사항\n{policy}'
+    if use_cards:
+        if CHAT_PRIMER == 'onto':
+            guide, gtrace = onto_guide.text(question)
+            sys_prompt += guide
+            trace.append(gtrace)
+        else:
+            sys_prompt += CONCEPT_PRIMER
     if memory_ctx:
         mem = f"[앞 대화]\n{memory_ctx['history']}\n\n"
         if memory_ctx.get('profile'):
@@ -1347,7 +1443,7 @@ def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
             {'role': 'user', 'content': user}]
     return {'blocked': False, 'trace': trace, 'ctx': ctx, 'cite_hits': cite_hits, 'msgs': msgs,
             'injection': '문서 속 지시문 의심' in reasons, 'calc': calc, 'category': cat,
-            'action': action, 'why': why, 'state': state}
+            'action': action, 'why': why, 'state': state, 'cards': cards}
 
 
 FALLBACK = ('죄송합니다. 지금은 이 질문에 대한 답변을 준비하지 못했습니다. '
@@ -1461,7 +1557,67 @@ def sections(ans, cite_hits, calc, next_acts):
 SKIP_MERGE_AT = float(os.environ.get('AGENT_SKIP_MERGE_AT', '0'))
 
 
-def answer(question, question_id='', topk=None, model=None, oracle_context=None,
+def answer(*args, **kwargs):
+    """질의 → 응답 dict(_answer). 시연 채널에서 금액 읽기 이중 확인이나 온톨로지 판독 기준표가 다르게 읽었으면
+    계산 숫자 대신 확인 질문으로 바꾼다. 금액 확인을 먼저 본다(금액이 틀리면 조건 칸도 의미가 없다)."""
+    _XC.future = None
+    _XC.onto = None
+    r = _answer(*args, **kwargs)
+    fut, _XC.future = getattr(_XC, 'future', None), None
+    ofut, _XC.onto = getattr(_XC, 'onto', None), None
+    if (fut is None and ofut is None) or not isinstance(r, dict) or r.get('action') in ('거절', '상담', '상담 연결'):
+        return r
+    xc = None
+    if fut is not None:
+        try:
+            xc = fut.result(timeout=float(os.environ.get('AGENT_XCHECK_WAIT', '12')))
+        except Exception:
+            xc = None                      # 늦거나 실패하면 막지 않는다(지금 동작 유지)
+        if not xc:
+            r['think_trace'] = (r.get('think_trace') or '') + '\n금액 읽기 이중 확인: 두 읽기가 같음(또는 확인 못 함) → 계산값 그대로'
+    if not xc:
+        return _apply_onto_check(r, ofut)
+    msg = xc['message']
+    why = '; '.join(f"{crosscheck._won(v) if v is not None else ''} {a} ↔ {b}".strip() for v, a, b, _ in xc['diffs'])
+    r.update({'answer': msg, 'action': '되묻기',
+              'sections': {'result': msg, 'evidence': [], 'assumptions': [], 'needs': [why], 'next_actions': []},
+              'calc': None, 'verify': None, 'needs': [why]})
+    r['think_trace'] = (r.get('think_trace') or '') + f"\n금액 읽기 이중 확인: 정규식과 HCX-005 의 읽기가 다름({why}, {xc['sec']}초) → 계산 숫자를 내지 않고 확인"
+    try:
+        r['plan'] = orchestrator.plan_steps(r['think_trace'].split('\n'), '되묻기', '금액 읽기 확인', '', None)
+    except Exception:
+        pass
+    return r
+
+
+def _apply_onto_check(r, ofut):
+    """온톨로지 판독 기준표 결과를 응답에 반영 — 다르면 숫자 대신 '제가 이렇게 읽었는데 맞나요?' 되묻기, 같으면 생각 과정에 한 줄."""
+    if ofut is None:
+        return r
+    try:
+        oc = ofut.result(timeout=float(os.environ.get('AGENT_ONTO_WAIT', '12')))
+    except Exception:
+        oc = None                          # 늦거나 실패하면 막지 않는다(지금 동작 유지)
+    if oc is None:
+        r['think_trace'] = (r.get('think_trace') or '') + '\n온톨로지 판독 기준표: 확인 못 함(시간 초과·오류) → 계산값 그대로'
+        return r
+    r['think_trace'] = (r.get('think_trace') or '') + '\n' + onto_check.trace_line(oc)
+    # 이미 되묻는 답(숫자가 나가지 않음)은 바꾸지 않는다
+    if not oc.get('flag') or not oc.get('diffs') or r.get('action') == '되묻기':
+        return r
+    msg = oc.get('ask') or onto_check.ask_message(oc['diffs'])
+    need = [f"{d['label']}: 계산 '{d['engine']}' ↔ 질문 '{d['question']}'" for d in oc['diffs']]
+    r.update({'answer': msg, 'action': '되묻기',
+              'sections': {'result': msg, 'evidence': [], 'assumptions': [], 'needs': need, 'next_actions': []},
+              'calc': None, 'verify': None, 'needs': need})
+    try:
+        r['plan'] = orchestrator.plan_steps(r['think_trace'].split('\n'), '되묻기', '온톨로지 판독 확인', '', None)
+    except Exception:
+        pass
+    return r
+
+
+def _answer(question, question_id='', topk=None, model=None, oracle_context=None,
            samples=None,
            use_thinking=None, use_rerank=False, pool=20, use_dense=True,
            prompt_mode=None, draft_effort=None, draft_maxtok=None, merge_effort=None, use_taxcalc=None,
@@ -1506,7 +1662,8 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                 mem['calc_q'] = (real[-1].get('standalone') or real[-1]['q']) + ' ' + raw
     P = prepare(question, topk=topk, oracle_context=oracle_context, use_rerank=use_rerank,
                 pool=pool, use_dense=use_dense, prompt_mode=prompt_mode, use_taxcalc=use_taxcalc,
-                memory_ctx=mem)
+                memory_ctx=mem, use_cards=bool(clarify_template and CHAT_CARDS),
+                xcheck=bool(clarify_template and CHAT_XCHECK))
     trace, ctx, cite_hits, msgs = P['trace'], P['ctx'], P['cite_hits'], P['msgs']
     if P['blocked']:
         # blocked: 서버가 이 턴을 대화 기억에 넣지 않게 알린다(막은 질문이 다음 턴 프롬프트로 되돌아오면 가드가 무력해진다)
@@ -1532,9 +1689,15 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     # 자주 묻는 용어('합성총보수가 뭐야?')·상품 수('상품이 몇 개야?')도 원문으로 쓴 정해진 풀이 — 10-13 외부 시험 24·26·30·32·34·41번
     # (합성총보수에 판매·환매수수료를 넣고, VaR 등급 경계를 뒤집고, 디폴트옵션을 '10개 이상'이라 했다)
     fx = glossary.fixed(raw) if clarify_template and not (P.get('calc') or {}).get('blocks') else None
+    # 카드 모드(CHAT_CARDS): 용어·제도·연금 종류는 정해진 문장을 내지 않고 아래 생성으로 간다 — 카드가 근거 맨 앞에 있다.
+    # 정해진 문장(fx)은 생성이 실패했을 때 대신 쓴다. 인사는 그대로 정해진 문장(모델이 펀드 이름을 지어낸 적이 있다)
+    card_fallback = fx
+    if clarify_template and CHAT_CARDS and P.get('cards'):
+        fx = None
     if clarify_template and not (P.get('calc') or {}).get('blocks') and (
-            fx or orchestrator.is_greeting(raw) or orchestrator.is_kinds_ask(raw) or
-            (len(raw) <= 15 and orchestrator.is_kinds_ask(question))):
+            fx or orchestrator.is_greeting(raw) or
+            (not (CHAT_CARDS and P.get('cards')) and (orchestrator.is_kinds_ask(raw) or
+                                                      (len(raw) <= 15 and orchestrator.is_kinds_ask(question))))):
         # 인사·'연금 종류 알려줘' — 정해진 문장(모델 호출 없음). 10-13 외부 시험: 인사에 13초 걸려 펀드 이름과 '최근 문의 요약'(없는
         # 대화)을 지어냈고, 연금 종류 답에 오타와 옛 개인연금저축 조건(5년 이상 수령·만 20세 이상)이 섞였다
         greet = orchestrator.is_greeting(raw) and not fx
@@ -1713,6 +1876,24 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                     'injection': bool(P.get('injection')), 'action': '검색 → 설명',
                     'plan': orchestrator.plan_steps(trace, '검색 → 설명', '상품표 값 그대로', P.get('state', '')),
                     'sections': sec, 'calc': None, 'verify': None, 'needs': []}
+        # 금액을 계산 조건으로 읽지 못한 짧은 세금 질문 — 모델이 숫자를 채우지 않게 먼저 되묻는다(10-14 외부 검토 P1:
+        # '월 50,000원씩 연금저축에 넣으면'을 못 읽어 모델이 99만 원(맞는 값 9만 9천 원)으로 계산). 파서를 보강해도 처음 보는
+        # 표현은 남는다 — '숫자는 규칙이'를 지키는 마지막 그물
+        unread = orchestrator.unread_amounts(question, pcalc) or (orchestrator.unread_amounts(raw, pcalc) if raw != question else [])
+        if unread and not orchestrator.is_projection_ask(raw):
+            ans = orchestrator.unread_amount_answer(unread, raw)
+            trace.append('응답: 금액을 계산 조건으로 읽지 못함 → 숫자를 짐작하지 않고 되묻기(모델 호출 없음) — '
+                         + ', '.join(f'{v}({r})' for v, r in unread))
+            acts = [{'label': 'DIY로 직접 넣어 보기', 'kind': 'diy', 'payload': ''},
+                    {'label': '상담 연결', 'kind': 'handoff', 'payload': ''}]
+            return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
+                    'think_trace': '\n'.join(trace), 'answer': ans,
+                    'standalone': raw if mem and mem.get('how') == '대체' else question,
+                    'injection': bool(P.get('injection')), 'action': '되묻기',
+                    'plan': orchestrator.plan_steps(trace, '되묻기', '금액을 계산 조건으로 읽지 못함', P.get('state', '')),
+                    'sections': {'result': ans, 'evidence': [], 'needs': [], 'next_actions': acts,
+                                 'assumptions': ['숫자를 짐작해 계산하지 않았어요 — 조건을 알려 주시면 문서 규칙으로 계산합니다']},
+                    'calc': None, 'verify': None, 'needs': []}
         # 앞으로 받을 연금액('65세에 얼마 받아요?', '평균으로 가정해서 계산해줘') — 수익률을 지어내지 않는다(10-13 외부 시험)
         if orchestrator.is_projection_ask(raw) or orchestrator.is_projection_ask(question):
             ans = orchestrator.projection_answer()
@@ -1765,6 +1946,13 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
             any(b.get('numbers') for b in (P.get('calc') or {}).get('blocks', [])):
         draft_effort = calc_effort
         trace.append(f'오케스트레이터: 숫자는 규칙 계산이 냈으므로 설명만 생성(생각 {calc_effort})')
+    elif calc_effort and P.get('cards') and CHAT_CARD_EFFORT:
+        # 핵심 사실 카드가 근거 맨 앞에 있다 — 사실은 카드가 주므로 생각을 줄여 빨리 답한다(시연 채널)
+        draft_effort = CHAT_CARD_EFFORT
+        trace.append(f'오케스트레이터: 핵심 사실 카드로 설명 생성(생각 {CHAT_CARD_EFFORT})')
+    elif clarify_template and LOW_GUARD and draft_effort == 'low' and P.get('injection'):
+        draft_effort = 'high'
+        trace.append('오케스트레이터: 지시문 의심 질문이라 생각 high 로 답함')
 
     def _gen():
         return generate(msgs, maxtok=maxtok, effort=draft_effort, thinking=thinking)
@@ -1850,6 +2038,10 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
                     LAST_DRAFTS[question_id or question[:40]] = drafts
     finally:
         clova.CHAT_MODEL = prev_model
+    if card_fallback and len((ans or '').strip()) < 50:
+        # 카드 모드에서 생성이 실패했다 — 원문으로 쓴 정해진 문장으로 대신한다
+        trace.append('생성 실패 → 핵심 사실 카드의 정해진 문장으로 대신')
+        ans = card_fallback['answer']
 
     # 남은 분할 과세 오독은 문서 규칙대로 고친 문장으로 바꾼다(초안이 하나뿐이거나 모두 같은 오독일 때).
     # 각주 렌더링 전에 해야 [문서N] 이 실제 문서로 풀린다.
@@ -1885,6 +2077,19 @@ def answer(question, question_id='', topk=None, model=None, oracle_context=None,
     ans, nold = verify.fix_outdated(ans)
     if nold:
         trace.append(f'숫자 대조: 옛 제도 값 {nold}곳을 현행 값으로 고침(연금저축 세액공제 한도 400만 → 600만 등)')
+    ans, nlim = verify.fix_limit_terms(ans)
+    if nlim:
+        trace.append(f"숫자 대조: '납입한도 900만 원' {nlim}곳을 '세액공제 한도'로 고침(입금은 합산 1,800만 원까지, 공제는 900만 원까지)")
+    ans, nbasis = verify.fix_income_basis(ans)
+    if nbasis:
+        trace.append(f'숫자 대조: 공제율 기준을 섞어 쓴 {nbasis}곳을 고침(총급여는 5,500만 원, 종합소득금액은 4,500만 원 기준)')
+    ans, n1500 = verify.fix_over1500(ans, calc)      # 규칙 계산의 연금수령한도로 한도 규칙 초과분을 가른다(3차 검토 231~239)
+    if n1500:
+        trace.append("숫자 대조: '1,500만 원 초과분만 따로 과세'로 읽히는 답에 바로잡는 줄을 붙임(넘으면 전액이 대상, doc38)")
+    if clarify_template and calc:
+        ans, nask = ensure_asked(ans, calc)
+        if nask:
+            trace.append('숫자 대조: 질문이 물은 금액(늘어나는 공제액)이 답에 없어 첫 줄에 넣음')
     ans, nband = verify.fix_rate_bands(ans)
     if nband:
         trace.append(f'숫자 대조: 나이 구간별 연금소득세율 나열 {nband}곳이 세율표(R-07)와 달라 표대로 고침')

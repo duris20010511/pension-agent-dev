@@ -502,7 +502,7 @@ svg .node.pick circle { stroke: var(--orange); stroke-width: 4; }
         <div class="input-row">
           <textarea id="q" placeholder="연금 질문을 입력하세요 (Enter 보내기 · Shift+Enter 줄바꿈) — 주민번호·계좌번호·병명 같은 개인정보는 넣지 마세요" maxlength="2000"></textarea>
           <div class="mode-col">
-            <label class="mode" title="빠른 모드: 초안 1개(생각 깊게) · 정밀 모드: 초안 여러 개를 맞춰 봄">
+            <label class="mode" title="빠른 모드: 생각을 짧게(약 12초) · 정밀 모드: 생각을 깊게, 더 꼼꼼히(약 21초)">
               <select id="mode"><option value="fast" selected>빠른 모드</option><option value="quality">정밀 모드</option></select>
             </label>
             <button class="btn primary" id="send">보내기</button>
@@ -1771,7 +1771,8 @@ function renderTaxMap(d) {
     h('p', { class: 'map-cap' }, '세금 지도 — 같은 계좌라도 돈이 어디서 왔는지(재원)와 어떻게 꺼내는지(인출 방식)로 세금이 정해져요'),
     h('div', { class: 'tmap' }, h('div'), modes.map(m => h('div', { class: 'colh' }, m.label, h('small', null, m.hint || ''))),
       sources.map(s => [h('div', { class: 'rowh' }, s.label), modes.map(m => cellBtn(asList(d.cells).find(c => c.source === s.key && c.mode === m.key)))])),
-    h('p', { class: 'map-note' }, '계산 엔진이 쓰는 표 그대로예요(받은 문서 원문의 규칙). 금액은 상담 탭에서 이 규칙으로 계산합니다.'));
+    h('p', { class: 'map-note' }, '계산 엔진이 쓰는 표 그대로예요(받은 문서 원문의 규칙). 금액은 상담 탭에서 이 규칙으로 계산합니다. '
+      + '이 표는 연금계좌(연금저축·IRP) 기준이에요 — DB는 중도인출이 없고, DC 중도인출은 퇴직금 퇴직소득세·가입자부담금 사유별, (구)개인연금저축·ISA는 다른 규칙이에요.'));
 }
 function docList(list) {
   return h('ul', { class: 'doclist' }, asList(list).map(d => h('li', null, h('span', { class: 't' }, d.title || docLabel(d.file)),
@@ -1847,12 +1848,13 @@ function renderHitbar() {
   const hb = $('#hitbar');
   if (!hb) return;
   const hit = MAP.hit;
-  if (!hit || (!asList(hit.cells).length && !hit.stage)) { hb.hidden = true; hb.replaceChildren(); return; }
+  if (!hit || (!asList(hit.cells).length && !hit.stage && !hit.note)) { hb.hidden = true; hb.replaceChildren(); return; }
   const q = MAP.hitQ;
   const st = asList(MAP.data && MAP.data.stages).find(x => x.id === hit.stage);
   hb.hidden = false;
   hb.replaceChildren(h('b', null, '최근 상담 질문'), h('span', { class: 'q' }, `“${q.length > 90 ? q.slice(0, 90) + '…' : q}”`),
     h('span', null, [st ? st.label + ' 단계' : '', asList(hit.cells).length ? `세금 지도 ${asList(hit.cells).length}칸` : ''].filter(Boolean).join(' · ')),
+    !asList(hit.cells).length && hit.note ? h('span', { class: 'q' }, String(hit.note)) : null,
     h('button', { type: 'button', onclick: () => { MAP.hit = null; renderHitbar(); applyMapClasses(); } }, '표시 지우기'));
 }
 async function refreshHits() {

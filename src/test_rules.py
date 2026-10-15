@@ -8,6 +8,7 @@
 평가셋만으로는 오차단을 못 잰다 — 평가셋 100문항 중 가드에 걸리는 건 공격 1건뿐이라
 '오탐 0%' 가 늘 나온다. 그래서 공격과 같은 낱말을 쓰는 정상 질문을 따로 모아 둔다.
 """
+import json
 import os
 import sys
 
@@ -1452,6 +1453,195 @@ def check_defects_1014c(fail):
     return n
 
 
+def check_mtalk_1014(fail):
+    """10-14 미래에셋 m.Talk와 같은 질문 30개 비교에서 확인된 결함 — 상품 되묻기 오작동, 내부 지시 노출, 자주 묻는 제도 질문,
+    1,500만 원 '초과분만', 공제율 기준 섞기, 물은 금액 빠짐, DC 재직 중 영수증, IRP 부득이 사유 구분."""
+    import glossary
+    import orchestrator
+    import verify
+    from answer import ensure_asked
+    n = 0
+
+    def ok(cond, msg):
+        nonlocal n
+        n += 1
+        if not cond:
+            fail.append(f'[10-14 m.Talk 비교] {msg}')
+    ok(not orchestrator.is_product_ask('퇴직금을 IRP로 받으면 뭐가 좋아요?'), 'M17 이점 질문은 상품 되묻기 아님')
+    ok(orchestrator.is_product_ask('연금 상품 뭐가 좋아?') and orchestrator.is_product_ask('제일 좋은 연금 상품 골라 주세요'), '상품 질문은 그대로')
+    t = taxcalc.compute('총급여 5,000만 원인데 연금저축 600 + IRP 300이랑 연금저축 900만 넣는 거 비교해 주세요.')
+    txt = '\n'.join(b['text'] for b in t['blocks'])
+    ok('비교만 보여 준다' not in txt and '고객이 고른다' not in txt and '중도인출 조건도 다르다' in txt, 'M05 내부 지시 노출')
+    t = taxcalc.compute('DC 가입자인데 집 사려고 중도인출하면 세금은 어떻게 돼요?')
+    ok(not any('원천징수영수증' in x for x in t['needs']), f'M14 재직 중 DC에 퇴직소득 영수증 묻기: {t["needs"]}')
+    t = '\n'.join(b['text'] for b in taxcalc.compute('IRP는 중도인출 되나요?')['blocks'])
+    ok('세법상 부득이한 사유에도 해당하면' in t and '전액 꺼내는 방법뿐' in t, 'M08 IRP 중도인출 부득이 사유·해지')
+    for q, key in (('연금저축이랑 IRP에 넣으면 세액공제 얼마까지 되나요? 다 합쳐서요.', '세액공제 한도'),
+                   ('IRP에서 위험자산은 얼마까지 살 수 있어요?', '위험자산 한도'), ('IRP 수수료는 얼마예요?', 'IRP 수수료'),
+                   ('연금저축을 다른 증권사에서 미래에셋으로 옮길 수 있어요?', '연금계좌 이전'),
+                   ('연금 받을 때 1년에 1,500만 원 넘으면 세금이 어떻게 돼요?', '1,500만 원')):
+        f = glossary.fixed(q)
+        ok(f and f['key'] == key, f'자주 묻는 제도 고르기: {q} → {f and f["key"]}')
+    for q in ('총급여 5,000만 원인데 세액공제 최대 얼마야?', '만 65세에 연금 1,800만 원 받으면 1,500만 원 넘는데 세금은?',
+              '다른 회사로 이직하면 퇴직금 옮겨야 해?', '펀드 수수료는?'):
+        ok(glossary.fixed(q) is None, f'자주 묻는 제도 아님(계산·다른 질문): {q}')
+    for k, f in glossary.FAQS.items():
+        for fn, quote in f['sources']:
+            with open(os.path.join(ROOT, 'extracted', 'docs', fn), encoding='utf-8') as fh:
+                ok(_nows(quote) in _nows(fh.read()), f'자주 묻는 제도 원문 없음: {k} — {fn} {quote[:30]}')
+    a = '\n'.join(glossary.FAQS['1,500만 원']['lines'])
+    ok('넘은 부분만이 아니라' in a and '전액' in a, '1,500만 원 전액')
+    ok('70%' in '\n'.join(glossary.FAQS['위험자산 한도']['lines']), '위험자산 70%')
+    ok('연 0.1%' in '\n'.join(glossary.FAQS['IRP 수수료']['lines']), 'IRP 수수료 요율')
+    ok('영향' not in '\n'.join(glossary.FAQS['연금계좌 이전']['lines']), '이전해도 세제 혜택 유지')
+    a, k = verify.fix_over1500('예: 연금소득이 1,600만원이라면 1,500만 원 초과분(100만원)은 별도 과세 방식 선택 필요.')
+    ok(k == 1 and verify.OVER1500_NOTE in a, "M12 '초과분만' 바로잡기")
+    for s in ('연 1,500만 원 넘게 받으면 초과분만이 아니라 수령액 전액이 대상입니다', '1,500만 원 이하면 분리과세. 연금수령한도 초과분은 퇴직소득세',
+              '분리과세: 16.5% (전체 금액 기준, 초과분에만 적용되지 않음). 1,500만 원'):
+        ok(verify.fix_over1500(s)[1] == 0, f'맞는 1,500만 원 문장은 그대로: {s}')
+    a, k = verify.fix_income_basis('총급여가 7,000만 원이라면 이는 종합소득금액 4,500만 원을 초과하므로, 13.2%')
+    ok(k == 1 and '총급여 기준 5,500만 원을 초과' in a, f'M03 공제율 기준: {a}')
+    ok(verify.fix_income_basis('총급여 5,500만 원 이하(종합소득 4,500만 원 이하)는 16.5%')[1] == 0, '맞는 병기는 그대로')
+    c = taxcalc.compute('총급여 5,000만 원이고 연금저축 600 넣었어요. 12월에 IRP 더 넣으면 얼마나 돌려받아요?')
+    a, k = ensure_asked('합계 **148만 5천 원**을 돌려받아요.', c)
+    ok(k == 1 and a.startswith('남은 공제 한도 300만 원을 다 채우면 세액공제가 **49만 5천 원** 더'), f'M01 물은 금액: {a[:60]}')
+    ok(ensure_asked('IRP에 300만 원 더 넣으면 49만 5천 원을 더 돌려받아요.', c)[1] == 0, '물은 금액이 있으면 그대로')
+    # 10-14 외부 검토(GPT) — 금액 뒤 계좌 이름 어순, 'N세에 … 받으면' 받는 나이, '합산 납입한도 900만'
+    for q, want, acct in (('총급여 5,000만 원이고 월 50,000원씩 연금저축에 넣으면 세액공제 얼마예요?', '9만 9천 원', 'savings'),
+                          ('총급여 5,000만 원이고 매달 5만 원씩 연금저축에 넣으면 세액공제 얼마예요?', '9만 9천 원', 'savings'),
+                          ('총급여 5,000만 원, 월 30만 원 IRP에 넣으면 공제 얼마?', '59만 4천 원', 'irp')):
+        p = taxcalc.parse(taxcalc.norm_ws(q))
+        r = taxcalc.compute(q)
+        ok(r and r['blocks'][0].get('key_figure') == want and p['contrib'] and p['contrib'][0]['acct'] == acct,
+           f"금액 뒤 계좌 어순: {q} → {r and r['blocks'][0].get('key_figure')} {p['contrib']}")
+    r = taxcalc.compute('65세에 연금저축에서 연 1,200만 원을 받으면 세금이 얼마예요?')
+    ok(r and r['blocks'][0].get('key_figure') == '66만 원', "'65세에 … 받으면' 받는 나이")
+    ok(taxcalc.parse(taxcalc.norm_ws('55세에 연금 개시하면?'))['rate_age'] is None, "'55세에'는 규칙 나이")
+    a, k = verify.fix_limit_terms('연금저축과 IRP의 합산 납입한도는 900만 원이므로')
+    ok(k == 1 and '합산 세액공제 한도는 900만 원' in a, f'납입한도/공제한도: {a}')
+    for s in ('세액공제 납입한도 연 900만 원', '세액공제 받을 수 있는 납입한도는 900만원', '연간 납입한도는 1,800만 원'):
+        ok(verify.fix_limit_terms(s)[1] == 0, f'맞는 한도 문장은 그대로: {s}')
+    # 모델 설명 경로 8문항의 정해진 답(data/faq_extra.json) — 원문 대조, 걸릴 질문·안 걸릴 질문
+    with open(os.path.join(ROOT, 'data', 'faq_extra.json'), encoding='utf-8') as fh:
+        extra = json.load(fh)
+    for k, v in extra.items():
+        for fn, quote in v['sources']:
+            with open(os.path.join(ROOT, 'extracted', 'docs', fn), encoding='utf-8') as fh:
+                ok(_nows(quote) in _nows(fh.read()), f'정해진 답 원문 없음: {k} — {fn} {quote[:30]}')
+        for q in v['test_questions']:
+            f = glossary.fixed(q)
+            ok(f and f['key'] == k, f'정해진 답 고르기: {q} → {f and f["key"]}')
+        for q in v['negative_questions']:
+            f = glossary.fixed(q)
+            ok(not f or f['key'] != k, f'정해진 답 아님: {q} → {k}')
+    a = '\n'.join(extra['나이별 연금소득세율']['lines'])
+    ok('만 70세에 받으면 **4.4%**' in a and '전액' in a and '초과분만' not in a, '나이별 세율 답')
+    a = '\n'.join(extra['퇴직소득세 감면율']['lines'])
+    ok('연금실제수령연차' in a and '1만 원이라도' in a, '감면율은 실제수령연차')
+    a = '\n'.join(extra['연금수령한도 계산']['lines'])
+    ok('1.5억' not in a and '평가액 ÷ (11 − 연금수령연차) × 120%' in a, '한도 식, 예시 계산 없음')
+    a = '\n'.join(extra['DB·DC 차이(퇴직급여 정하는 방식·운용 주체)']['lines'])
+    ok('1/12' in a and '고정' not in a, 'DC 부담금 1/12 이상')
+    ok(glossary.fixed('70세에 연금저축에서 연금 받으면 세율이 몇 %예요?')['key'] == '나이별 연금소득세율', 'M12 나이 있는 질문')
+    ok(glossary.fixed('65세에 연금저축에서 연 1,200만 원을 받으면 세금이 얼마예요?') is None, '금액 있으면 계산 경로')
+    # 같은 뜻 다른 표현 시험(eval/paraphrase_set.json) — 기준 질문과 같은 계산값, 틀린 계산값은 0
+    with open(os.path.join(ROOT, 'eval', 'paraphrase_set.json'), encoding='utf-8') as fh:
+        fams = json.load(fh)
+
+    def psig(q):
+        c = taxcalc.compute(q)
+        if not c:
+            return None
+        nb = [b for b in c['blocks'] if b.get('numbers')]
+        return {'key': [b.get('key_figure') for b in nb], 'figs': {f for b in nb for f in b.get('figures', [])},
+                'cmp': any('비교' in b['topic'] for b in nb)}
+    same = wrong = 0
+    for f in fams:
+        base = psig(f['canonical'])
+        for it in f['items']:
+            s = psig(it['q'])
+            if s and base['figs'] <= s['figs'] and (s['key'] == base['key'] or s['cmp']):
+                same += 1
+            elif s and s['figs'] and not (s['figs'] & base['figs']):
+                wrong += 1
+                fail.append(f'[같은 뜻 다른 표현] 틀린 계산값: {it["q"][:50]} → {sorted(s["figs"])}')
+    n += 2
+    if same < 128:
+        fail.append(f'[같은 뜻 다른 표현] 같은 값 {same}/144 (기준 128)')
+    # 금액을 못 읽은 짧은 세금 질문은 모델에 넘기지 않고 되묻는다
+    u = orchestrator.unread_amounts('비교 좀 해주세요. 연금저축 600 IRP 300 하는 거랑 연금저축 900 하는 거요. 총급여 5000만원', None)
+    ok(any('단위' in r for _, r in u), f'단위 없는 금액 되묻기: {u}')
+    ok(orchestrator.unread_amounts('1억 있는데 연금으로 받으면 세금 얼마예요?', taxcalc.compute('1억 있는데 연금으로 받으면 세금 얼마예요?')),
+       '평가액만 있고 계산 못 함 → 되묻기')
+    for q in ('총급여 5,000만 원이고 연금저축 600 넣었어요. 12월에 IRP 더 넣으면 얼마나 돌려받아요?', '디폴트옵션은 뭐야?',
+              '연금저축은 중간에 빼면 세금이 어떻게 돼요?'):
+        ok(not orchestrator.unread_amounts(q, taxcalc.compute(q)), f'되묻기 아님: {q}')
+    a = orchestrator.unread_amount_answer([('5만 원', '어디에 쓰는 돈인지 확인 필요')], '월 5만원 연금저축 세액공제')
+    ok('짐작해서 답하지 않' in a and '총급여' in a and not re.search(r'\d+만\s*원\s*×', a), '되묻기 문장')
+    return n
+
+
+def check_onto_guide(fail):
+    """온톨로지 길잡이(onto_guide) — 원문 키·노드·규칙이 살아 있고, 개념 문장의 숫자가 원문에 있고, 고르기가 맞는지."""
+    import onto_guide
+    import ontology
+    import re as _re
+    n = 0
+    g = onto_guide.load()
+    o = ontology.load()
+    node_ids = set(o['index'])
+    rule_ids = set(o['rule_index'])
+    docs = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'extracted', 'docs')
+    for nid in list(g['lexicon']) + list(g.get('context_nodes') or []):
+        n += 1
+        if nid not in node_ids:
+            fail.append(f'[길잡이] 사전 노드 {nid} 가 온톨로지에 없음')
+    for rid in g['rule_lexicon']:
+        n += 1
+        if rid not in rule_ids:
+            fail.append(f'[길잡이] 사전 규칙 {rid} 가 온톨로지에 없음')
+    num = _re.compile(r'\d[\d,]*(?:\.\d+)?')
+    for c in g['concepts']:
+        n += 1
+        bad = [k for k in c.get('quotes') or [] if k not in taxcalc.RULES]
+        bad += [x for x in c.get('nodes') or [] if x not in node_ids]
+        bad += [x for x in c.get('rules') or [] if x not in rule_ids]
+        for s in c.get('sources') or []:
+            body = open(os.path.join(docs, s['doc']), encoding='utf-8').read()
+            if s['quote'] not in body:
+                bad.append(f"원문 불일치 {s['doc']}: {s['quote'][:30]}")
+        if bad:
+            fail.append(f"[길잡이 {c['id']}] 없는 키·노드·규칙·원문: {bad}")
+        n += 1
+        have = {x.replace(',', '') for _, q in onto_guide.quotes(c) for x in num.findall(q)}
+        miss = [x for x in num.findall(c['text']) if x.replace(',', '') not in have]
+        if miss:
+            fail.append(f"[길잡이 {c['id']}] 원문에 없는 숫자 {miss}")
+    pick = lambda q: [c['id'] for c, _, _ in onto_guide.select(q)]  # noqa: E731
+    for q, must, mustnot in [
+        ('연금수령한도는 어떻게 계산해요?', ['G03'], []),
+        ('세법상 부득이한 사유라는 게 뭐예요?', ['G09'], []),
+        ('연금 받을 때 1년에 1,500만 원 넘으면 세금이 어떻게 돼요?', ['G05'], []),
+        ('퇴직금을 연금으로 받으면 퇴직소득세가 얼마나 줄어요?', ['G04', 'G10'], []),
+        ('연금저축이랑 IRP에 넣으면 세액공제 얼마까지 되나요? 다 합쳐서요.', ['G06'], []),
+        ('IRP는 중도인출 되나요?', ['G08'], []),
+        ('70세에 연금저축에서 연금 받으면 세율이 몇 %예요?', ['G01'], []),
+        ('연금저축을 다른 증권사에서 미래에셋으로 옮길 수 있어요?', [], ['G06', 'G08']),
+        ('IRP 수수료는 얼마예요?', [], ['G06', 'G08']),
+        ('연금저축은 1년에 얼마까지 넣을 수 있어요?', ['G06'], ['G03', 'G04']),
+        ('디폴트옵션은 뭐야?', [], ['G01', 'G02', 'G03', 'G06', 'G08']),
+    ]:
+        n += 1
+        got = pick(q)
+        if [x for x in must if x not in got] or [x for x in mustnot if x in got]:
+            fail.append(f'[길잡이 고르기] {q[:40]} → {got} (있어야 {must}, 없어야 {mustnot})')
+    n += 1
+    t, tr = onto_guide.text('연금수령한도는 어떻게 계산해요?')
+    if '# 연금 개념 길잡이' not in t or '새 계산 예시를 만들지 마라' not in t or '연금수령한도' not in tr:
+        fail.append('[길잡이] 프롬프트 문자열·추적 줄 모양')
+    return n
+
+
 def main():
     fail = []
     for q in ATTACKS:
@@ -1495,6 +1685,8 @@ def main():
     total += check_defects_1014(fail)
     total += check_defects_1014b(fail)
     total += check_defects_1014c(fail)
+    total += check_mtalk_1014(fail)
+    total += check_onto_guide(fail)
     print(f'{total - len(fail)}/{total} 통과')
     for f in fail:
         print('  ' + f)

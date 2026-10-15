@@ -30,6 +30,11 @@ STEP_WEIGHT = {k: float(v) for k, v in (x.split(':') for x in os.environ.get(
     'AGENT_ONTO_WEIGHTS', '개체 인식:1,요건 판정:1').split(','))}
 SHIFT_PER_POINT = float(os.environ.get('AGENT_ONTO_SHIFT', '1'))   # 겹침 1점마다 앞으로 당기는 칸 수
 MAX_SHIFT = float(os.environ.get('AGENT_ONTO_MAX', '3'))           # 한 조각이 당겨지는 최대 칸 수
+# 계좌 노드 → 같은 제도 노드(온톨로지 '속한다' 엣지와 같은 짝)
+ACCOUNT_PLAN = {'account.dc': 'plan.dc', 'account.irp': 'plan.irp', 'account.savings': 'plan.savings'}
+# 연금계좌(IRP·연금저축)가 아닌 제도 — 이 제도만 말한 질문에는 연금계좌 인출 규칙 노드를 쓰지 않는다
+NON_PENSION = ('plan.db', 'plan.old', 'plan.severance', 'plan.irp_corp')
+PENSION_ONLY = ('wd.other', 'wd.pension', 'R-04', 'R-05', 'R-06', 'R-10', 'fund.free', 'fund.credit')
 
 # 질문의 생애주기 단계 — 조각 꼬리표의 stages 와 맞춰 본다
 _STAGE_Q = [
@@ -110,9 +115,19 @@ def question_profile(q):
             if n.startswith(('attr.', 'doc')):
                 continue
             w[n] = max(w.get(n, 0.0), sw)
+    # 같은 계좌를 가리키는 이름이 질문 쪽(account.*)과 조각 꼬리표 쪽(plan.*)으로 갈렸다 — 꼬리표는 plan.dc 107개·
+    # account.dc 5개. 계좌 노드를 같은 제도 노드로도 펼쳐 DC·IRP 전용 근거(doc14·doc46~50)가 개체 일치 점수를 받게 한다
+    for a, pl in ACCOUNT_PLAN.items():
+        if a in w:
+            w[pl] = max(w.get(pl, 0.0), w[a])
+    # 연금계좌가 아닌 제도(DB·(구)개인연금저축) 질문에 연금계좌 인출 규칙이 붙어 개인 연금계좌의 해지·연금외수령 조각을
+    # 끌어오지 않게 한다(검수 10-15: 'DB형인데 해지' 에 doc41·doc39 가 DB 중도인출 불가 조각과 똑같이 당겨졌다)
+    entities = next((s.get('nodes') or [] for s in steps if s.get('step') == '개체 인식'), [])
+    if any(n in entities for n in NON_PENSION) and not any(n in entities for n in ('account.irp', 'account.savings')):
+        for n in PENSION_ONLY:
+            w.pop(n, None)
     stages = {sid for sid, rx in _STAGE_Q if re.search(rx, q or '')} if os.environ.get('AGENT_ONTO_STAGE', '0') == '1' else set()
     # 개체를 하나도 못 읽은 질문(상품·절차 일반 질문)은 경로가 기본 노드뿐이라 순위를 건드리지 않는다
-    entities = next((s.get('nodes') or [] for s in steps if s.get('step') == '개체 인식'), [])
     if not entities:
         return {}, stages, steps
     return w, stages, steps
@@ -158,7 +173,10 @@ def fund_line(c):
     if f.get('risk_grade'):
         parts.append(f'위험등급 {f["risk_grade"]}등급')
     ra = f.get('risk_asset')
-    if ra and ra != '확인 필요':
+    if f.get('accounts') == ['연금저축']:
+        # 가입자격이 연금저축계좌로 한정된 펀드 — DC·IRP 위험자산 70% 한도(R-14)를 붙이면 퇴직연금에서 살 수 있는 상품처럼 읽힌다
+        parts.append('가입자격: 연금저축계좌 전용(투자설명서) — 퇴직연금(DC·IRP) 위험자산 한도 대상 아님')
+    elif ra and ra != '확인 필요':
         parts.append(f'퇴직연금(DC·IRP) {ra}' + (' — 위험자산은 적립금의 70% 이내' if ra == '위험자산' else ''))
     elif ra:
         parts.append('퇴직연금 위험자산 여부: 문서로 확인 필요')

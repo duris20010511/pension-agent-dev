@@ -5,7 +5,8 @@
 무엇을 고정하나
   1. 규칙 노드 = taxcalc.RULEBOOK (번호·이름). 한쪽만 바뀌면 시연 화면의 규칙표와 그래프가 어긋난다.
   2. 07_연금온톨로지.md 와 일치 — 클래스(§2), 관계(§3), 규칙 근거 문서(§5), 재원 × 인출 표 9칸(§6).
-     '부득이 × 퇴직금'은 07 이 '문서 확인 필요'로 남긴 칸이라 세목을 지어내면 안 된다.
+     '부득이 × 퇴직금'은 07 이 '문서 확인 필요'로 남긴 칸 — 검수(10-15)에서 문서(doc21·doc5·doc1)로 풀었다.
+     07 과 다르게 고친 칸은 ontology.json 에 md07(07 글자)과 evidence(문서 원문)를 함께 두어야 한다.
   3. graph() 노드 60개 이하, 엣지 양끝이 모두 노드.
   4. path_for — 장면 2 질문에서 빠진 속성(평가액·연차·퇴직소득세)을 짚고, 값이 다 있으면
      taxcalc 공용 함수로 손계산과 같은 금액을 낸다.
@@ -107,9 +108,11 @@ def test_rulebook():
 # ---------------------------------------------------------------------------
 # 2. 07 문서와 일치
 # ---------------------------------------------------------------------------
-CELL_07 = {   # 07 §6 표 — 07 파일이 없을 때도 이 값으로 검사한다(2026-10-08 판)
+CELL_07 = {   # 07 §6 표 — 07 파일이 없을 때도 이 값으로 검사한다(2026-10-08 판).
+    # 검수(10-15): ② × 연금수령 세목은 문서 표(doc1·doc21)대로 연금소득세(이연퇴직소득세 × 70~50%),
+    # ② × 부득이는 문서(doc21·doc5·doc1)로 풀어 연금소득세(이연퇴직소득세 × 70%) — 07 글자는 md07·md07_tax 에 남김
     ('free', '연금수령'): ('비과세', []), ('free', '부득이'): ('비과세', []), ('free', '연금외수령'): ('비과세', []),
-    ('retire', '연금수령'): ('퇴직소득세', ['R-09']), ('retire', '부득이'): ('문서 확인 필요', []),
+    ('retire', '연금수령'): ('연금소득세', ['R-09']), ('retire', '부득이'): ('연금소득세', ['R-11']),
     ('retire', '연금외수령'): ('퇴직소득세', ['R-10']),
     ('credit', '연금수령'): ('연금소득세', ['R-07', 'R-08']), ('credit', '부득이'): ('연금소득세', ['R-11']),
     ('credit', '연금외수령'): ('기타소득세', ['R-10']),
@@ -122,9 +125,10 @@ def test_tax_route():
         check(f'tax_route({s}, {m}) 세목 = {tax}', r['tax'] == tax, f"결과 {r['tax']!r}")
         check(f'tax_route({s}, {m}) 07 규칙 번호 포함', all(x in r['rule_ids'] for x in rids), f"{r['rule_ids']} ⊉ {rids}")
     r = ontology.tax_route('retire', '부득이')
-    check('부득이 × 퇴직금 = 문서 확인 필요(세목·규칙을 지어내지 않음)',
-          r['tax'] == '문서 확인 필요' and r['rule_ids'] == [] and '문서 확인 필요' in r['text'], str(r))
-    check('tax_route 별칭(②, 부득이한 사유)', ontology.tax_route('②', '부득이한 사유')['tax'] == '문서 확인 필요')
+    check('부득이 × 퇴직금 = 연금소득세(이연퇴직소득세 × 70%) — 문서 원문(doc21·doc5·doc1)으로 풀었음',
+          r['tax'] == '연금소득세' and r['rule_ids'] == ['R-11'] and '70%' in r['text']
+          and {'doc21.txt', 'doc5.txt', 'doc1.txt'} <= {e['file'] for e in r['evidence']}, str(r))
+    check('tax_route 별칭(②, 부득이한 사유)', ontology.tax_route('②', '부득이한 사유')['tax'] == '연금소득세')
     check('tax_route 노드 id', ontology.tax_route('credit', '연금외수령')['nodes'] == ['fund.credit', 'wd.other', 'tax.other'])
     try:
         ontology.tax_route('pension', '연금수령')
@@ -147,12 +151,16 @@ def md07_cells(md):
 
 
 def cell_mismatch(o, cells):
-    """온톨로지 표 칸 글자가 07 과 다른 칸 목록 + '부득이 × 퇴직금'에 세목을 지어낸 경우 — 변이 시험에서도 쓴다."""
+    """온톨로지 표 칸 글자가 07 과 다른 칸 목록 + '부득이 × 퇴직금'에 문서 근거 없이 세목을 정한 경우 — 변이 시험에서도 쓴다.
+    07 과 다르게 문서로 고친 칸은 md07(07 글자)을 남겨 둬야 하고, 그 칸은 md07 으로 07 과 맞춰 본다."""
     got = {(c['source'], c['mode']): c for c in o['tax_matrix']['cells']}
-    bad = [k for k, v in cells.items() if k not in got or _norm(got[k]['text']) != _norm(v)]
+    bad = [k for k, v in cells.items() if k not in got or _norm(got[k].get('md07', got[k]['text'])) != _norm(v)]
     c = got.get(('retire', '부득이'))
-    if not c or c['tax'] != '문서 확인 필요' or c['rule_ids'] or c['tax_node']:
-        bad.append(('retire', '부득이', '세목을 지어냄'))
+    unresolved = c and c['tax'] == '문서 확인 필요' and not c['rule_ids'] and not c['tax_node']
+    resolved = c and c.get('resolved') and len([e for e in c.get('evidence', [])
+                                                 if e['file'] in ('doc21.txt', 'doc5.txt')]) >= 2
+    if not (unresolved or resolved):
+        bad.append(('retire', '부득이', '문서 근거 없이 세목을 정함'))
     return bad
 
 
@@ -198,8 +206,10 @@ def test_md07():
         for col, cell in zip(head, row[1:]):
             m = mode_of[col]
             r = ontology.tax_route(s, m)
+            raw = next(c for c in o['tax_matrix']['cells'] if c['source'] == s and c['mode'] == m)
             n += 1
-            check(f'§6 {row[0][:2]} × {col} 칸 = tax_route.text', _norm(r['text']) == _norm(cell), f'{r["text"]!r} ≠ {cell!r}')
+            check(f'§6 {row[0][:2]} × {col} 칸 = tax_route.text(문서로 고친 칸은 md07)',
+                  _norm(raw.get('md07', r['text'])) == _norm(cell), f'{r["text"]!r} ≠ {cell!r}')
             for rid in re.findall(r'R-\d\d', cell):
                 check(f'§6 {row[0][:2]} × {col} 규칙 {rid}', rid in r['rule_ids'], str(r['rule_ids']))
     check('§6 표 9칸', n == 9, f'{n}칸')
@@ -247,8 +257,14 @@ def test_graph():
     pairs = {(e['from'], e['to']) for e in g['edges']}
     check('graph 재원→세목(② → 퇴직소득세)', ('fund.retire', 'tax.retire') in pairs)
     check('graph 문서→규칙(doc39 → R-05)', ('doc39', 'R-05') in pairs)
-    check('graph 퇴직금 × 부득이 엣지 없음(문서 확인 필요)',
-          not [e for e in g['edges'] if e['from'] == 'fund.retire' and '부득이' in e['label']])
+    check('graph 퇴직금 × 부득이 → 연금소득세(doc21·doc5 로 풀었음)',
+          [e for e in g['edges'] if e['from'] == 'fund.retire' and e['to'] == 'tax.pension' and '부득이' in e['label']])
+    # 9차 검수 906 — ②·③ 이 같은 세목(연금소득세)으로 가도 세율 바탕이 다르다(② 이연퇴직소득세 × 70~50%, ③ 5.5~3.3%)
+    lab = {(e['from'], e['to']): e['label'] for e in g['edges']}
+    check('graph ② → 연금소득세 라벨에 이연퇴직소득세 × 70~50% · ③ 라벨과 다름',
+          '이연퇴직소득세 × 70~50%' in lab.get(('fund.retire', 'tax.pension'), '')
+          and '5.5~3.3%' in lab.get(('fund.credit', 'tax.pension'), '')
+          and lab.get(('fund.retire', 'tax.pension')) != lab.get(('fund.credit', 'tax.pension')), str(lab.get(('fund.retire', 'tax.pension'))))
     json.dumps(g, ensure_ascii=False)          # 서버가 그대로 낸다 — 직렬화 가능해야
     check('graph JSON 직렬화', True)
 
@@ -342,7 +358,8 @@ def test_path_other():
     # 부득이 × 퇴직금 — 금액을 내지 않고 '문서 확인 필요'
     s = ontology.path_for('62세, IRP에 퇴직금이 있는데 요양 때문에 1,000만 원 빼면 세금은?')
     check('부득이 경로: R-11 · 요양 사건', 'R-11' in s[2]['nodes'] and 'event.care' in s[0]['nodes'], str(s[0]['nodes']))
-    check('부득이 × 퇴직금: 문서 확인 필요', '문서 확인 필요' in s[4]['detail'] and 'calc' not in s[4], s[4]['detail'])
+    check('부득이 × 퇴직금: 이연퇴직소득세 × 70%(한도 안) · 금액 보류',
+          '이연퇴직소득세 × 70%' in s[4]['detail'] and 'calc' not in s[4], s[4]['detail'])
     # 연금 수령(연 단위) — R-07·R-08 로 간다
     s = ontology.path_for('65세인데 연금저축에서 연 1,200만 원 받으면 세금은?')
     check('수령 경로: R-07 · 연금소득세', 'R-07' in s[5]['nodes'] and 'tax.pension' in s[4]['nodes'], str(s[4]['nodes']))
@@ -350,6 +367,19 @@ def test_path_other():
     s = ontology.path_for('ISA 만기 3천만원을 연금저축으로 옮기면 세액공제 얼마나?')
     check('ISA: 소득 되묻기 · 추가 공제 300만 원', _missing(s) == ['총급여·종합소득금액'] and '300만 원' in s[2]['detail'],
           f'{_missing(s)} / {s[2]["detail"]}')
+    # 9차 검수 909 — 다른 납입을 모르면 전환액이 일반 한도까지 채운다고 본 값 — 가정을 밝힌다(doc4 산식, doc23 예는 900만 원을 채운 경우)
+    check('ISA: "올해 다른 납입이 없다고 볼 때" 가정 · 한도를 채웠으면 추가분만',
+          '올해 다른 납입이 없다고 볼 때' in s[4]['detail'] and '추가분(R-03)만' in s[4]['detail'], s[4]['detail'][:200])
+    # 9차 검수 904 — IRP 는 55세가 넘어도 개시 전·가입 5년 미만이면 일부 인출이 아니라 전액 해지(doc14·doc22)
+    s = ontology.path_for('60세 IRP 연금 개시 안 하고 1000만 원 빼면 세금은?')
+    check('IRP 60세 개시 전: 해지 금액(IRP 전액) · 평가액 되묻기 · 개시 전 R-12 문장',
+          '해지 금액(IRP 전액)' in s[0]['detail'] and 'attr.balance' in [m['attr'] for m in s[1]['missing']]
+          and '연금 개시 전 인출은 전액 해지' in s[2]['detail'], s[2]['detail'][:200])
+    # 9차 검수 910 — 퇴직금을 연금저축에 넣는(받는) 길 질문은 인출 갈래가 아니다(doc51 표)
+    s = ontology.path_for('연금저축에 퇴직금 넣을 수 있어요?')
+    check('연금저축에 퇴직금 넣을 수 있어요? → 퇴직급여 받는 길 · 평가액·연차 되묻기 없음',
+          s[0].get('intent') == 'retire_route' and not {'attr.balance', 'attr.year_n'} & {m['attr'] for m in s[1]['missing']}
+          and '연금저축계좌로 퇴직금을 바로 받을 수 있는 것은' in s[2]['detail'], f"{s[0].get('intent')}")
     # 계산할 게 없는 질문
     s = ontology.path_for('연금저축이 뭐예요?')
     check('일반 질문: 7단계 · 빠진 속성 없음', len(s) == 7 and not s[1]['missing'])
@@ -529,8 +559,9 @@ def test_mutation():
     check('변이: ③ × 연금외수령 칸 16.5→15% → 잡힘', ('credit', '연금외수령') in cell_mismatch(m, cells))
     m = copy.deepcopy(o)
     c = next(c for c in m['tax_matrix']['cells'] if c['source'] == 'retire' and c['mode'] == '부득이')
-    c.update(tax='연금소득세', tax_node='tax.pension', rule_ids=['R-11'])
-    check('변이: 부득이 × 퇴직금에 세목을 지어냄 → 잡힘', any(len(k) == 3 for k in cell_mismatch(m, cells)))
+    c.pop('resolved', None)
+    c['evidence'] = []
+    check('변이: 부득이 × 퇴직금에 문서 근거 없이 세목 → 잡힘', any(len(k) == 3 for k in cell_mismatch(m, cells)))
 
 
 # ---------------------------------------------------------------------------
@@ -558,9 +589,11 @@ def test_text():
     for f, t in quotes:
         check(f'원문 그대로 {f}: {t[:24]}…', t in _doc_text(f))
     c = next(c for c in o['tax_matrix']['cells'] if c['source'] == 'retire' and c['mode'] == '부득이')
-    check('부득이 × 퇴직금: 세목은 비우고 문서 근거 후보만', c['tax'] == '문서 확인 필요' and len(c.get('evidence', [])) >= 2)
+    check('부득이 × 퇴직금: 문서 원문(evidence)으로 세목을 정함 · 07 글자는 md07',
+          c['tax'] == '연금소득세' and c.get('md07') == '(문서 확인 필요)' and c.get('resolved')
+          and len(c.get('evidence', [])) >= 3)
     r = ontology.tax_route('retire', '부득이')
-    check('tax_route 가 근거 후보를 함께 냄(세목은 그대로 비움)', r['evidence'] and r['tax'] == '문서 확인 필요' and not r['rule_ids'])
+    check('tax_route 가 문서 원문을 함께 냄', r['evidence'] and r['tax'] == '연금소득세' and r['rule_ids'] == ['R-11'])
     pairs = {(e['from'], e['to']) for e in ontology.graph()['edges']}
     check('그래프: 요양 → 부득이한 사유 인출(doc20 표)', ('event.care', 'wd.unavoidable') in pairs)
     check('그래프: 요양·파산·재난 → 연금외수령 아님(doc20 표 세법상 부득이 O)',
@@ -620,7 +653,10 @@ def test_overview():
                                                                       for d in v.get('docs', [])), str(v.get('docs'))[:120])
     check('세금 지도 머리: 퇴직금 연금외수령 = 100%', cells[('retire', '연금외수령')]['short'] == '퇴직소득세 100%')
     check('세금 지도 머리: ③ 연금외수령 = 기타소득세 16.5%', cells[('credit', '연금외수령')]['short'] == '기타소득세 16.5%')
-    check("세금 지도 '문서 확인 필요' 칸은 근거 후보로 표시", all(q.get('candidate') for q in cells[('retire', '부득이')]['quotes']))
+    check("세금 지도 ② × 부득이 칸은 문서 원문(후보 아님) — 문서로 풀었음",
+          cells[('retire', '부득이')]['quotes'] and not any(q.get('candidate') for q in cells[('retire', '부득이')]['quotes']))
+    check("세금 지도: '문서 확인 필요' 칸이 남으면 후보로 표시",
+          all(q.get('candidate') for c in cells.values() if '확인 필요' in c['tax'] for q in c['quotes']))
     rids = {r[0] for r in taxcalc.RULEBOOK}
     check('단계별 규칙은 RULEBOOK 번호', all(set(s['rule_ids']) <= rids for s in ov['stages']) and len(ov['stages']) == len(o['stages']))
     check('문서 제목 표 58건', len(ov['docs']) == len(o['docs']) and ov['docs']['doc41.txt']['title'] == '연금저축계좌, IRP 세액공제 안내')

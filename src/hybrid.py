@@ -13,12 +13,39 @@
 20%p 날린 적이 있다. 합치는 방법 자체가 성능을 좌우한다.
 """
 import os
+import threading
+from collections import OrderedDict
 import numpy as np
 
 import clova
 from index_search import tokenize
 
 RRF_K = 60          # 표준값. 상위 순위 간 격차를 완만하게 만든다.
+
+# 질의 임베딩 캐시 — 같은 글이면 API 를 다시 부르지 않는다. 임베딩 API 는 같은 글에 매번 똑같은 벡터를 준다
+# (10-15 실측: 3회 최대 차이 0.0)라 검색 결과가 바뀌지 않는다. 시연 리허설처럼 같은 질문이 되풀이될 때 호출(약 0.2초)이 빠진다.
+QVEC_CACHE = int(os.environ.get('AGENT_QVEC_CACHE', '512'))
+_QVEC = OrderedDict()
+_QVEC_LOCK = threading.Lock()
+
+
+def query_vec(query):
+    """질의 → 정규화한 임베딩 벡터(float32). 캐시를 먼저 본다."""
+    with _QVEC_LOCK:
+        v = _QVEC.get(query)
+        if v is not None:
+            _QVEC.move_to_end(query)
+            return v
+    v = np.asarray(clova.embed(query), dtype=np.float32)
+    n = np.linalg.norm(v)
+    v = v / (n if n else 1)
+    v.setflags(write=False)        # 캐시에 든 벡터를 호출부가 고치지 못하게
+    if QVEC_CACHE > 0:
+        with _QVEC_LOCK:
+            _QVEC[query] = v
+            while len(_QVEC) > QVEC_CACHE:
+                _QVEC.popitem(last=False)
+    return v
 
 
 class Hybrid:
@@ -37,9 +64,7 @@ class Hybrid:
         if self.emb is None:
             return []
         if qvec is None:
-            v = np.asarray(clova.embed(query), dtype=np.float32)
-            n = np.linalg.norm(v)
-            qvec = v / (n if n else 1)
+            qvec = query_vec(query)
         sims = self.emb @ qvec
         idx = np.argpartition(-sims, min(topk, len(sims) - 1))[:topk]
         return list(idx[np.argsort(-sims[idx])])
@@ -82,9 +107,7 @@ class Hybrid:
         if not cand:
             return []
         if qvec is None:
-            v = np.asarray(clova.embed(query), dtype=np.float32)
-            nz = np.linalg.norm(v)
-            qvec = v / (nz if nz else 1)
+            qvec = query_vec(query)
         sims = self.emb[[n for n, _ in cand]] @ qvec
         order = np.argsort(-sims)[:topk]
         return [cand[i] for i in order]
