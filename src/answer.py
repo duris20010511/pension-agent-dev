@@ -1592,13 +1592,56 @@ def answer(*args, progress=None, **kwargs):
         _PROG.cb = None
 
 
+class _EarlyAsk(Exception):
+    """두 확인이 되묻기로 정해져 초안·병합을 기다리지 않고 나온다 — r 은 생성 전까지의 응답 틀(답은 되묻기로 바뀐다)."""
+    def __init__(self, r):
+        super().__init__('early ask')
+        self.r = r
+
+
+def _ask_decided():
+    """시연 채널의 두 확인(금액 읽기 이중 확인 → 규칙 조건 대조)이 이미 되묻기로 정해졌는가.
+    금액 확인이 먼저다(_answer_checked 와 같은 순서) — 금액 확인이 아직 안 끝났으면 정하지 않는다."""
+    fut, ofut = getattr(_XC, 'future', None), getattr(_XC, 'onto', None)
+    if fut is not None:
+        if not fut.done():
+            return False
+        try:
+            if fut.result():
+                return True
+        except Exception:
+            pass
+    if ofut is None or not ofut.done():
+        return False
+    try:
+        oc = ofut.result()
+    except Exception:
+        return False
+    return bool(oc and oc.get('flag') and oc.get('diffs'))
+
+
+def _wait_or_ask(futs, make_r):
+    """생성 future 들이 끝날 때까지 기다리되, 그 사이 두 확인이 되묻기로 정해지면 _EarlyAsk 를 던진다(10-16).
+    7번 장면('5월부터 월 45씩')은 규칙 조건 대조가 약 5초에 되묻기로 정했는데 초안 3개 + 병합을 끝까지 기다려 16.4초였다.
+    버린 생성 스레드는 뒤에서 마저 돈다(답에는 쓰지 않는다). 확인이 걸리지 않은 채널(/answer)은 예전처럼 그냥 기다린다."""
+    if getattr(_XC, 'future', None) is None and getattr(_XC, 'onto', None) is None:
+        return
+    while not all(f.done() for f in futs):
+        if _ask_decided():
+            raise _EarlyAsk(make_r())
+        time.sleep(0.15)
+
+
 def _answer_checked(*args, **kwargs):
     """질의 → 응답 dict(_answer). 시연 채널에서 금액 읽기 이중 확인이나 규칙 조건 대조가 다르게 읽었으면
     계산 숫자 대신 확인 질문으로 바꾼다. 금액 확인을 먼저 본다(금액이 틀리면 조건 칸도 의미가 없다)."""
     _XC.future = None
     _XC.onto = None
     _XC.t0 = None
-    r = _answer(*args, **kwargs)
+    try:
+        r = _answer(*args, **kwargs)
+    except _EarlyAsk as e:
+        r = e.r                            # 확인 결과가 이미 나와 있으므로 아래 기다림은 바로 끝난다
     fut, _XC.future = getattr(_XC, 'future', None), None
     ofut, _XC.onto = getattr(_XC, 'onto', None), None
     t0, _XC.t0 = getattr(_XC, 't0', None), None
@@ -2022,6 +2065,18 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
     def _gen():
         return generate(msgs, maxtok=maxtok, effort=draft_effort, thinking=thinking)
 
+    def _early_r():
+        # 두 확인이 되묻기로 정해져 생성을 기다리지 않을 때의 응답 틀 — 답·칸은 _answer_checked 가 되묻기로 바꾼다
+        trace.append(f'라우터: 확인 결과가 되묻기로 정해져 초안·병합을 기다리지 않음({time.time() - t_start:.1f}s)')
+        c = P.get('calc')
+        return {'question_id': question_id, 'question': raw, 'retrieved_context': ctx,
+                'think_trace': '\n'.join(trace), 'answer': '',
+                'standalone': (mem.get('calc_q') or raw) if mem and mem.get('how') == '대체' else question,
+                'injection': bool(P.get('injection')), 'action': P.get('action', ''),
+                'plan': orchestrator.plan_steps(trace, P.get('action', ''), P.get('why', ''), P.get('state', ''), c),
+                'sections': {'result': '', 'evidence': [], 'assumptions': [], 'needs': [], 'next_actions': []},
+                'calc': None, 'verify': None, 'needs': (c or {}).get('needs', [])}
+
     # samples 를 넘기면 그 값을 쓴다 — 서버가 부하에 따라 낮출 수 있게.
     nsamp = int(samples if samples is not None else DEFAULT_SAMPLES)
     # 주최측 규격은 문항당 300초다. 초안 생성이 늦어지면 병합까지 갈 시간이 없으므로
@@ -2033,7 +2088,16 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
     try:
         if nsamp <= 1:
             t0 = time.time()
-            ans, th = _gen()
+            if getattr(_XC, 'future', None) is None and getattr(_XC, 'onto', None) is None:
+                ans, th = _gen()
+            else:
+                ex1 = ThreadPoolExecutor(max_workers=1)
+                try:
+                    f1 = ex1.submit(contextvars.copy_context().run, _gen)
+                    _wait_or_ask([f1], _early_r)
+                    ans, th = f1.result()
+                finally:
+                    ex1.shutdown(wait=False)
             if th:
                 reasoning = th
             trace.append(f'생성 1회 ({time.time() - t0:.1f}s)')
@@ -2052,14 +2116,19 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
             # 나갔다. 빈 답변은 타임아웃보다 나쁘다(200 응답에 0점 확정).
             # 그래서 초안은 끝까지 기다리고, 예산은 **병합을 할지 말지**에만 쓴다.
             t0 = time.time()
-            with ThreadPoolExecutor(max_workers=nsamp) as ex:
-                outs = []
+            ex = ThreadPoolExecutor(max_workers=nsamp)
+            try:
                 # copy_context: 측정용 호출 꼬리표(clova.TAG)가 초안 스레드까지 따라가게
-                for f in [ex.submit(contextvars.copy_context().run, _gen) for _ in range(nsamp)]:
+                futs = [ex.submit(contextvars.copy_context().run, _gen) for _ in range(nsamp)]
+                _wait_or_ask(futs, _early_r)          # 시연 채널: 되묻기로 정해지면 초안을 기다리지 않는다
+                outs = []
+                for f in futs:
                     try:
                         outs.append(f.result())
                     except Exception as e:
                         trace.append(f'초안 실패: {type(e).__name__}')
+            finally:
+                ex.shutdown(wait=False)
             t_draft = time.time() - t0
             # 퇴화한 초안을 병합기에 먹이면 오염이 번진다 — 먼저 걸러낸다
             drafts = [sanitize_answer(a) for a, _ in outs if a and a.strip()]
@@ -2094,7 +2163,17 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
             else:
                 t1 = time.time()
                 _progress(f'초안 {len(drafts)}개 중 다른 초안과 가장 많이 겹치는 초안을 기준으로 합치는 중(초안 합의 병합)')
-                ans = merge_drafts(question, ctx, drafts, effort=merge_effort, hits=cite_hits)
+                if getattr(_XC, 'future', None) is None and getattr(_XC, 'onto', None) is None:
+                    ans = merge_drafts(question, ctx, drafts, effort=merge_effort, hits=cite_hits)
+                else:
+                    # 시연 채널: 병합 중에 두 확인이 되묻기로 정해져도 기다리지 않는다
+                    mx = ThreadPoolExecutor(max_workers=1)
+                    try:
+                        mf = mx.submit(contextvars.copy_context().run, merge_drafts, question, ctx, drafts, merge_effort, cite_hits)
+                        _wait_or_ask([mf], _early_r)
+                        ans = mf.result()
+                    finally:
+                        mx.shutdown(wait=False)
                 trace.append(f'자기일관성: 초안 {len(drafts)}개 ({t_draft:.1f}s, 겹침 {agree:.2f}) '
                              f'생성 후 병합 ({time.time() - t1:.1f}s)')
                 if os.environ.get('AGENT_KEEP_DRAFTS'):
