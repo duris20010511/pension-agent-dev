@@ -383,7 +383,10 @@ CHAT_CALC_EFFORT = os.environ.get("AGENT_CHAT_CALC_EFFORT", "none").strip()
 # 시연 채널 모드별 생각 강도(10-15 사용자 결정: 빠른 모드 low · 정밀 모드 high, 둘 다 초안 1개).
 # 같은 123문항 짝비교(답 가림·문서 대조·반박 검증 4회): low 는 API 중앙 20.8 → 12.8초, 틀린 문장은 같거나 적고
 # 빠진 핵심이 문항당 +0.15~0.30 — 꼼꼼함이 필요하면 정밀 모드. 정밀 모드는 예전 '초안 3개(low) + 병합'(체감 약 50초) 대신 high 1개.
-CHAT_FAST_EFFORT = os.environ.get("AGENT_CHAT_FAST_EFFORT", "low").strip() or "high"
+# 10-16: 시연도 초안 3개 + 병합이 되며 빠른 모드 초안 low → none(사용자 결정). 넓은 질문('연금 질문이 뭐가 있죠')이
+# 초안 3개 low 17.1초 + 병합 11.0초 = 28.2초였다. 100문항: 초안3(none)+병합 80.2% vs 초안3(low)+병합 83.0%(−2.8pp ±5.4, 0 포함).
+# 지시문 의심 질문은 그대로 high(answer.LOW_GUARD).
+CHAT_FAST_EFFORT = os.environ.get("AGENT_CHAT_FAST_EFFORT", "none").strip() or "high"
 CHAT_PRECISE_EFFORT = os.environ.get("AGENT_CHAT_PRECISE_EFFORT", "high").strip() or "high"
 # 시연 채널 초안 수(10-16 사용자 결정: 시연에서도 초안 합의 병합 — 빠른·정밀 모드 모두, 계산 답까지 초안 3개 + 병합).
 # 대회 규격(/answer)은 계산 답을 초안 1개로 줄이지만(answer.CALC_FAST) 시연은 생성하는 답 모두 병합한다. 1 이면 예전(초안 1개).

@@ -945,7 +945,8 @@ CHAT_SPLIT_TEMPLATE = os.environ.get('AGENT_CHAT_SPLIT_TEMPLATE', '1') != '0'
 # 시연 채널(/chat)의 용어·제도·연금 종류 질문을 정해진 문장 대신 '핵심 사실 카드 + 개념 길잡이'로 모델이 설명한다(10-14 사용자 결정:
 # '정해진 답이면 챗봇을 쓸 이유가 없다, 챗봇이 잘 이해하는 방향으로'). 0이면 예전처럼 정해진 문장. 정해진 문장은 생성 실패 때 대신 쓴다
 CHAT_CARDS = os.environ.get('AGENT_CHAT_CARDS', '1') != '0'
-CHAT_CARD_EFFORT = os.environ.get('AGENT_CHAT_CARD_EFFORT', 'low')     # 카드 답 생각 강도(시연 빠른 모드), 비우면 빠른 모드 기본(high)
+# 카드 답 생각 강도(시연 빠른 모드), 비우면 빠른 모드 기본. 10-16 시연도 초안 3개 + 병합이 되며 low → none(사용자 결정, 빠른 모드와 같이)
+CHAT_CARD_EFFORT = os.environ.get('AGENT_CHAT_CARD_EFFORT', 'none')
 # 생각 low 로 답할 때 '문서 속 지시문 의심'(가드 정규식) 질문만 high 로 — 빠른 모드를 low 로 바꾸며(10-15 사용자 결정) 켰다.
 # AGENT_LOW_GUARD=0 이면 끈다. 10-15 짝비교(high로 답하던 123문항,
 # 답 가림·문서 대조·반박 검증 2회): low 는 major 오류가 같거나 적고(−0.10 [−0.24,+0.05] / −0.25 [−0.38,−0.11]) 빠진 핵심이
@@ -2005,7 +2006,7 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
         # 핵심 사실 카드가 근거 맨 앞에 있다 — 사실은 카드가 주므로 생각을 줄여 빨리 답한다(시연 채널)
         draft_effort = CHAT_CARD_EFFORT
         trace.append(f'라우터: 핵심 사실 카드로 설명 생성(생각 {CHAT_CARD_EFFORT})')
-    elif clarify_template and LOW_GUARD and draft_effort == 'low' and P.get('injection'):
+    elif clarify_template and LOW_GUARD and draft_effort in ('low', 'none') and P.get('injection'):
         draft_effort = 'high'
         trace.append('라우터: 지시문 의심 질문이라 생각 high 로 답함')
     if _progress_on():
