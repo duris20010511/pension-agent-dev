@@ -993,7 +993,7 @@ def _progress(now, steps=None, calc=None):
     except Exception:
         pass                                  # 진행 표시가 실패해도 답은 막지 않는다
 _XC_ASKED = '틀린 금액으로 계산하지 않으려고'      # crosscheck.message 첫 줄 — 바로 앞 턴이 이 확인이면 다시 막지 않는다
-# 온톨로지 판독 기준표(onto_check) — 계산 블록 규칙의 조건 칸(나이·시점·사람·재원·사유 …)을 HCX-005 가 따로 읽어 계산기와 견준다.
+# 개념 지도 판독 기준표(onto_check) — 계산 블록 규칙의 조건 칸(나이·시점·사람·재원·사유 …)을 HCX-005 가 따로 읽어 계산기와 견준다.
 # 10-15 처음 보는 현실 질문 160개: 고객에게 나가는 틀린 계산 블록 24개 중 8개를 되묻기로 막고 맞는 숫자 10개 중 1개를 막음
 CHAT_ONTO_CHECK = os.environ.get('AGENT_ONTO_CHECK', '1') != '0'
 _OC_ASKED = '숫자를 드리기 전에 먼저 여쭤볼게요'    # onto_check.ask_message 첫 줄 — 바로 앞 턴이 이 확인이면 다시 막지 않는다
@@ -1396,10 +1396,10 @@ def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
                 trace.append('금액 읽기 이중 확인: HCX-005 가 따로 읽기 시작(답 생성과 동시에)')
             if (xcheck and CHAT_ONTO_CHECK and calc and calc.get('blocks')
                     and _OC_ASKED not in str((memory_ctx or {}).get('history') or '')):
-                # 온톨로지 판독 기준표도 같이 — 블록이 쓴 규칙의 조건 칸만 읽게 해 계산기 읽기와 견준다(answer 끝에서 본다)
+                # 개념 지도 판독 기준표도 같이 — 블록이 쓴 규칙의 조건 칸만 읽게 해 계산기 읽기와 견준다(answer 끝에서 본다)
                 _XC.onto = _XC_POOL.submit(onto_check.check, calc_q, calc)
                 _XC.t0 = getattr(_XC, 't0', None) or time.time()
-                trace.append('온톨로지 판독 기준표: 계산 블록 규칙의 조건 칸을 HCX-005 가 따로 읽기 시작(답 생성과 동시에)')
+                trace.append('개념 지도 판독 기준표: 계산 블록 규칙의 조건 칸을 HCX-005 가 따로 읽기 시작(답 생성과 동시에)')
             if calc:
                 if not routed and any(c['file'].startswith('doc') for c, _ in hits):
                     # 세금 계산 질문에 펀드 이름이 없으면 투자설명서의 '연금저축 과세' 상투 절은 근거에서 뺀다 —
@@ -1428,14 +1428,14 @@ def prepare(question, topk=None, oracle_context=None, use_rerank=False, pool=20,
         if ents:
             rules = sorted({n for s in osteps for n in (s.get('nodes') or []) if n.startswith('R-')})
             miss = (pick.get('빠진 속성 확인') or {}).get('detail', '')
-            trace.append('온톨로지 경로: 개체 [' + ', '.join(onto_link.label(n) for n in ents) + '] · 규칙 [' + ', '.join(rules) + ']'
+            trace.append('개념 지도 경로: 개체 [' + ', '.join(onto_link.label(n) for n in ents) + '] · 규칙 [' + ', '.join(rules) + ']'
                          + (f' · {miss[:80]}' if miss and not miss.startswith(('없음 없', '해당 규칙 없음')) else ''))
     except Exception:
         pass
     # 오케스트레이터 — 고객 상태를 보고 다음 행동을 정한다(규칙, 모델 호출 없음)
     action, why = orchestrator.decide(question, clarify=clarify, clarify_what=what, calc=calc)
     state = orchestrator.customer_state(question, (memory_ctx or {}).get('profile', ''))
-    trace.append(f'오케스트레이터: 고객 상태 [{state}] → 다음 행동 = {action} ({why})')
+    trace.append(f'라우터: 고객 상태 [{state}] → 다음 행동 = {action} ({why})')
 
     # ⑤ 답 — 프롬프트
     sys_prompt = CLARIFY_SYSTEM if clarify and not calc else build_system(cat, prompt_mode)
@@ -1592,7 +1592,7 @@ def answer(*args, progress=None, **kwargs):
 
 
 def _answer_checked(*args, **kwargs):
-    """질의 → 응답 dict(_answer). 시연 채널에서 금액 읽기 이중 확인이나 온톨로지 판독 기준표가 다르게 읽었으면
+    """질의 → 응답 dict(_answer). 시연 채널에서 금액 읽기 이중 확인이나 개념 지도 판독 기준표가 다르게 읽었으면
     계산 숫자 대신 확인 질문으로 바꾼다. 금액 확인을 먼저 본다(금액이 틀리면 조건 칸도 의미가 없다)."""
     _XC.future = None
     _XC.onto = None
@@ -1639,12 +1639,12 @@ def _answer_checked(*args, **kwargs):
 
 
 def _apply_onto_check(r, ofut, deadline=None):
-    """온톨로지 판독 기준표 결과를 응답에 반영 — 다르면 숫자 대신 '제가 이렇게 읽었는데 맞나요?' 되묻기, 같으면 생각 과정에 한 줄.
+    """개념 지도 판독 기준표 결과를 응답에 반영 — 다르면 숫자 대신 '제가 이렇게 읽었는데 맞나요?' 되묻기, 같으면 생각 과정에 한 줄.
     deadline: 정해진 답이면 이 시각까지만 기다린다(_answer_checked)."""
     if ofut is None:
         return r
     if not ofut.done():
-        _progress('온톨로지 판독 기준표(HCX-005) 결과를 기다리는 중')
+        _progress('개념 지도 판독 기준표(HCX-005) 결과를 기다리는 중')
     wait = max(0.05, deadline - time.time()) if deadline else float(os.environ.get('AGENT_ONTO_WAIT', '12'))
     try:
         oc = ofut.result(timeout=wait)
@@ -1652,7 +1652,7 @@ def _apply_onto_check(r, ofut, deadline=None):
         oc = None                          # 늦거나 실패하면 막지 않는다(지금 동작 유지)
     if oc is None:
         why = '정해진 답이라 짧게만 기다림' if deadline else '시간 초과·오류'
-        r['think_trace'] = (r.get('think_trace') or '') + f'\n온톨로지 판독 기준표: 확인 못 함({why}) → 계산값 그대로'
+        r['think_trace'] = (r.get('think_trace') or '') + f'\n개념 지도 판독 기준표: 확인 못 함({why}) → 계산값 그대로'
         return r
     r['think_trace'] = (r.get('think_trace') or '') + '\n' + onto_check.trace_line(oc)
     # 이미 되묻는 답(숫자가 나가지 않음)은 바꾸지 않는다
@@ -1664,7 +1664,7 @@ def _apply_onto_check(r, ofut, deadline=None):
               'sections': {'result': msg, 'evidence': [], 'assumptions': [], 'needs': need, 'next_actions': []},
               'calc': None, 'verify': None, 'needs': need})
     try:
-        r['plan'] = orchestrator.plan_steps(r['think_trace'].split('\n'), '되묻기', '온톨로지 판독 확인', '', None)
+        r['plan'] = orchestrator.plan_steps(r['think_trace'].split('\n'), '되묻기', '개념 지도 판독 확인', '', None)
     except Exception:
         pass
     return r
@@ -1722,7 +1722,7 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
     trace, ctx, cite_hits, msgs = P['trace'], P['ctx'], P['cite_hits'], P['msgs']
     if P['blocked']:
         # blocked: 서버가 이 턴을 대화 기억에 넣지 않게 알린다(막은 질문이 다음 턴 프롬프트로 되돌아오면 가드가 무력해진다)
-        trace.append('오케스트레이터: 다음 행동 = 거절 (안전 관문에서 막힘)')
+        trace.append('라우터: 다음 행동 = 거절 (안전 관문에서 막힘)')
         return {'question_id': question_id, 'question': raw,
                 'retrieved_context': '', 'think_trace': '\n'.join(trace),
                 'answer': REFUSE, 'standalone': raw, 'blocked': True, 'action': '거절',
@@ -1993,21 +1993,21 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
         samples = 1
         draft_effort = draft_effort or 'high'
         maxtok = max(maxtok, 4096)
-        trace.append('오케스트레이터: 숫자는 규칙 계산이 냈으므로 초안 1개로 설명만 생성')
+        trace.append('라우터: 숫자는 규칙 계산이 냈으므로 초안 1개로 설명만 생성')
     # calc_effort: 숫자를 규칙 계산이 낸 답(계산 → 설명·계산 + 되묻기)의 생각 강도. 시연 채널(/chat)이 정한다.
     # 10-13 실측(시연 장면 4개): 시간은 출력 토큰(생각 포함)에 비례해 초당 약 60토큰 — 생각을 끄면 34.8→10.1초,
     # 24.2→7.0초, 29.5→14.7초, 36.7→11.7초. 비우면 예전 그대로(대회 규격 /answer 는 넘기지 않는다).
     if calc_effort and P.get('action') in ('계산 → 설명', '계산 + 되묻기') and \
             any(b.get('numbers') for b in (P.get('calc') or {}).get('blocks', [])):
         draft_effort = calc_effort
-        trace.append(f'오케스트레이터: 숫자는 규칙 계산이 냈으므로 설명만 생성(생각 {calc_effort})')
+        trace.append(f'라우터: 숫자는 규칙 계산이 냈으므로 설명만 생성(생각 {calc_effort})')
     elif calc_effort and P.get('cards') and CHAT_CARD_EFFORT:
         # 핵심 사실 카드가 근거 맨 앞에 있다 — 사실은 카드가 주므로 생각을 줄여 빨리 답한다(시연 채널)
         draft_effort = CHAT_CARD_EFFORT
-        trace.append(f'오케스트레이터: 핵심 사실 카드로 설명 생성(생각 {CHAT_CARD_EFFORT})')
+        trace.append(f'라우터: 핵심 사실 카드로 설명 생성(생각 {CHAT_CARD_EFFORT})')
     elif clarify_template and LOW_GUARD and draft_effort == 'low' and P.get('injection'):
         draft_effort = 'high'
-        trace.append('오케스트레이터: 지시문 의심 질문이라 생각 high 로 답함')
+        trace.append('라우터: 지시문 의심 질문이라 생각 high 로 답함')
     if _progress_on():
         # 여기까지가 준비(가드·검색·규칙 계산·다음 행동) — 생성 전에 단계와 규칙 계산값을 먼저 알린다
         n_now = int(samples if samples is not None else DEFAULT_SAMPLES)
@@ -2136,7 +2136,7 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
         trace.append(verify.summary_line(vr))
         if vr['contradiction'] and verify.MODE == 'handoff':
             ans = verify.handoff_answer(calc, _cite_for_tax(cite_hits) or 1)
-            trace.append('오케스트레이터: 다음 행동 = 상담 연결 (답 속 금액이 규칙 계산과 어긋나 계산값만 내보냄)')
+            trace.append('라우터: 다음 행동 = 상담 연결 (답 속 금액이 규칙 계산과 어긋나 계산값만 내보냄)')
         elif vr['contradiction'] and verify.MODE == 'note' or vr.get('conflict'):
             ans = verify.note_answer(ans, calc, 1)
             trace.append('숫자 대조: 답 끝에 규칙 계산값을 덧붙임(계산에 없는 세금 금액이 있어서)')

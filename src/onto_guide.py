@@ -149,6 +149,6 @@ def text(q):
         lines.append('- ' + c['text'] + (f" (근거: {'·'.join(ds)})" if ds else ''))
     lines.append(g['always'])
     nodes, rules = question_nodes(q)
-    trace = ('온톨로지 길잡이: 노드 [' + ', '.join(sorted(nodes)[:8]) + '] · 규칙 [' + ', '.join(sorted(rules)[:8]) + '] → 개념 ['
+    trace = ('개념 길잡이: 노드 [' + ', '.join(sorted(nodes)[:8]) + '] · 규칙 [' + ', '.join(sorted(rules)[:8]) + '] → 개념 ['
              + ', '.join(c['title'] for c, _, _ in picked) + ']')
     return '\n'.join(lines), trace

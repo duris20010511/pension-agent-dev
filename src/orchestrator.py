@@ -10,7 +10,7 @@
   검색 → 설명   제도·절차·상품 설명
 
 결정은 규칙으로 한다(모델을 부르지 않는다) — 같은 상태면 늘 같은 행동이 나와야 시연·운영에서 설명할 수 있다.
-answer.py 가 단계마다 이 모듈을 불러 생각 과정(think_trace)에 남기고, /chat 이 화면의 '오케스트레이터 단계'와
+answer.py 가 단계마다 이 모듈을 불러 생각 과정(think_trace)에 남기고, /chat 이 화면의 '처리 단계'와
 '다음 행동' 버튼으로 보여 준다.
 """
 import datetime
@@ -821,7 +821,7 @@ def split_answer(calc, cite=1):
 
 
 def plan_steps(trace_lines, action, reason, state, calc=None, verify=None):
-    """화면의 '오케스트레이터 단계' — 생각 과정에서 단계별 결과를 골라 쓴다."""
+    """화면의 '처리 단계' — 생각 과정에서 단계별 결과를 골라 쓴다."""
     def field(head):
         for ln in trace_lines:
             if ln.startswith(head):
@@ -835,9 +835,9 @@ def plan_steps(trace_lines, action, reason, state, calc=None, verify=None):
     rw = next((ln for ln in trace_lines if ln.startswith('질문 재작성')), '')
     if rw:
         steps.append({'step': '질문 재작성', 'detail': rw.split(':', 1)[1].strip()})
-    onto = field('온톨로지 경로:')
+    onto = field('개념 지도 경로:')
     if onto:
-        steps.append({'step': '온톨로지 경로', 'detail': onto})
+        steps.append({'step': '개념 지도 경로', 'detail': onto})
     steps.append({'step': '다음 행동', 'detail': f'{action} — {reason}'})
     if calc:
         steps.append({'step': '규칙 계산', 'detail': calc.get('summary', '')[:160]})

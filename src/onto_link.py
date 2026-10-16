@@ -161,7 +161,7 @@ def rerank(hits, q):
     scored.sort(key=lambda x: (x[0], x[1]))
     out = [(c, sc) for _, _, c, sc in scored]
     top = ', '.join(label(k) for k, _ in sorted(weights.items(), key=lambda x: -x[1])[:6])
-    return out, f'온톨로지 경로 [{top}] 와 겹치는 조각 {moved}개를 앞으로' if moved else ''
+    return out, f'개념 지도 경로 [{top}] 와 겹치는 조각 {moved}개를 앞으로' if moved else ''
 
 
 def fund_line(c):

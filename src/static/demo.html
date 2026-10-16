@@ -490,7 +490,7 @@ svg .node.pick circle { stroke: var(--orange); stroke-width: 4; }
     <button role="tab" data-tab="chat" class="on"><span class="k">1</span>상담</button>
     <button role="tab" data-tab="alerts"><span class="k">2</span>알림 미리받기</button>
     <button role="tab" data-tab="diy"><span class="k">3</span>DIY 설계</button>
-    <button role="tab" data-tab="rules"><span class="k">4</span>규칙·온톨로지</button>
+    <button role="tab" data-tab="rules"><span class="k">4</span>규칙·개념 지도</button>
   </nav>
   <div class="server" id="server" title="서버 상태"><span class="dot"></span><span class="txt">확인 중</span></div>
 </header>
@@ -1102,7 +1102,7 @@ function renderSideNode(r) {
     h('span', null, chat.session ? `대화 기억 중 · ${chat.turns}번째 질문` : '새 대화'),
     typeof r.elapsed === 'number' ? h('span', { class: 'pill time num' }, `${r.elapsed.toFixed(1)}초`) : null));
 
-  frag.append(h('div', { class: 'blk' }, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '오케스트레이터 단계'),
+  frag.append(h('div', { class: 'blk' }, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '처리 단계'),
     plan.length ? h('ol', { class: 'steps' }, plan.map((p, k) => h('li', { style: `animation-delay:${k * 0.12}s` },
       h('div', { class: 'st' }, typeof p === 'object' ? p.step || '' : String(p)),
       typeof p === 'object' && p.detail ? h('div', { class: 'dt' }, String(p.detail)) : null)))
@@ -1136,7 +1136,7 @@ function sideWaiting(sec) {
   const names = ['안전 관문', '고객 상태 파악', '규칙 계산', '문서 검색', '답 작성', '숫자 대조'];
   return h('div', null,
     h('div', { class: 'sess' }, h('span', null, '답을 준비하는 중'), h('span', { class: 'pill time num', id: 'side-sec' }, sec)),
-    h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '오케스트레이터 단계'),
+    h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '처리 단계'),
     h('ol', { class: 'steps wait' }, names.map((n, k) => h('li', { style: `animation-delay:${k * 0.15}s;opacity:.5` }, h('div', { class: 'st' }, n)))));
 }
 /** 답을 기다리는 동안의 오른쪽 패널 — /chat/progress 가 알려 준 지금까지의 단계, 지금 하는 일, 규칙 계산값(답과 대조 전).
@@ -1155,7 +1155,7 @@ function sideLive(p, sec, shown) {
       figs.length ? h('div', { class: 'figs-mini', style: 'margin-top:6px' }, figs.map(f => h('span', { class: 'num' }, String(f)))) : null,
       figs.length ? h('p', { class: 'muted', style: 'font-size:13px;margin:6px 0 0' }, '규칙이 먼저 낸 값이에요. AI 설명이 끝나면 답 속 숫자와 대조해요.') : null));
   }
-  frag.append(h('div', { class: 'blk' }, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '오케스트레이터 단계'),
+  frag.append(h('div', { class: 'blk' }, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '처리 단계'),
     h('ol', { class: 'steps' },
       steps.map((s, k) => h('li', { style: k < shown ? 'animation:none;opacity:1' : `animation-delay:${(k - shown) * 0.12}s` },
         h('div', { class: 'st' }, typeof s === 'object' ? s.step || '' : String(s)),
@@ -1172,7 +1172,7 @@ function sideIdle() {
   return h('div', null,
     h('div', { class: 'sess' }, h('span', null, chat.session ? '대화 기억 중' : '새 대화'),
       h('button', { class: 'btn small', type: 'button', onclick: newChat }, '새 대화')),
-    h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '오케스트레이터 단계'),
+    h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '처리 단계'),
     h('p', { class: 'empty' }, '질문을 보내면 여기에 Agent 가 거친 단계, 쓴 계산 규칙(R-xx), 답 속 숫자 대조 결과가 나옵니다.'));
 }
 
@@ -1239,7 +1239,7 @@ async function ask(text) {
   } catch (e) {
     pend.replaceWith(h('div', { class: 'err-block' }, errNode(e)));
     scrollLog();
-    $('#side').replaceChildren(h('div', null, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '오케스트레이터 단계'), errNode(e)));
+    $('#side').replaceChildren(h('div', null, h('div', { class: 'panel-title' }, h('span', { class: 'bar' }), '처리 단계'), errNode(e)));
   } finally {
     clearInterval(chat.timer);
     clearInterval(chat.poll);
@@ -2010,7 +2010,7 @@ function drawGraphNode(data, layout = 'circle') {
   const W = layout === 'layers' ? 1180 : 1120, H = layout === 'layers' ? 640 : 660;
   const L = layout === 'layers' ? layoutLayers(nodes, W, H, legend) : layoutCircle(nodes, W, H, legend);
   const colors = colorMap(L.types);
-  const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': '연금 온톨로지 그래프' });
+  const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': '연금 개념 지도 그래프' });
   const gE = s('g'), gL = s('g'), gN = s('g');
   const adj = {};
   ids.forEach(id => { adj[id] = new Set(); });
@@ -2254,7 +2254,7 @@ window.__selftest = function () {
   t('실시간 단계(계산값이 단계 위)', () => {
     const n = sideLive({ found: true, now: 'x', steps: MOCK_CHAT.plan, calc: MOCK_CHAT.calc }, '1.0초', 0);
     const b = n.querySelectorAll('.blk .panel-title');
-    return (b.length === 2 && /계산 규칙/.test(b[0].textContent) && /오케스트레이터/.test(b[1].textContent)) || n.textContent.slice(0, 120);
+    return (b.length === 2 && /계산 규칙/.test(b[0].textContent) && /처리 단계/.test(b[1].textContent)) || n.textContent.slice(0, 120);
   });
   t('요청 번호(서버 형식)', () => { const a = newRid(), b = newRid(); return (/^[A-Za-z0-9_-]{16,64}$/.test(a) && a !== b) || a; });
   t('MAPS 경로 버튼(안내만)', () => { const b = actButton({ label: 'MAPS 연금 개시/해지', kind: 'guide', payload: '메뉴 › 연금 › 연금관리 › 연금지급관리 › 연금 개시/해지' }); return (b.classList.contains('k-guide') && b.querySelector('.kd').textContent === 'MAPS') || b.outerHTML; });
