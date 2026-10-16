@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""개념 지도 판독 기준표 — 계산 블록이 쓴 규칙의 조건을 질문과 대조한다.
+"""규칙 조건 대조 — 계산 블록이 쓴 규칙의 조건을 질문과 대조한다.
 
   계산 블록(taxcalc.compute) 숫자 블록의 규칙 번호(rids)
     → data/ontology.json rules[].conditions + rules[].read_conditions (attr · test · waived_by · cmp)
@@ -720,9 +720,9 @@ def ask_message(diffs, onto=None):
 
 
 def trace_line(result, onto=None):
-    """생각 과정 한 줄 — '개념 지도 판독 기준표: 규칙 R-07·R-08 조건 [나이·…] 대조 → 통과/다름(…)'."""
+    """생각 과정 한 줄 — '규칙 조건 대조: 규칙 R-07·R-08 조건 [나이·…] 대조 → 통과/다름(…)'."""
     if not result:
-        return '개념 지도 판독 기준표: 계산 블록 없음 → 대조 안 함'
+        return '규칙 조건 대조: 계산 블록 없음 → 대조 안 함'
     c = result.get('consulted') or {}
     rules = '·'.join(c.get('rules') or []) or '없음'
     try:
@@ -730,9 +730,9 @@ def trace_line(result, onto=None):
     except Exception:
         lab = {}
     attrs = '·'.join(lab.get(x, x) for x in c.get('attrs') or [])
-    head = f'개념 지도 판독 기준표: 규칙 {rules} 조건 [{attrs}] 대조'
+    head = f'규칙 조건 대조: 규칙 {rules} 조건 [{attrs}] 대조'
     if result.get('note'):
-        return f"개념 지도 판독 기준표: {result['note']} → 대조 안 함"
+        return f"규칙 조건 대조: {result['note']} → 대조 안 함"
     if result.get('error'):
         return f"{head} → 판독 못 함({result['error']}) — 계산기 숫자 그대로"
     if result.get('flag'):

@@ -284,10 +284,10 @@ def test_messages():
     check('되묻기: diffs 만 받아도 됨', onto_check.ask_message((r or {}).get('diffs') or []) == m)
     check('되묻기: 다름 없으면 빈 글', onto_check.ask_message([]) == '')
     t = onto_check.trace_line(r)
-    check('생각 과정: 다름', t.startswith('개념 지도 판독 기준표: 규칙 R-07·R-08 조건 [') and '대조 → 다름' in t, t)
+    check('생각 과정: 다름', t.startswith('규칙 조건 대조: 규칙 R-07·R-08 조건 [') and '대조 → 다름' in t, t)
     r = run(Q_AGE_READ, {'attr.age': ('65세인데', 65)})
     t = onto_check.trace_line(r)
-    check('생각 과정: 통과', t.startswith('개념 지도 판독 기준표: 규칙 R-07·R-08 조건 [나이') and '대조 → 통과' in t, t)
+    check('생각 과정: 통과', t.startswith('규칙 조건 대조: 규칙 R-07·R-08 조건 [나이') and '대조 → 통과' in t, t)
     check('생각 과정: 블록 없음', '대조 안 함' in onto_check.trace_line(None))
 
 
