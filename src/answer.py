@@ -2092,6 +2092,7 @@ def _answer(question, question_id='', topk=None, model=None, oracle_context=None
                 ans = base
             else:
                 t1 = time.time()
+                _progress(f'초안 {len(drafts)}개 중 다른 초안과 가장 많이 겹치는 초안을 기준으로 합치는 중(초안 합의 병합)')
                 ans = merge_drafts(question, ctx, drafts, effort=merge_effort, hits=cite_hits)
                 trace.append(f'자기일관성: 초안 {len(drafts)}개 ({t_draft:.1f}s, 겹침 {agree:.2f}) '
                              f'생성 후 병합 ({time.time() - t1:.1f}s)')

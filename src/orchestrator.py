@@ -850,6 +850,9 @@ def plan_steps(trace_lines, action, reason, state, calc=None, verify=None):
     pf = field('세금 계산 질문:')
     if pf:
         steps.append({'step': '근거 정리', 'detail': pf})
+    sc = field('자기일관성:')                 # 초안 여러 개를 뽑아 합친 답 — 시연 화면에서도 보이게(10-16)
+    if sc:
+        steps.append({'step': '초안 합의 병합', 'detail': sc})
     if verify is not None:
         d = f"{verify['matched']}/{verify['checked']} 확인 · {verify['action']}"
         steps.append({'step': '숫자 대조', 'detail': d})

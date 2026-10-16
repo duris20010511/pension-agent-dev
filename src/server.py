@@ -151,6 +151,7 @@ def health():
         "chat_calc_effort": CHAT_CALC_EFFORT,
         "chat_fast_effort": CHAT_FAST_EFFORT,
         "chat_precise_effort": CHAT_PRECISE_EFFORT,
+        "chat_samples": CHAT_SAMPLES,
     }
 
 
@@ -384,6 +385,11 @@ CHAT_CALC_EFFORT = os.environ.get("AGENT_CHAT_CALC_EFFORT", "none").strip()
 # 빠진 핵심이 문항당 +0.15~0.30 — 꼼꼼함이 필요하면 정밀 모드. 정밀 모드는 예전 '초안 3개(low) + 병합'(체감 약 50초) 대신 high 1개.
 CHAT_FAST_EFFORT = os.environ.get("AGENT_CHAT_FAST_EFFORT", "low").strip() or "high"
 CHAT_PRECISE_EFFORT = os.environ.get("AGENT_CHAT_PRECISE_EFFORT", "high").strip() or "high"
+# 시연 채널 초안 수(10-16 사용자 결정: 시연에서도 초안 합의 병합 — 빠른·정밀 모드 모두, 계산 답까지 초안 3개 + 병합).
+# 대회 규격(/answer)은 계산 답을 초안 1개로 줄이지만(answer.CALC_FAST) 시연은 생성하는 답 모두 병합한다. 1 이면 예전(초안 1개).
+# 출력 상한: 빠른 모드는 초안이 여럿이면 대회 규격과 같은 DRAFT_MAXTOK(1,600). 토큰 차감 = 입력 + 상한이라 4096 × 3 이면
+# 이어지는 장면이 분당 6만 토큰 한도 대기(clova._throttle, 최대 70초)에 걸리기 쉽다. 정밀 모드(생각 high)는 생각이 길어 4096 그대로.
+CHAT_SAMPLES = max(1, int(os.environ.get("AGENT_CHAT_SAMPLES", "3") or 3))
 
 # 시연 화면 실시간 단계(10-15) — 답을 기다리는 동안 화면이 0.5초마다 GET /chat/progress 로 '지금 하는 일'과 지금까지의 단계·규칙
 # 계산값을 묻는다. 생성이 시간의 98%라(속도 세션 실측) 규칙이 이미 낸 숫자를 먼저 보여 준다. 답 글자는 담지 않는다 — 답은 숫자 대조를
@@ -574,13 +580,15 @@ async def chat(body: dict = Body(...)):
     try:
         history = STORE.history(sid) if sid else None
         try:
-            # 빠른 모드: 초안 1개(생각 low, 카드 답 low, 계산 답 none) / 정밀 모드: 초안 1개(생각 high) — 화면에서 고른다
+            # 빠른 모드: 초안 CHAT_SAMPLES개(생각 low, 카드 답 low, 계산 답 none) + 병합 / 정밀 모드: 초안 CHAT_SAMPLES개(생각 high) + 병합
             if str(body.get("mode") or "") == "fast":
-                kw = {"samples": 1, "draft_effort": CHAT_FAST_EFFORT, "draft_maxtok": 4096}
+                kw = {"samples": CHAT_SAMPLES, "draft_effort": CHAT_FAST_EFFORT}
+                if CHAT_SAMPLES <= 1:
+                    kw["draft_maxtok"] = 4096
                 if CHAT_CALC_EFFORT:
                     kw["calc_effort"] = CHAT_CALC_EFFORT
             else:
-                kw = {"samples": 1, "draft_effort": CHAT_PRECISE_EFFORT, "draft_maxtok": 4096}
+                kw = {"samples": CHAT_SAMPLES, "draft_effort": CHAT_PRECISE_EFFORT, "draft_maxtok": 4096}
             if prog:
                 kw["progress"] = prog
             r = None
