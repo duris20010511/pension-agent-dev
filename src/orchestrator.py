@@ -116,11 +116,21 @@ def restate_1500(question, calc):
     나이·계좌가 없으면 재작성(HCX-005)에 기대게 된다(10-18 팀 시연 점검: 버튼을 누르면 계산이 안 됨).
     '만 N세'로 시작하고 계좌 이름을 넣어야 memory.is_followup 이 이어지는 질문으로 보지 않아 재작성을 건너뛴다."""
     p = (calc or {}).get('parsed') or {}
-    age = next((a for a in (p.get('age'), p.get('rate_age')) if isinstance(a, int)), None)
+    # 세율은 받는 나이로 정한다(taxcalc.rate_age — 1,800만 원 블록과 같은 나이). '지금 68세인데 72세부터'에 지금 나이만 담으면
+    # 버튼 답이 5.5%(82만 5천 원)로 나와 블록의 4.4%와 어긋났다. 받는 나이가 엇갈리면(rate_age_unsure) 나이를 담지 않는다
+    ra, now = taxcalc.rate_age(p), p.get('age')
+    if isinstance(ra, int) and p.get('rate_age') and now is not None and now != ra:
+        who = (f'지금 만 {now}세' if isinstance(now, int) else f'지금 {now[1]}대') + f'이고 {ra}세부터 '
+    elif isinstance(ra, int):
+        who = f'만 {ra}세, '
+    elif isinstance(ra, tuple):
+        who = f'{ra[1]}대, '                          # '60대인데' — 연대도 세율 구간이 하나면 그대로 담는다
+    else:
+        who = ''
     found = {'IRP' if re.match(r'(?i)irp|개인형', m) else '연금저축'
              for m in re.findall(r'연금저축|(?i:irp)|개인형\s*퇴직연금', question or '')}
     acct = found.pop() if len(found) == 1 else '연금저축이나 IRP'
-    return (f'만 {age}세, ' if age is not None else '') + f'{acct}에서 연금으로 연 1,500만 원 받으면 세금은 얼마예요?'
+    return who + f'{acct}에서 연금으로 연 1,500만 원 받으면 세금은 얼마예요?'
 
 
 def next_actions(action, question, calc=None, verify=None, category=''):

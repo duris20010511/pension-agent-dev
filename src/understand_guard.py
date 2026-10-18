@@ -175,7 +175,8 @@ def guard(q):
         policy.append(INJECTION_POLICY)
     push = detect_push(q)
     if push:
-        reasons += push
+        # 화면 '안전 관문' 줄에 정규식 원문('딱\s*하나만')이 그대로 뜨지 않게 질문에서 찾은 글자로 적는다(10-18)
+        reasons += list(dict.fromkeys(f"단정 표현 '{re.search(p, q).group(0)}'" for p in push))
         policy.append('단정 추천 지양 · 조건별 결론 제시')
     if re.search(CALC_REQUEST, q):
         reasons.append('금액 계산 요구')
