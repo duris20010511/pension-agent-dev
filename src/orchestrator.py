@@ -110,6 +110,19 @@ def maps_guide(question, calc=None):
             'payload': f'{path} — {what}. ({MAPS_AS_OF} MAPS 앱에서 확인한 경로 안내예요. 이 화면과 연동되어 있지는 않아요)'}
 
 
+def restate_1500(question, calc):
+    """'연 1,500만 원 이하로 받으면?' 버튼이 보낼 문장 — 앞 질문의 나이·계좌를 담아 혼자서도 계산되게 쓴다.
+    '1,500만 원 이하로'처럼 금액 뒤에 기준 말이 붙으면 taxcalc 는 고객 금액이 아니라 기준 인용으로 읽어 버리고,
+    나이·계좌가 없으면 재작성(HCX-005)에 기대게 된다(10-18 팀 시연 점검: 버튼을 누르면 계산이 안 됨).
+    '만 N세'로 시작하고 계좌 이름을 넣어야 memory.is_followup 이 이어지는 질문으로 보지 않아 재작성을 건너뛴다."""
+    p = (calc or {}).get('parsed') or {}
+    age = next((a for a in (p.get('age'), p.get('rate_age')) if isinstance(a, int)), None)
+    found = {'IRP' if re.match(r'(?i)irp|개인형', m) else '연금저축'
+             for m in re.findall(r'연금저축|(?i:irp)|개인형\s*퇴직연금', question or '')}
+    acct = found.pop() if len(found) == 1 else '연금저축이나 IRP'
+    return (f'만 {age}세, ' if age is not None else '') + f'{acct}에서 연금으로 연 1,500만 원 받으면 세금은 얼마예요?'
+
+
 def next_actions(action, question, calc=None, verify=None, category=''):
     """답 아래 '다음 행동' 버튼. kind: chat(그 문장으로 다시 묻기) · diy(DIY 설계 열기) · guide(MAPS 화면 경로 안내) ·
     handoff(상담 연결). 4개까지, '상담 연결'은 늘 마지막에 남긴다."""
@@ -125,7 +138,7 @@ def next_actions(action, question, calc=None, verify=None, category=''):
     for b in (calc or {}).get('blocks', []):
         if b['topic'] == '연금 수령 세금' and (b.get('yearly') or 0) > 1500:
             acts.append({'label': '연 1,500만 원 이하로 받으면?', 'kind': 'chat',
-                         'payload': '연 1,500만 원 이하로 나눠 받으면 세금은 얼마예요?'})
+                         'payload': restate_1500(question, calc)})
     if is_product_ask(question):
         acts.append({'label': '투자성향 진단 받기', 'kind': 'handoff', 'payload': '적합성 진단'})
     if verify and verify.get('contradiction'):

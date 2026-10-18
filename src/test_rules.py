@@ -1165,6 +1165,23 @@ def check_mirae_1013(fail):
     q2 = '만 62세, IRP 평가액 1억, 퇴직금 6,000만 원, 나머지는 공제받은 돈이에요. 퇴직소득세 실효세율 4%, 올해 퇴직해서 처음 받아요. 1,800만 원 빼면?'
     acts = orchestrator.next_actions('계산 → 설명', q2, taxcalc.compute(q2))
     ok(acts and acts[0]['kind'] == 'chat' and acts[0]['label'] == '올해 한도까지만 받으면?', f'3턴 버튼 자리가 바뀜: {[a["label"] for a in acts]}')
+    # '연 1,500만 원 이하로 받으면?' 버튼 문장은 혼자서도 계산되고(나이·계좌를 담음) 이어지는 질문으로 읽히지 않는다(10-18)
+    import memory
+    for q, want in [('65세, 이제 출근 대신 연금 받아요. 연금저축에서 연 1,800만 원 받으면 1,500만 원 넘는 부분에만 세금 붙는 거 맞죠?',
+                     '82만 5천 원'),
+                    ('62세, IRP에서 연 1,800만 원 받으면 세금은?', '82만 5천 원'),
+                    ('72세, 연금저축에서 연 2,400만 원 받으면 세금은?', '66만 원'),
+                    ('연금저축에서 연 1,800만 원 받으면 세금은?', None)]:
+        btn = [a for a in orchestrator.next_actions('계산 → 설명', q, taxcalc.compute(q)) if a['label'] == '연 1,500만 원 이하로 받으면?']
+        ok(len(btn) == 1, f'1,500만 원 버튼이 없음: {q[:30]}')
+        if not btn:
+            continue
+        c2 = taxcalc.compute(btn[0]['payload'])
+        blk = [b for b in (c2 or {}).get('blocks', []) if b['topic'] == '연금 수령 세금']
+        ok(blk and blk[0].get('yearly') == 1500 and blk[0].get('key_figure') == want,
+           f'1,500만 원 버튼 문장이 계산되지 않음: {btn[0]["payload"]} → {[(b["topic"], b.get("key_figure")) for b in blk]}')
+        ok(not memory.is_followup(btn[0]['payload'], [{'q': q, 'needs': []}])[0],
+           f'1,500만 원 버튼 문장이 이어지는 질문으로 읽혀 재작성을 탐: {btn[0]["payload"]}')
     # 답 본문(대회 규격 /answer)에는 MAPS 경로가 들어가지 않는다 — 문서 58건 밖 정보
     ok(not any('MAPS' in b['text'] for b in (taxcalc.compute(scene) or {}).get('blocks', [])), '계산 블록(답 근거)에 MAPS 경로가 들어감')
     return n
