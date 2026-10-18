@@ -1914,10 +1914,10 @@ function renderHitbar() {
   const q = MAP.hitQ;
   const st = asList(MAP.data && MAP.data.stages).find(x => x.id === hit.stage);
   hb.hidden = false;
-  hb.replaceChildren(h('b', null, '최근 상담 질문'), h('span', { class: 'q' }, `“${q.length > 90 ? q.slice(0, 90) + '…' : q}”`),
+  hb.replaceChildren(...[h('b', null, '최근 상담 질문'), h('span', { class: 'q' }, `“${q.length > 90 ? q.slice(0, 90) + '…' : q}”`),
     h('span', null, [st ? st.label + ' 단계' : '', asList(hit.cells).length ? `세금 지도 ${asList(hit.cells).length}칸` : ''].filter(Boolean).join(' · ')),
     !asList(hit.cells).length && hit.note ? h('span', { class: 'q' }, String(hit.note)) : null,
-    h('button', { type: 'button', onclick: () => { MAP.hit = null; renderHitbar(); applyMapClasses(); } }, '표시 지우기'));
+    h('button', { type: 'button', onclick: () => { MAP.hit = null; renderHitbar(); applyMapClasses(); } }, '표시 지우기')].filter(x => x != null));   // null 은 'null' 글자로 찍힌다
 }
 async function refreshHits() {
   const r = lastChatResp();
@@ -2094,7 +2094,7 @@ function nodeSources(nd) {
   if (!src.length) return h('div', { class: 'nsrc' }, h('h5', null, '출처'), h('p', { class: 'empty' }, '붙은 문서 원문이 없어요.'));
   const more = Number(nd.n_sources || 0) - src.length;
   return h('div', { class: 'nsrc' }, h('h5', null, '출처 문서 원문'),
-    h('ul', null, src.map(s => h('li', null, docChip(s.file), s.as_of ? h('span', { class: 'muted' }, ' · 기준일 ' + s.as_of) : null,
+    h('ul', null, src.map(s => h('li', null, docChip(s.file), s.as_of && s.as_of !== '미상' ? h('span', { class: 'muted' }, ' · 기준일 ' + s.as_of) : null,
       h('div', { class: 'nq', title: String(s.text || '') }, '“' + clip(s.text) + '”'),
       s.via ? h('div', { class: 'nvia muted' }, s.via) : null))),
     more > 0 ? h('p', { class: 'muted', style: 'margin:4px 0 0' }, `외 ${more}건`) : null);
@@ -2113,7 +2113,7 @@ function pickNode(svg, nd, nodes, edges, colors, legend) {
   if (nd.title) meta.push(nd.title);
   if (nd.audience) meta.push(audLabel(nd.audience));
   if (nd.type === 'doc') meta.push('기준일 ' + (nd.as_of || '미상'));
-  $('#ninfo').replaceChildren(
+  $('#ninfo').replaceChildren(...[   // 빈 칸(null)은 걸러 낸다 — replaceChildren 은 null 을 'null' 글자로 찍는다
     h('h4', null, nd.label || nd.id),
     h('span', { class: 'tag', style: `background:${colors[tkey(nd)]};color:#fff` }, typeLabel(tkey(nd), legend)),
     nd.summary ? h('p', { style: 'margin:6px 0 0' }, String(nd.summary)) : null,
@@ -2122,7 +2122,7 @@ function pickNode(svg, nd, nodes, edges, colors, legend) {
       ? h('li', null, h('b', null, e.label || '→'), ' → ', nm(e.to))
       : h('li', null, nm(e.from), ' → ', h('b', null, e.label || '→'), ' → 이 노드'))) : h('p', { class: 'empty' }, '연결 없음'),
     nodeSources(nd),
-    rid ? h('button', { class: 'btn small', type: 'button', style: 'margin-top:8px', onclick: () => showRule(rid) }, '규칙표에서 보기') : null);
+    rid ? h('button', { class: 'btn small', type: 'button', style: 'margin-top:8px', onclick: () => showRule(rid) }, '규칙표에서 보기') : null].filter(x => x != null));
 }
 function renderGraph() {
   const box = $('#graph-box');
@@ -2376,6 +2376,22 @@ window.__selftest = function () {
     return (g.querySelectorAll('.node').length === 60 && g.querySelectorAll('.edge').length === 80) || `${g.querySelectorAll('.node').length}/${g.querySelectorAll('.edge').length}`;
   });
   t('그래프 노드 1개·빈 그래프', () => drawGraphNode({ nodes: [{ id: 'a', label: 'a' }], edges: [] }, 'layers').querySelectorAll('.node').length === 1 && drawGraphNode({}, 'circle').querySelectorAll('.node').length === 0);
+  t("노드 상세 칸·세금 지도 질문 줄에 'null' 글자 없음", () => {
+    const nulls = el => [...el.childNodes].filter(n => n.nodeType === 3 && n.textContent === 'null').length;
+    const ni = $('#ninfo'), hb = $('#hitbar');
+    const keep = [...ni.childNodes], keepHit = [MAP.hit, MAP.hitQ, hb && hb.hidden, hb && [...hb.childNodes]];
+    try {
+      const nd = { id: 'x', label: 'x', type: 'product' };
+      pickNode(document.createElementNS('http://www.w3.org/2000/svg', 'svg'), nd, [nd], [], { product: '#000' }, []);
+      const a = nulls(ni);
+      let b = 0;
+      if (hb) { MAP.hit = { cells: [{ source: 'credit', mode: '연금수령' }], stage: null, note: '' }; MAP.hitQ = '질문'; renderHitbar(); b = nulls(hb); }
+      return (a === 0 && b === 0) || `ninfo ${a} · hitbar ${b}`;
+    } finally {
+      ni.replaceChildren(...keep);
+      if (hb) { [MAP.hit, MAP.hitQ] = keepHit; hb.hidden = keepHit[2]; hb.replaceChildren(...keepHit[3]); }
+    }
+  });
   t('노드 출처: 문서 칩·원문·외 N건, 문서 노드는 없음', () => {
     const el = nodeSources({ type: 'product', n_sources: 3, sources: [{ file: 'doc58.txt', as_of: '2025', text: '원리금보장상품의 경우 100% 이내로 운용 가능함', via: 'DC계좌 —허용한다(100%)→ 원리금보장' }] });
     const none = nodeSources({ type: 'tax', sources: [] });
