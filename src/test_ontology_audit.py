@@ -126,6 +126,19 @@ def test_data():
     check('[D10] DC·IRP —허용한다(70%)→ 위험자산 / (100%)→ 투자위험을 낮춘 실적배당',
           all(edge(a, 'product.risk') and edge(a, 'product.risk')[0]['label'] == '허용한다(70%)' and edge(a, 'product.lowrisk')
               for a in ('account.dc', 'account.irp')) and not edge('account.dc', 'product.performance'))
+    # 원리금보장 노드만 연결 없이 떠 있었다(10-18) — doc56 DC/IRP 투자한도 표·doc58 특례 ① 원문으로 100%
+    check('[D10] DC·IRP —허용한다(100%)→ 원리금보장 (doc58 특례 ①·doc56 표)',
+          all(edge(a, 'product.guaranteed') and edge(a, 'product.guaranteed')[0]['label'] == '허용한다(100%)'
+              and edge(a, 'product.guaranteed')[0]['doc'] == 'doc58'
+              and any(q['doc'] == 'doc56' for q in edge(a, 'product.guaranteed')[0].get('quotes', []))
+              for a in ('account.dc', 'account.irp')))
+    g = ontology.graph()
+    deg = {n['id']: 0 for n in g['nodes']}
+    for e in g['edges']:
+        deg[e['from']] = deg.get(e['from'], 0) + 1
+        deg[e['to']] = deg.get(e['to'], 0) + 1
+    check('[D10] 화면 개념 지도에 연결 없는 노드가 없음', not [k for k, v in deg.items() if v == 0],
+          str([k for k, v in deg.items() if v == 0]))
     e = edge('account.savings', 'fund.retire')[0]
     check('[D11] 연금저축 ← 퇴직금 엣지: 55세 이상 조건을 떼지 않음', e['quote'].startswith('만 55세 이상이 되면')
           and '55세 미만 법정퇴직금과 DC 퇴직금은 IRP' in e['note'])
