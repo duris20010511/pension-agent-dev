@@ -438,6 +438,11 @@ details.more summary { cursor: pointer; font-size: 13px; color: var(--navy); fon
 .ninfo { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 14px; }
 .ninfo h4 { margin: 0 0 4px; font-size: 17px; }
 .ninfo ul { margin: 6px 0 0; padding-left: 1.1em; }
+.ninfo .nsrc { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.ninfo .nsrc h5 { margin: 0; font-size: 13px; }
+.ninfo .nsrc li { margin: 6px 0; }
+.ninfo .nq { font-size: 13px; line-height: 1.45; margin-top: 2px; }
+.ninfo .nvia { font-size: 12px; }
 svg .edge { fill: none; stroke: #b9c3d0; stroke-width: 1.1; transition: opacity .15s; }
 svg .elabel { font-size: 11px; fill: var(--orange-d); font-weight: 700; display: none; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
 svg .node { cursor: pointer; transition: opacity .15s; }
@@ -2081,6 +2086,19 @@ function unfocus(svg) {
   svg.classList.remove('focus');
   svg.querySelectorAll('.hl').forEach(el => el.classList.remove('hl'));
 }
+/* 노드가 나온 문서 원문 — 아래 문서 줄에 그려지지 않은 문서도 여기서 보인다(GET /ontology 의 nodes[].sources) */
+function nodeSources(nd) {
+  if (nd.type === 'doc') return null;
+  const src = asList(nd.sources);
+  const clip = t => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > 140 ? s.slice(0, 140) + '…' : s; };
+  if (!src.length) return h('div', { class: 'nsrc' }, h('h5', null, '출처'), h('p', { class: 'empty' }, '붙은 문서 원문이 없어요.'));
+  const more = Number(nd.n_sources || 0) - src.length;
+  return h('div', { class: 'nsrc' }, h('h5', null, '출처 문서 원문'),
+    h('ul', null, src.map(s => h('li', null, docChip(s.file), s.as_of ? h('span', { class: 'muted' }, ' · 기준일 ' + s.as_of) : null,
+      h('div', { class: 'nq', title: String(s.text || '') }, '“' + clip(s.text) + '”'),
+      s.via ? h('div', { class: 'nvia muted' }, s.via) : null))),
+    more > 0 ? h('p', { class: 'muted', style: 'margin:4px 0 0' }, `외 ${more}건`) : null);
+}
 function pickNode(svg, nd, nodes, edges, colors, legend) {
   svg.querySelectorAll('.node.pick').forEach(el => el.classList.remove('pick'));
   const id = nid(nd.id);
@@ -2103,6 +2121,7 @@ function pickNode(svg, nd, nodes, edges, colors, legend) {
     rel.length ? h('ul', null, rel.map(e => nid(e.from) === id
       ? h('li', null, h('b', null, e.label || '→'), ' → ', nm(e.to))
       : h('li', null, nm(e.from), ' → ', h('b', null, e.label || '→'), ' → 이 노드'))) : h('p', { class: 'empty' }, '연결 없음'),
+    nodeSources(nd),
     rid ? h('button', { class: 'btn small', type: 'button', style: 'margin-top:8px', onclick: () => showRule(rid) }, '규칙표에서 보기') : null);
 }
 function renderGraph() {
@@ -2357,6 +2376,13 @@ window.__selftest = function () {
     return (g.querySelectorAll('.node').length === 60 && g.querySelectorAll('.edge').length === 80) || `${g.querySelectorAll('.node').length}/${g.querySelectorAll('.edge').length}`;
   });
   t('그래프 노드 1개·빈 그래프', () => drawGraphNode({ nodes: [{ id: 'a', label: 'a' }], edges: [] }, 'layers').querySelectorAll('.node').length === 1 && drawGraphNode({}, 'circle').querySelectorAll('.node').length === 0);
+  t('노드 출처: 문서 칩·원문·외 N건, 문서 노드는 없음', () => {
+    const el = nodeSources({ type: 'product', n_sources: 3, sources: [{ file: 'doc58.txt', as_of: '2025', text: '원리금보장상품의 경우 100% 이내로 운용 가능함', via: 'DC계좌 —허용한다(100%)→ 원리금보장' }] });
+    const none = nodeSources({ type: 'tax', sources: [] });
+    return (el.querySelectorAll('.dchip[data-file="doc58.txt"]').length === 1 && el.textContent.includes('100% 이내로')
+      && el.textContent.includes('외 2건') && none.textContent.includes('붙은 문서 원문이 없어요') && nodeSources({ type: 'doc' }) === null)
+      || el.textContent.slice(0, 120);
+  });
 
   // 서버 실패 문구
   t("fetch 실패 → '서버 연결 안 됨'", () => errText(new ApiError('offline')) === '서버 연결 안 됨');

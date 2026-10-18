@@ -139,6 +139,15 @@ def test_data():
         deg[e['to']] = deg.get(e['to'], 0) + 1
     check('[D10] 화면 개념 지도에 연결 없는 노드가 없음', not [k for k, v in deg.items() if v == 0],
           str([k for k, v in deg.items() if v == 0]))
+    # 노드마다 출처(문서 원문) — 아래 문서 줄에 그려지지 않은 문서도 노드를 누르면 보인다(10-18)
+    nos = [n['label'] for n in g['nodes'] if n['type'] != 'doc' and not n.get('sources')]
+    check('[D10] 화면 개념 지도의 개념·규칙 노드마다 출처 원문이 있음', not nos, str(nos))
+    off = [(n['label'], s['file'], s['text'][:30]) for n in g['nodes'] for s in n.get('sources', [])
+           if _ws(s['text']) not in _ws(open(os.path.join(DOCS, s['file']), encoding='utf-8').read())]
+    check('[D10] 노드 출처 원문이 문서에 글자 그대로 있음', not off, str(off[:3]))
+    check('[D10] 노드 출처 수 표시: 보이는 것 ≤ 전체, 문서 노드에는 출처 칸 없음',
+          all(len(n['sources']) <= n['n_sources'] <= 999 for n in g['nodes'] if n['type'] != 'doc')
+          and not any('sources' in n for n in g['nodes'] if n['type'] == 'doc'))
     e = edge('account.savings', 'fund.retire')[0]
     check('[D11] 연금저축 ← 퇴직금 엣지: 55세 이상 조건을 떼지 않음', e['quote'].startswith('만 55세 이상이 되면')
           and '55세 미만 법정퇴직금과 DC 퇴직금은 IRP' in e['note'])

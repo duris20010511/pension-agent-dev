@@ -302,8 +302,74 @@ def graph():
     rate = {(r['from'], r['to']): r['rate'] for r in o['tax_matrix'].get('edge_rates', [])}
     for (a, b), modes in pair.items():
         add(a, b, '과세된다(' + '·'.join(modes) + (f" — {rate[(a, b)]}" if (a, b) in rate else '') + ')')
+    # 노드마다 출처 — 아래 문서 줄(남는 자리만큼)에 없는 문서도 노드를 누르면 어느 문서 어느 문장에서 나왔는지 보인다(10-18)
+    src = _sources(o)
+    for n in nodes:
+        if n['type'] != 'doc':
+            s = src.get(n['id'], [])
+            n['sources'], n['n_sources'] = s[:SRC_MAX], len(s)
     legend = [{'type': t, 'label': TYPE_LABEL[t]} for t in TYPE_LABEL if any(n['type'] == t for n in nodes)]
     return {'nodes': nodes, 'edges': edges, 'legend': legend}
+
+
+SRC_MAX = 5     # 노드 하나에 보일 출처 수(나머지는 '외 N건')
+
+
+def _sources(o):
+    """{노드 id: [{'file','id','title','as_of','text','via'}]} — 노드가 나온 문서 원문.
+    앞에 둔 것이 먼저 보인다: 규칙 노드는 자기 원문(RULEBOOK·ontology.json quotes) → 개념 노드 자체 원문 →
+    이름 붙은 관계의 원문(원문이 없으면 그 관계의 규칙 원문 한 줄) → 세금 표 칸 원문 → 노드에 걸리는 규칙 원문 한 줄."""
+    lab = {n['id']: n['label'] for n in o['nodes']}
+    out = {}
+
+    def put(nid, f, text, via):
+        if not f or not text:
+            return
+        lst = out.setdefault(nid, [])
+        if any(x['text'] == text for x in lst):
+            return
+        b = _brief(o, _file(f))
+        lst.append({'file': b['file'], 'id': b['id'], 'title': b['title'], 'as_of': b['as_of'], 'text': text, 'via': via})
+
+    def rule_quotes(rid):
+        r = o['rule_index'].get(rid) or {}
+        return [taxcalc.RULES[k] for k in r.get('quote_keys', []) if k in taxcalc.RULES] + \
+            [(q['doc'], q['quote']) for q in r.get('quotes', []) if q.get('quote')]
+
+    name = {r['id']: f"{r['id']} {r['name']}" for r in o['rules']}
+    for r in o['rules']:
+        for f, t in rule_quotes(r['id']):
+            put(r['id'], f, t, f"{name[r['id']]} 원문")
+    for n in o['nodes']:
+        put(n['id'], n.get('doc'), n.get('quote'), '개념 정의')
+        for q in n.get('quotes') or []:
+            put(n['id'], q.get('doc'), q.get('quote'), '개념 정의')
+    for e in o['edges']:
+        via = f"{lab.get(e['from'], e['from'])} —{e['label']}→ {lab.get(e['to'], e['to'])}"
+        qs = ([(e['doc'], e['quote'])] if e.get('doc') and e.get('quote') else []) + \
+            [(q['doc'], q['quote']) for q in e.get('quotes') or [] if q.get('quote')]
+        if not qs:
+            rids = list(dict.fromkeys(([e['rule']] if e.get('rule') else []) + list(e.get('rules') or [])))
+            qs = [rule_quotes(rid)[0] for rid in rids if rule_quotes(rid)]
+            via += f" ({'·'.join(rids)})" if rids else ''
+        for nid in (e['from'], e['to']):
+            for f, t in qs:
+                put(nid, f, t, via)
+    for c, v in zip(o['tax_matrix']['cells'], overview()['cells']):
+        via = f"세금 지도 {taxcalc.FUND_NAME[c['source']]} × {c['mode']} → {v['short']}"
+        for q in v['quotes'][:1]:
+            for nid in (SRC_NODE[c['source']], c['tax_node']):
+                if nid:
+                    put(nid, q['file'], q['text'], via)
+    for r in o['rules']:
+        rq = rule_quotes(r['id'])[:1]
+        targets = list(r['applies_to'])
+        if any(o['attr_index'][c['attr']]['of'] == 'Actor' for c in r['conditions'] if c['attr'] in o['attr_index']):
+            targets.append('actor.member')
+        for t in targets:
+            for f, tx in rq:
+                put(t, f, tx, name[r['id']])
+    return out
 
 
 # ---------------------------------------------------------------------------
